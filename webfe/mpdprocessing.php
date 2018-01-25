@@ -106,6 +106,8 @@ function process_mpd()
 
     $url_array[3] = $locate; //Used for e.g. placing intermediate files etc.
     $cmaf_val = $url_array[4];     
+    $check_dvb_conformance = $url_array[5];
+    $check_hbbtv_conformance = $url_array[6];
     //The status of the mpd is logged in the visitor's log file.
     writeMPDStatus($url_array[0]);
     
@@ -931,8 +933,16 @@ function process_mpd()
 
                 fclose($config_file);
 
-                if($cmaf_val == "yes")
-                    $command = $locate . '/' . $validatemp4 . " -atomxml -cmaf -logconsole -configfile " . $file_loc;//
+                if($cmaf_val == "yes" || $check_dvb_conformance || $check_hbbtv_conformance){
+                    $command = $locate . '/' . $validatemp4 . " -atomxml";
+                    if($cmaf_val == "yes")
+                        $command = $command . " -cmaf";
+                    if($check_dvb_conformance)
+                        $command = $command . " -dvb";
+                    if($check_hbbtv_conformance)
+                        $command = $command . " -hbbtv";
+                    $command = $command . " -logconsole -configfile " . $file_loc;
+                }
                 else
                     $command = $locate . '/' . $validatemp4 . " -logconsole -configfile " . $file_loc;
                 file_put_contents("command.txt", $command);

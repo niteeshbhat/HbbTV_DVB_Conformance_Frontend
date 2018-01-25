@@ -235,6 +235,9 @@
         margin-left: 8%;
         display: none;
     }
+    .profiles{
+        margin-top: -1%;
+    }
 
 </style>
     
@@ -274,6 +277,12 @@
     <form action="">
         <p class="sansserif"><input type="checkbox" id="mpdvalidation" class = "validation" value="0">MPD conformance only</p><br>
     </form>
+    <div class="profiles">
+            Select profile(s): <input type="checkbox" class="profile1" id="dvbprofile">
+                                    <label for="dvbprofile">DVB</label>
+                               <input type="checkbox" class="profile2" id="hbbtvprofile">
+                                    <label for="hbbtvprofile">HbbTV</label>
+    </div>
     <a id="dynamic" href="url" target="_blank" style="visibility:hidden;" >Dynamic timing validation</a>
 
 </div>
@@ -533,7 +542,18 @@ function submit()
         stringurl[2] = 1;
     else
    	stringurl[2] = 0 ;
+    
     stringurl[4] = "<?php echo $cmaf; ?>";
+    
+    if($("#dvbprofile").is(':checked'))
+        stringurl[5] = 1;
+    else
+        stringurl[5] = 0;
+    if($("#hbbtvprofile").is(':checked'))
+        stringurl[6] = 1;
+    else
+        stringurl[6] = 0;
+    
     initVariables();
     setUpTreeView();
     setStatusTextlabel("Processing...");
