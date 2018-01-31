@@ -140,6 +140,7 @@ function process_mpd()
     }
     
     if($check_dvb_conformance){
+        $mpdreport = fopen($locate . '/mpdreport.txt', 'a+b');
         $dom_doc = new DOMDocument('1.0');
         $dom_node = $dom_doc->importNode($dom_sxe, true);
         $dom_doc->appendChild($dom_node);
