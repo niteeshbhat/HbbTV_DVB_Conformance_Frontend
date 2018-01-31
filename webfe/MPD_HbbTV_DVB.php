@@ -7,21 +7,24 @@
  */
 
 function HbbTV_DVB_mpdvalidator($dom, $hbbtv, $dvb) {
+    global $locate, $string_info;
+    
+    $mpdreport = fopen($locate . '/mpdreport.txt', 'a+b');
     
     if($dvb){
-        DVB_mpdvalidator($dom);
+        DVB_mpdvalidator($dom, $mpdreport);
     }
     
     if($hbbtv){
-        HbbTV_mpdvalidator($dom);
+        HbbTV_mpdvalidator($dom, $mpdreport);
     }
     
+    fclose($mpdreport);
+    $temp_string = str_replace(array('$Template$'), array("mpdreport"), $string_info);
+    file_put_contents($locate . '/mpdreport.html', $temp_string);
 }
 
-function DVB_mpdvalidator($dom){
-    global $locate;
-    
-    $mpdreport = fopen($locate . '/mpdreport.txt', 'a+b');
+function DVB_mpdvalidator($dom, $mpdreport){
     
     $mpd_string = $dom->saveXML();
     $mpd_bytes = strlen($mpd_string);
@@ -32,7 +35,7 @@ function DVB_mpdvalidator($dom){
     $MPD = $dom->getElementsByTagName('MPD')->item(0);
     $profiles = $MPD->getAttribute('profiles');
     if(strpos($profiles, 'urn:dvb:dash:profile:dvb-dash:2014') === FALSE){
-        fwrite($mpdreport, "**'DVB check violated: Section 4.1- The URN for the profile (MPEG Interoperability Point) shall be \"urn:dvb:dash:profile:dvb-dash:2014\"', specified profile could not be found.\n");
+        fwrite($mpdreport, "**'DVB check violated: Section 4.1- The URN for the profile (MPEG Interoperability Point) SHALL be \"urn:dvb:dash:profile:dvb-dash:2014\"', specified profile could not be found.\n");
     }
     
     // Periods within MPD
@@ -58,7 +61,7 @@ function DVB_mpdvalidator($dom){
             foreach ($node->childNodes as $child){
                 
                 if($child->nodeName == 'SegmentList'){
-                    fwrite($mpdreport, "**'DVB check violated: Section 4.2.2- The Period.SegmentList shall not be present', but found in Period $period_count.\n");
+                    fwrite($mpdreport, "**'DVB check violated: Section 4.2.2- The Period.SegmentList SHALL not be present', but found in Period $period_count.\n");
                 }
             }
             
@@ -126,8 +129,8 @@ function DVB_mpdvalidator($dom){
                         if($adapt_height_present == false && $rep->getAttribute('height') == ''){
                             fwrite($mpdreport, "**'DVB check violated: Section 4.4- For any Representation within an Adaptation Set with @contentType=\"video\" @height attribute SHALL be present if not in the AdaptationSet element', could not be found in neither Period $period_count Adaptation Set " . ($i+1) . " nor Period $period_count Adaptation Set " . ($i+1) . " Representation " . ($j+1) . ".\n");
                         }
-                        if($adapt_width_present == false && $rep->getAttribute('width') == ''){
-                            fwrite($mpdreport, "**'DVB check violated: Section 4.4- For any Representation within an Adaptation Set with @contentType=\"video\" @width attribute SHALL be present if not in the AdaptationSet element', could not be found in neither Period $period_count Adaptation Set " . ($i+1) . " nor Period $period_count Adaptation Set " . ($i+1) . " Representation " . ($j+1) . ".\n");
+                        if($adapt_frameRate_present == false && $rep->getAttribute('frameRate') == ''){
+                            fwrite($mpdreport, "**'DVB check violated: Section 4.4- For any Representation within an Adaptation Set with @contentType=\"video\" @frameRate attribute SHALL be present if not in the AdaptationSet element', could not be found in neither Period $period_count Adaptation Set " . ($i+1) . " nor Period $period_count Adaptation Set " . ($i+1) . " Representation " . ($j+1) . ".\n");
                         }
                         if($adapt->getAttribute('sar') == '' && $rep->getAttribute('sar') == ''){
                             fwrite($mpdreport, "**'Warning for DVB check: Section 4.4- For any Representation within an Adaptation Set with @contentType=\"video\" @sar attribute SHOULD be present or inherited from the Adaptation Set', could not be found in neither Period $period_count Adaptation Set " . ($i+1) . " nor Period $period_count Adaptation Set " . ($i+1) . " Representation " . ($j+1) . ".\n");
@@ -140,7 +143,7 @@ function DVB_mpdvalidator($dom){
                     $adapt_role_element_found = false;
                     $adapt_audioChannelConfiguration_element_found = false;
                     $adapt_mimeType = $adapt->getAttribute('mimeType');
-                    $adapt_codecs = $adapt->getAttribute('mimeType');
+                    $adapt_codecs = $adapt->getAttribute('codecs');
                     $adapt_audioSamplingRate = $adapt->getAttribute('audioSamplingRate');
                     $adapt_specific_role_count = 0;
                     foreach($adapt->childNodes as $ch){
@@ -173,6 +176,10 @@ function DVB_mpdvalidator($dom){
                             }
                             if($ch->nodeName == 'AudioChannelConfiguration'){
                                 $rep_audioChannelConfiguration_element_found = true;
+                                $rep_audioChannelConfiguration_Scheme = $ch->getAttribute('schemeIdURI');
+                            }
+                            if($ch->nodeName == 'SubRepresentation'){
+                                $subrep_codecs[] = $ch->getAttribute('codecs');
                             }
                         }
                         
@@ -185,14 +192,50 @@ function DVB_mpdvalidator($dom){
                         if($adapt_mimeType == '' && $rep->getAttribute('mimeType') == ''){
                             fwrite($mpdreport, "**'DVB check violated: Section 6.1.1- All audio Representations SHALL either define or inherit the elements and attributes shown in Table 3', mimeType attribute could not be found in neither Period $period_count Adaptation Set " . ($i+1) . " nor Period $period_count Adaptation Set " . ($i+1) . " Representation " . ($j+1) . ".\n");
                         }
-                        if($adapt_codecs == '' && $rep->getAttribute('codecs') == ''){
+                        $rep_codecs = $rep->getAttribute('codecs');
+                        if($adapt_codecs == '' && $rep_codecs == ''){
                             fwrite($mpdreport, "**'DVB check violated: Section 6.1.1- All audio Representations SHALL either define or inherit the elements and attributes shown in Table 3', codecs attribute could not be found in neither Period $period_count Adaptation Set " . ($i+1) . " nor Period $period_count Adaptation Set " . ($i+1) . " Representation " . ($j+1) . ".\n");
                         }
                         if($adapt_audioSamplingRate == '' && $rep->getAttribute('audioSamplingRate') == ''){
                             fwrite($mpdreport, "**'DVB check violated: Section 6.1.1- All audio Representations SHALL either define or inherit the elements and attributes shown in Table 3', audioSamplingRate attribute could not be found in neither Period $period_count Adaptation Set " . ($i+1) . " nor Period $period_count Adaptation Set " . ($i+1) . " Representation " . ($j+1) . ".\n");
                         }
+                        
+                        if(strpos($adapt_codecs, 'ec-3') || strpos($adapt_codecs, 'ac-4') || strpos($rep_codecs, 'ec-3') || strpos($rep_codecs, 'ac-4') || strpos($subrep_codecs, 'ec-3') || strpos($subrep_codecs, 'ac-4')){
+                            if( ($rep_audioChannelConfiguration_element_found == false) || ($rep_audioChannelConfiguration_element_found && ($rep_audioChannelConfiguration_Scheme != 'tag:dolby.com,2014:dash:audio_channel_configuration:2011')) ){
+                                fwrite($mpdreport, "**'DVB check violated: Section 6.3- For E-AC-3 and AC-4 the AudioChannelConfiguration element SHALL use the \"tag:dolby.com,2014:dash:audio_channel_configuration:2011\" scheme URI', conformance is not satisfied in Period $period_count Adaptation Set " . ($i+1) . " Representation " . ($j+1) . " AudioChannelConfiguration.\n");
+                            }
+                        }
+                        if(strpos($adapt_codecs, 'dtsc') || strpos($adapt_codecs, 'dtsh') || strpos($adapt_codecs, 'dtse') || strpos($adapt_codecs, 'dtsi') ||
+                                strpos($rep_codecs, 'dtsc') || strpos($rep_codecs, 'dtsh') || strpos($rep_codecs, 'dtse') || strpos($rep_codecs, 'dtsi') ||
+                                in_array('dtsc', $subrep_codecs) || in_array('dtsh', $subrep_codecs) || in_array('dtse', $subrep_codecs) || in_array('dtsi', $subrep_codecs)){
+                            if( ($rep_audioChannelConfiguration_element_found == false) || ($rep_audioChannelConfiguration_element_found && ($rep_audioChannelConfiguration_Scheme != 'tag:dts.com,2014:dash:audio_channel_configuration:2012')) ){
+                                fwrite($mpdreport, "**'DVB check violated: Section 6.4- For all DTS audio formats AudioChannelConfiguration element SHALL use the \"tag:dts.com,2014:dash:audio_channel_configuration:2012\" for the @schemeIdURI attribute', conformance is not satisfied in Period $period_count Adaptation Set " . ($i+1) . " Representation " . ($j+1) . " AudioChannelConfiguration.\n");
+                            }
+                        }
                     }
                 }
+                
+                if($adapt->getAttribute('mimeType') == 'application\mp4'){
+                    $adapt_codecs = $adapt->getAttribute('codecs');
+                    
+                    for($j=0; $j<$reps_len; $j++){
+                        $rep = $reps[$j];
+                        
+                        $rep_codecs = $rep->getAttribute('codecs');
+                        foreach ($rep->childNodes as $ch){
+                            if($ch->nodeName == 'SubRepresentation'){
+                                $subrep_codecs[] = $ch->getAttribute('codecs');
+                            }
+                        }
+                        
+                        if(strpos($adapt_codecs, 'stpp') || strpos($rep_codecs, 'stpp') || in_array('stpp', $subrep_codecs)){
+                            if($adapt->getAttribute('contentType') == 'text'){
+                                fwrite($mpdreport, "**'DVB check violated: Section 7.1.1- The @contetnType attribute indicated for subtitles SHALL be \"text\"', found as ". $adapt->getAttribute('contentType') . " in Period $period_count Adaptation Set " . ($i+1) . ".\n");
+                            }
+                        }
+                    }
+                }
+                
                 
                 if($adapt_video_count > 1 && $main_video_found == false){
                     fwrite($mpdreport, "**'DVB check violated: Section 4.2.2- If a Period element contains multiple Adaptation Sets with @contentType=\"video\" then at least one Adaptation Set SHALL contain a Role element with @schemeIdUri=\"urn:mpeg:dash:role:2011\" and @value=\"main\"', could not be found in Period $period_count.\n");
@@ -210,10 +253,7 @@ function DVB_mpdvalidator($dom){
     }
 }
 
-function HbbTV_mpdvalidator($dom){
-    global $locate;
-    
-    $mpdreport = fopen($locate . '/mpdreport.txt', 'a+b');
+function HbbTV_mpdvalidator($dom, $mpdreport){
     
     $MPD = $dom->getElementsByTagName('MPD')->item(0);
 }
