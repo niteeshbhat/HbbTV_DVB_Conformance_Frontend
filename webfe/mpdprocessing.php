@@ -138,6 +138,21 @@ function process_mpd()
         echo $progressXML->asXML();
         exit;
     }
+    
+    if($check_dvb_conformance){
+        $dom_doc = new DOMDocument('1.0');
+        $dom_node = $dom_doc->importNode($dom_sxe, true);
+        $dom_doc->appendChild($dom_node);
+        $mpd_string = $dom_doc->saveXML();
+        $mpd_bytes = strlen($mpd_string);
+        if($mpd_bytes > 1024*256){
+            fwrite($mpdreport, "**'DVB check violated: Section 4.5- The MPD size before xlink resolution SHALL NOT exceed 256 Kbytes', found " . ($mpd_bytes/1024) . " Kbytes.\n");
+        }
+        $period_count = $dom_sxe->getElementsByTagName('Period')->length;
+        if($period_count > 64){
+            fwrite($mpdreport, "**'DVB check violated: Section 4.5- The MPD has a maximum of 64 periods before xlink resolution', found $period_count.\n");
+        }
+    }
 
     $validate_result = mpdvalidator($url_array, $locate, $foldername);
     writeMPDEndTime();
@@ -164,6 +179,10 @@ function process_mpd()
     $dom->appendChild($dom_sxe);
     $MPD = $dom->getElementsByTagName('MPD')->item(0); // access the parent "MPD" in mpd file
     createMpdFeatureList($dom, $schematronIssuesReport);
+    
+    if($check_hbbtv_conformance || $check_dvb_conformance){
+        HbbTV_DVB_mpdvalidator($dom, $check_hbbtv_conformance, $check_dvb_conformance);
+    }
 
     // skip the rest when we should exit
     if ($exit === true)
