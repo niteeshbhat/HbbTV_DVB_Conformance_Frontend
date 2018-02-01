@@ -10,7 +10,10 @@ function HbbTV_DVB_mpdvalidator($dom, $hbbtv, $dvb) {
     global $locate, $string_info;
     
     $mpdreport = fopen($locate . '/mpdreport.txt', 'a+b');
-    
+    fwrite($mpdreport, "HbbTV-DVB Validation \n");
+    fwrite($mpdreport, "===========================\n\n");
+
+
     if($dvb){
         DVB_mpdvalidator($dom, $mpdreport);
     }
@@ -256,4 +259,64 @@ function DVB_mpdvalidator($dom, $mpdreport){
 function HbbTV_mpdvalidator($dom, $mpdreport){
     
     $MPD = $dom->getElementsByTagName('MPD')->item(0);
+    // Periods within MPD
+    $period_count = 0;
+    foreach($MPD->childNodes as $node){
+        if($node->nodeName == 'Period'){
+            $period_count++;
+           
+            // Adaptation Sets within each Period
+            $adapts = $node->getElementsByTagName('AdaptationSet');
+            //Following has error reporting code if MPD element is not part of validating profile.
+            for($i=0; $i< ($adapts->length); $i++){
+                $subSegAlign=$adapts->item($i)->getAttribute('subsegmentAlignment');
+                if($subSegAlign == TRUE)
+                    fwrite($mpdreport, "###'HbbTV profile violated: The MPD contains an attribute that is not part of the HbbTV profile', i.e., found 'subsegmentAlignment' as true in AdaptationSet ".($i+1)." \n");
+
+                
+                $reps = $adapts->item($i)->getElementsByTagName('Representation');
+                $startWithSAP=$adapts->item($i)->getAttribute('subsegmentStartsWithSAP');
+                    if($startWithSAP == 1 || $startWithSAP ==2)
+                        fwrite($mpdreport, "###'HbbTV profile violated: The MPD contains an attribute that is not part of the HbbTV profile', i.e., found 'subsegmentStartsWithSAP' ".$startWithSAP." in AdaptationSet ".($i+1). " \n");
+                    else if ($startWithSAP==3){
+                        if(!($reps->length>1))
+                            fwrite($mpdreport, "###'HbbTV profile violated: The MPD contains an attribute that is not part of the HbbTV profile', i.e., found 'subsegmentStartsWithSAP' ".$startWithSAP." in AdaptationSet ".($i+1). " not containing more than one Representation \n");
+
+                      
+                    }
+                for($j=0;$j<($reps->length);$j++){
+                    $baseURL=$reps->item($j)->getElementsByTagName('BaseURL');
+                    if($baseURL->length>0)
+                        fwrite($mpdreport, "###'HbbTV profile violated: The MPD contains an element that is not part of the HbbTV profile', i.e., found 'BaseURL' element in Representation ".($j+1)." of AdaptationSet ".($i+1). ". \n");
+                    if ($startWithSAP==3){
+                      $currentChild=$reps->item($j);
+                        $currentId= $currentChild->getAttribute('mediaStreamStructureId');
+                        while($currentChild && $currentId!=NULL){
+                            $currentChild=nextElementSibling($currentChild);
+                            if($currentChild!==NULL){
+                                $nextId=$currentChild->getAttribute('mediaStreamStructureId');
+                                if($currentId==$nextId){
+                                    fwrite($mpdreport, "###'HbbTV profile violated: The MPD contains an attribute that is not part of the HbbTV profile', i.e., found 'subsegmentStartsWithSAP' ".$startWithSAP." in AdaptationSet ".($i+1). " with same value of mediaStreamStructureId in more than one Representation \n");
+
+                                }
+                            }
+                        }
+                     }
+
+                }
+                
+            }
+    
+        }  
+    }
+}
+//Function to find the next Sibling. php funciton next_sibling() is not working.So using this helper function.
+function nextElementSibling($node)
+{
+    while ($node && ($node = $node->nextSibling)) {
+        if ($node instanceof DOMElement) {
+            break;
+        }
+    }
+    return $node;
 }
