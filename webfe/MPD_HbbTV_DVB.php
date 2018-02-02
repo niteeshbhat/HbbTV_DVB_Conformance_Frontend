@@ -25,6 +25,16 @@ function HbbTV_DVB_mpdvalidator($dom, $hbbtv, $dvb) {
     fclose($mpdreport);
     $temp_string = str_replace(array('$Template$'), array("mpdreport"), $string_info);
     file_put_contents($locate . '/mpdreport.html', $temp_string);
+    
+    //Return 'warning' or 'error' to the mpdprocessing part.
+    $returnValue="true";
+    $mpdreportText=file_get_contents($locate . '/mpdreport.txt');
+    if(strpos($mpdreportText, '###')!=FALSE)
+            $returnValue="error";
+    elseif(strpos($mpdreportText, 'Warning')!=FALSE)
+             $returnValue="warning";
+    
+    return $returnValue;
 }
 
 function DVB_mpdvalidator($dom, $mpdreport){
@@ -277,7 +287,7 @@ function HbbTV_mpdvalidator($dom, $mpdreport){
                 $reps = $adapts->item($i)->getElementsByTagName('Representation');
                 $startWithSAP=$adapts->item($i)->getAttribute('subsegmentStartsWithSAP');
                     if($startWithSAP == 1 || $startWithSAP ==2)
-                        fwrite($mpdreport, "###'HbbTV profile violated: The MPD contains an attribute that is not part of the HbbTV profile', i.e., found 'subsegmentStartsWithSAP' ".$startWithSAP." in AdaptationSet ".($i+1). " \n");
+                        fwrite($mpdreport, "###:'HbbTV profile violated: The MPD contains an attribute that is not part of the HbbTV profile', i.e., found 'subsegmentStartsWithSAP' ".$startWithSAP." in AdaptationSet ".($i+1). " \n");
                     else if ($startWithSAP==3){
                         if(!($reps->length>1))
                             fwrite($mpdreport, "###'HbbTV profile violated: The MPD contains an attribute that is not part of the HbbTV profile', i.e., found 'subsegmentStartsWithSAP' ".$startWithSAP." in AdaptationSet ".($i+1). " not containing more than one Representation \n");
