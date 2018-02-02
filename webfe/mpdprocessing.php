@@ -169,9 +169,6 @@ function process_mpd()
         else
             $temp_mpdres = $temp_mpdres . "false ";
     }
-    $progressXML->MPDConformance = $temp_mpdres;
-    $progressXML->MPDConformance->addAttribute('url', str_replace($_SERVER['DOCUMENT_ROOT'], 'http://' . $_SERVER['SERVER_NAME'], $locate . '/mpdreport.txt'));
-    $progressXML->asXml(trim($locate . '/progress.xml'));
        
     //Create feature list here so that only MPD Conformance also shows feature list.
     $dom = new DOMDocument('1.0');
@@ -180,11 +177,17 @@ function process_mpd()
     $dom->appendChild($dom_sxe);
     $MPD = $dom->getElementsByTagName('MPD')->item(0); // access the parent "MPD" in mpd file
     createMpdFeatureList($dom, $schematronIssuesReport);
-    
+       
     if($check_hbbtv_conformance || $check_dvb_conformance){
-        HbbTV_DVB_mpdvalidator($dom, $check_hbbtv_conformance, $check_dvb_conformance);
+        $result_hbbtvDvb=HbbTV_DVB_mpdvalidator($dom, $check_hbbtv_conformance, $check_dvb_conformance);
+        if($result_hbbtvDvb!=="")
+            $temp_mpdres = $temp_mpdres . $result_hbbtvDvb;
     }
-
+    
+    $progressXML->MPDConformance = $temp_mpdres;
+    $progressXML->MPDConformance->addAttribute('url', str_replace($_SERVER['DOCUMENT_ROOT'], 'http://' . $_SERVER['SERVER_NAME'], $locate . '/mpdreport.txt'));
+    $progressXML->asXml(trim($locate . '/progress.xml'));
+    
     // skip the rest when we should exit
     if ($exit === true)
     { //If session should be destroyed
