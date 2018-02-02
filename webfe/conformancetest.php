@@ -682,6 +682,7 @@ function processmpdresults(MPDtotalResultXML)
 //        console.log("totarr=");
 //        console.log(totarr);
     var failed ='false';
+    var hbbtvDvbWarning='false';
 
     repid =[];
     tree.loadJSONObject({
@@ -728,6 +729,27 @@ function processmpdresults(MPDtotalResultXML)
     }
     totarr.splice(0,1);
     x++;
+    if($("#dvbprofile").is(':checked') || $("#hbbtvprofile").is(':checked'))
+    {
+        if(totarr[0]==='true') // New for HbbTV-DVB conformance.
+        {
+            automate(y,x,"HbbTv DVB validation");
+            tree.setItemImage2( x,'right.jpg','right.jpg','right.jpg');
+        }
+        else if(totarr[0]==='error'){
+            automate(y,x,"HbbTv DVB validation");
+            tree.setItemImage2( x,'button_cancel.png','button_cancel.png','button_cancel.png');
+            failed='temp/'+dirid+'/mpdreport.html';//totarr[0];
+        }
+        else{
+            automate(y,x,"HbbTv DVB validation");
+            tree.setItemImage2( x,'log.jpg','log.jpg','log.jpg');
+            if(failed=='false') // This condition says all other MPD validations are true and only this warning is present.
+                hbbtvDvbWarning='true';
+        }
+        totarr.splice(0,1);
+        x++;
+    }
 
     if (failed!=='false')
     {
@@ -741,6 +763,15 @@ function processmpdresults(MPDtotalResultXML)
         clearInterval( pollingTimer);
         finishTest();
         return false;
+    }
+    if(hbbtvDvbWarning==='true')
+    {
+        automate(y,x,"mpd warning log");
+        tree.setItemImage2(x,'log.jpg','log.jpg','log.jpg');   
+        kidsloc.push(x);
+        x++;
+        urlarray.push("temp/"+dirid+"/mpdreport.html");
+        lastloc++;
     }
 
     if (dynamicsegtimeline || segmentListExist)
