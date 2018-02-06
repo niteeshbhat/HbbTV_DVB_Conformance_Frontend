@@ -117,7 +117,7 @@ function DVB_mpdvalidator($dom, $mpdreport){
                 fwrite($mpdreport, "###'DVB check violated: Section 4.5- The MPD has a maximum of 16 adaptation sets per period', found $adapts_len in Period $period_count.\n");
             
             for($i=0; $i<$adapts_len; $i++){
-                $adapt = $adapts[$i];
+                $adapt = $adapts->item($i);
                 $video_found = false;
                 $audio_found = false;
                 
@@ -250,7 +250,7 @@ function DVB_video_checks($adapt, $reps, $mpdreport, $i, $contentTemp_vid_found)
     $reps_codecs = array();
     $subreps_codecs = array();
     for($j=0; $j<$reps_len; $j++){
-        $rep = $reps[$j];
+        $rep = $reps->item($j);
         
         ## Information from this part is used for Section 4.4 check
         $reps_width[] = $rep->getAttribute('width');
@@ -273,7 +273,7 @@ function DVB_video_checks($adapt, $reps, $mpdreport, $i, $contentTemp_vid_found)
         $reps_codecs[] = $rep->getAttribute('codecs');
         $subreps = $rep->getElementsByTagName('SubRepresentation');
         for($k=0; $k<$subreps->length; $k++){
-            $subrep = $subreps[$k];
+            $subrep = $subreps->item($k);
             $subreps_codecs[] = $subrep->getAttribute('codecs');
             
             ##Information from this part is for Section 11.3.0: audio stream bandwidth percentage
@@ -433,7 +433,7 @@ function DVB_audio_checks($adapt, $reps, $mpdreport, $i, $contentTemp_aud_found)
     $subrep_audioChConf_scheme = array();
     $dependencyIds = array();
     for($j=0; $j<$reps_len; $j++){
-        $rep = $reps[$j];
+        $rep = $reps->item($j);
         $rep_role_element_found = false;
         $rep_audioChConf_element_found = false;
         $rep_codecs = $rep->getAttribute('codecs');
@@ -556,7 +556,7 @@ function DVB_subtitle_checks($adapt, $reps, $mpdreport, $i){
     
     $reps_len = $reps->length;
     for($j=0; $j<$reps_len; $j++){
-        $rep = $reps[$j];
+        $rep = $reps->item($j);
         
         $rep_codecs = $rep->getAttribute('codecs');
         $subrep_codecs = array();
