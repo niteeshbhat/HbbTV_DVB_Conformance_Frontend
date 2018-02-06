@@ -11,6 +11,9 @@ $adapt_video_count = 0;
 $adapt_audio_count = 0;
 $main_audio_found = false;
 $main_video_found = false;
+$video_bw = 0;
+$audio_bw = 0;
+$subtitle_bw = 0;
 
 function HbbTV_DVB_mpdvalidator($dom, $hbbtv, $dvb) {
     global $locate, $string_info;
@@ -44,7 +47,7 @@ function HbbTV_DVB_mpdvalidator($dom, $hbbtv, $dvb) {
 }
 
 function DVB_mpdvalidator($dom, $mpdreport){
-    global $adapt_video_count, $adapt_audio_count, $main_audio_found, $period_count;
+    global $adapt_video_count, $adapt_audio_count, $main_audio_found, $period_count, $audio_bw, $video_bw, $subtitle_bw, $supported_profiles;
     
     $mpd_string = $dom->saveXML();
     $mpd_bytes = strlen($mpd_string);
@@ -54,14 +57,30 @@ function DVB_mpdvalidator($dom, $mpdreport){
     
     $MPD = $dom->getElementsByTagName('MPD')->item(0);
     
-    ## Information from this part is used for Section 4.1 check
+    ## Information from this part is used for Section 4.1 and 11.1 checks
     $profiles = $MPD->getAttribute('profiles');
     if(strpos($profiles, 'urn:dvb:dash:profile:dvb-dash:2014') === FALSE)
         fwrite($mpdreport, "###'DVB check violated: Section 4.1- The URN for the profile (MPEG Interoperability Point) SHALL be \"urn:dvb:dash:profile:dvb-dash:2014\"', specified profile could not be found.\n");
+    
+    if(strpos($profiles, 'urn:dvb:dash:profile:dvb-dash:2014') === FALSE && (strpos($profiles, 'urn:dvb:dash:profile:dvb-dash:isoff-ext-live:2014') === FALSE || strpos($profiles, 'urn:dvb:dash:profile:dvb-dash:isoff-ext-on-demand:2014') === FALSE))
+        fwrite($mpdreport, "Warning for DVB check: Section 11.1- 'All Representations that are intended to be decoded and presented by a DVB conformant Player SHOULD be such that they will be inferred to have an @profiles attribute that includes the profile name defined in clause 4.1 as well as either the one defined in 4.2.5 or the one defined in 4.2.8', found profiles: $profiles.\n");
     ##
+    
+    ## Information from this part is used for Section 11.9.5: relative url warning
+    $BaseURLs = $MPD->getElementsByTagName('BaseURL');
+    foreach ($BaseURLs as $BaseURL){
+        if(!isAbsoluteURL($BaseURL->nodeValue)){
+            if($BaseURL->getAttribute('serviceLocation') != '' && $BaseURL->getAttribute('priority') != '' && $BaseURL->getAttribute('weight') != '')
+                fwrite($mpdreport, "Warning for DVB check: Section 11.9.5- 'Where BaseURLs contain relative URLs, these SHOULD NOT include @serviceLocation, @priority or @weight attributes', however found in this MPD.\n");
+        }
+    }
+    ##
+    
+    $cenc = $MPD->getAttribute('xmlns:cenc');
     
     // Periods within MPD
     $period_count = 0;
+    $video_service = false;
     $type = $MPD->getAttribute('type');
     $AST = $MPD->getAttribute('availabilityStartTime');
     foreach($MPD->childNodes as $node){
@@ -84,6 +103,10 @@ function DVB_mpdvalidator($dom, $mpdreport){
             foreach ($node->childNodes as $child){
                 if($child->nodeName == 'SegmentList')
                     fwrite($mpdreport, "###'DVB check violated: Section 4.2.2- The Period.SegmentList SHALL not be present', but found in Period $period_count.\n");
+                
+                if($child->nodeName == 'EventStream'){
+                    DVB_event_checks($child, $mpdreport);
+                }
             }
             
             // Adaptation Sets within each Period
@@ -121,6 +144,7 @@ function DVB_mpdvalidator($dom, $mpdreport){
                 }
                 
                 if($adapt->getAttribute('contentType') == 'video' || $contentTemp_vid_found || $video_found || strpos($adapt->getAttribute('contentType'), 'video') !== FALSE){
+                    $video_service = true;
                     DVB_video_checks($adapt, $reps, $mpdreport, $i, $contentTemp_vid_found);
                     
                     if($contentTemp_aud_found){
@@ -131,7 +155,7 @@ function DVB_mpdvalidator($dom, $mpdreport){
                     DVB_audio_checks($adapt, $reps, $mpdreport, $i, $contentTemp_aud_found);
                     
                     if($contentTemp_vid_found){
-                        DVB_audio_checks($adapt, $reps, $mpdreport, $i, $contentTemp_vid_found);
+                        DVB_video_checks($adapt, $reps, $mpdreport, $i, $contentTemp_vid_found);
                     }
                 }
                 else{
@@ -140,6 +164,8 @@ function DVB_mpdvalidator($dom, $mpdreport){
                 
                 if($adapt_video_count > 1 && $main_video_found == false)
                     fwrite($mpdreport, "###'DVB check violated: Section 4.2.2- If a Period element contains multiple Adaptation Sets with @contentType=\"video\" then at least one Adaptation Set SHALL contain a Role element with @schemeIdUri=\"urn:mpeg:dash:role:2011\" and @value=\"main\"', could not be found in Period $period_count.\n");
+                
+                DVB_content_protection($adapt, $reps, $mpdreport, $i, $cenc);
             }
         }
         
@@ -147,26 +173,65 @@ function DVB_mpdvalidator($dom, $mpdreport){
             fwrite($mpdreport, "###'DVB check violated: Section 4.5- The MPD has a maximum of 64 periods after xlink resolution', found $period_count.\n");
     }
     
+    if($video_service && $audio_bw > ($audio_bw+$video_bw+$subtitle_bw)*0.2){
+        fwrite($mpdreport, "Warning for DVB check: Section 11.3.0- 'If the service being delivered is a video service, then audio SHOULD be 20% or less of the total stream bandwidth', could not be found in Period $period_count.\n");
+    }
+    
     if($adapt_audio_count > 1 && $main_audio_found == false)
         fwrite($mpdreport, "###'DVB check violated: Section 6.1.2- If there is more than one audio Adaptation Set in a DASH Presentation then at least one of them SHALL be tagged with an @value set to \"main\"', could not be found in Period $period_count.\n");
     
 }
 
+function DVB_event_checks($possible_event, $mpdreport){
+    global $period_count;
+    if($possible_event->getAttribute('schemeIdUri') != 'urn:dvb:iptv:cpm:2014')
+        fwrite($mpdreport, "###'DVB check violated: Section 9.1.2.1- The @schemeIdUri attribute (of EventStream) SHALL be set to \"urn:dvb:iptv:cpm:2014\"', not set accordingly in Period $period_count.\n");
+    else{
+        if($possible_event->getAttribute('value') == '1'){
+            $events = $possible_event->getElementsByTagName('Event');
+            foreach ($events as $event){
+                if($event->getAttribute('presentationTime') == '')
+                    fwrite($mpdreport, "###'DVB check violated: Section 9.1.2.1- The events associated with the @schemeIdUri attribute \"urn:dvb:iptv:cpm:2014\" and with @value attribute of \"1\", the presentationTime attribute of an MPD event SHALL be set', not set accordingly in Period $period_count.\n");
+                                
+                $event_value = $event->nodeValue;
+                if($event_value != ''){
+                    $event_str = '<doc>' . $event_value . '</doc>';
+                    $event_xml = simplexml_load_string($event_str); 
+                    if($event_xml === FALSE)
+                        fwrite($mpdreport, "###'DVB check violated: Section 9.1.2.2- In order to carry XML structured data within the string value of an MPD Event element, the data SHALL be escaped or placed in a CDATA section in accordance with the XML specification 1.0', not done accordingly in Period $period_count.\n");
+                    else{
+                        foreach ($event_xml as $broadcastevent){
+                            $name = $broadcastevent->getName();
+                            if($name != 'BroadcastEvent')
+                                fwrite($mpdreport, "###'DVB check violated: Section 9.1.2.2- The format of the event payload carrying content programme metadata SHALL be one or more TV-Anytime BroadcastEvent elements that form a valid TVAnytime XML document', not set accordingly in Period $period_count.\n");
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 function DVB_video_checks($adapt, $reps, $mpdreport, $i, $contentTemp_vid_found){
-    global $adapt_video_count, $main_video_found, $period_count;
+    global $adapt_video_count, $main_video_found, $period_count, $video_bw;
     
     ## Information from this part is used for Section 4.2.2 check about multiple Adaptation Sets with video as contentType
     if($adapt->getAttribute('contentType') == 'video'){
         $adapt_video_count++;
     }
     
-    if($adapt->getAttribute('contentType') == 'video'){
-        foreach ($adapt->childNodes as $ch){
-            if($ch->name == 'Role'){
+    $ids = array();
+    foreach ($adapt->childNodes as $ch){
+        if($ch->name == 'Role'){
+            if($adapt->getAttribute('contentType') == 'video'){
                 if($ch->getAttribute('schemeIdUri') == 'urn:mpeg:dash:role:2011' && $ch->getAttribute('value') == 'main')
                     $main_video_found = true;
+                }
             }
-        }
+            if($ch->nodeName == 'ContentComponent'){
+                if($ch->getAttribute('contentType') == 'video')
+                    $ids[] = $ch->getAttribute('id');
+            }
     }
     ##
     
@@ -210,7 +275,21 @@ function DVB_video_checks($adapt, $reps, $mpdreport, $i, $contentTemp_vid_found)
         for($k=0; $k<$subreps->length; $k++){
             $subrep = $subreps[$k];
             $subreps_codecs[] = $subrep->getAttribute('codecs');
+            
+            ##Information from this part is for Section 11.3.0: audio stream bandwidth percentage
+            if($contentTemp_vid_found){
+                if(in_array($subrep->getAttribute('contentComponent'), $ids)){
+                    $video_bw += ($rep->getAttribute('bandwidth') != '') ? (float)($rep->getAttribute('bandwidth')) : (float)($ch->getAttribute('bandwidth'));
+                }
+            }
+            ##
         }
+        
+        #Information from this part is for Section 11.3.0: audio stream bandwidth percentage
+        if(!$contentTemp_vid_found){
+            $video_bw += (float)($rep->getAttribute('bandwidth'));
+        }
+        ##
     }
     
     ## Information from this part is used for Section 5.1 AVC codecs
@@ -266,12 +345,23 @@ function DVB_video_checks($adapt, $reps, $mpdreport, $i, $contentTemp_vid_found)
             if(empty($reps_scanType) || array_unique($reps_scanType) !== 1 || !(in_array('interlaced', $reps_scanType)))
                 fwrite($mpdreport, "###'DVB check violated: Section 4.4- For any Representation within an Adaptation Set with @contentType=\"video\" @scanType attribute SHALL be present if interlaced pictures are used within any Representation in the Adaptation Set', could not be found in neither Period $period_count Adaptation Set " . ($i+1) . " nor Period $period_count Adaptation Set " . ($i+1) . " Representation " . ($j+1) . ".\n");
         }
+        
+        ## Information from this part is used for Section 11.2.2 frame rate check
+        $frame_rate_len = sizeof($reps_frameRate);
+        for($f1=0; $f1<$frame_rate_len; $f1++){
+            for($f2=$f1+1; $f2<$frame_rate_len; $f2++){
+                $modulo = ($reps_frameRate[$f1] > $reps_frameRate[$f2]) ? ($reps_frameRate[$f1] % $reps_frameRate[$f2]) : ($reps_frameRate[$f2] % $reps_frameRate[$f1]);
+                
+                if($modulo != 0)
+                    fwrite($mpdreport, "Warning for DVB check: Section 11.2.2- 'The frame rates used SHOULD be multiple integers of each other to enable seamless switching', not satisfied for Period $period_count Adaptation Set " . ($i+1) . "- Representation " . ($f1+1) . " and Representation " . ($f2+1) . ".\n");
+            }
+        }
     }
     ##
 }
 
 function DVB_audio_checks($adapt, $reps, $mpdreport, $i, $contentTemp_aud_found){
-    global $adapt_audio_count, $main_audio_found, $period_count;
+    global $adapt_audio_count, $main_audio_found, $period_count, $audio_bw;
     
     if($adapt->getAttribute('contentType') == 'audio'){
         $adapt_audio_count++;
@@ -287,6 +377,7 @@ function DVB_audio_checks($adapt, $reps, $mpdreport, $i, $contentTemp_aud_found)
     $adapt_specific_role_count = 0;
     $adapt_codecs = $adapt->getAttribute('codecs');
     
+    $ids = array();
     foreach($adapt->childNodes as $ch){
         if($ch->nodeName == 'Role'){
             $adapt_role_element_found = true;
@@ -316,6 +407,7 @@ function DVB_audio_checks($adapt, $reps, $mpdreport, $i, $contentTemp_aud_found)
                         $contentComp_role_element_found = true;
                     }
                 }
+                $ids[] = $ch->getAttribute('id');
             }
         }
     }
@@ -326,11 +418,11 @@ function DVB_audio_checks($adapt, $reps, $mpdreport, $i, $contentTemp_aud_found)
     ##
     
     ## Information from this part is for Section 6.3:Dolby and 6.4:DTS
-    if(strpos($adapt_codecs, 'ec-3') || strpos($adapt_codecs, 'ac-4')){
+    if(strpos($adapt_codecs, 'ec-3') !== FALSE || strpos($adapt_codecs, 'ac-4') !== FALSE){
         if(!in_array('tag:dolby.com,2014:dash:audio_channel_configuration:2011', $adapt_audioChConf_scheme))
             fwrite($mpdreport, "###'DVB check violated: Section 6.3- For E-AC-3 and AC-4 the AudioChannelConfiguration element SHALL use the \"tag:dolby.com,2014:dash:audio_channel_configuration:2011\" scheme URI', conformance is not satisfied in Period $period_count Adaptation Set " . ($i+1) . " AudioChannelConfiguration.\n");
     }
-    if(strpos($adapt_codecs, 'dtsc') || strpos($adapt_codecs, 'dtsh') || strpos($adapt_codecs, 'dtse') || strpos($adapt_codecs, 'dtsi')){
+    if(strpos($adapt_codecs, 'dtsc') !== FALSE || strpos($adapt_codecs, 'dtsh') !== FALSE || strpos($adapt_codecs, 'dtse') !== FALSE || strpos($adapt_codecs, 'dtsi') !== FALSE){
         if(!in_array('tag:dts.com,2014:dash:audio_channel_configuration:2012', $adapt_audioChConf_scheme))
             fwrite($mpdreport, "###'DVB check violated: Section 6.4- For all DTS audio formats AudioChannelConfiguration element SHALL use the \"tag:dts.com,2014:dash:audio_channel_configuration:2012\" for the @schemeIdUri attribute', conformance is not satisfied in Period $period_count Adaptation Set " . ($i+1) . " AudioChannelConfiguration.\n");
     }
@@ -363,14 +455,28 @@ function DVB_audio_checks($adapt, $reps, $mpdreport, $i, $contentTemp_aud_found)
                         $subrep_audioChConf_scheme[] = $c->getAttribute('schemeIdUri');
                     }
                 }
+                
+                ##Information from this part is for Section 11.3.0: audio stream bandwidth percentage
+                if($contentTemp_aud_found){
+                    if(in_array($ch->getAttribute('contentComponent'), $ids)){
+                        $audio_bw += ($rep->getAttribute('bandwidth') != '') ? (float)($rep->getAttribute('bandwidth')) : (float)($ch->getAttribute('bandwidth'));
+                    }
+                }
+                ##
             }
             
+            ##Information from this part is for Section 11.3.0: audio stream bandwidth percentage 
+            if(!$contentTemp_aud_found){
+                $audio_bw += (float)($rep->getAttribute('bandwidth'));
+            }
+            ##
+            
             ##Information from this part is for Section 6.3:Dolby and 6.4:DTS
-            if(strpos($subrep_codecs, 'ec-3') || strpos($subrep_codecs, 'ac-4')){
+            if(strpos($subrep_codecs, 'ec-3') !== FALSE || strpos($subrep_codecs, 'ac-4') !== FALSE){
                 if(!in_array('tag:dolby.com,2014:dash:audio_channel_configuration:2011', $subrep_audioChConf_scheme))
                     fwrite($mpdreport, "###'DVB check violated: Section 6.3- For E-AC-3 and AC-4 the AudioChannelConfiguration element SHALL use the \"tag:dolby.com,2014:dash:audio_channel_configuration:2011\" scheme URI', conformance is not satisfied in Period $period_count Adaptation Set " . ($i+1) . " Representation " . ($j+1) . " SubRepresentation " . ($ind+1) . " AudioChannelConfiguration.\n");
             }
-            if(strpos($subrep_codecs, 'dtsc') || strpos($subrep_codecs, 'dtsc') || strpos($subrep_codecs, 'dtsc') || strpos($subrep_codecs, 'dtsc')){
+            if(strpos($subrep_codecs, 'dtsc') !== FALSE || strpos($subrep_codecs, 'dtsc') !== FALSE || strpos($subrep_codecs, 'dtsc') !== FALSE || strpos($subrep_codecs, 'dtsc') !== FALSE){
                 if(!in_array('tag:dts.com,2014:dash:audio_channel_configuration:2012', $subrep_audioChConf_scheme))
                     fwrite($mpdreport, "###'DVB check violated: Section 6.4- For all DTS audio formats AudioChannelConfiguration element SHALL use the \"tag:dts.com,2014:dash:audio_channel_configuration:2012\" for the @schemeIdUri attribute', conformance is not satisfied in Period $period_count Adaptation Set " . ($i+1) . " Representation " . ($j+1) . " SubRepresentation " . ($ind+1) . " AudioChannelConfiguration.\n");
             }
@@ -378,11 +484,11 @@ function DVB_audio_checks($adapt, $reps, $mpdreport, $i, $contentTemp_aud_found)
         }
         
         ##Information from this part is for Section 6.3:Dolby and 6.4:DTS
-        if(strpos($rep_codecs, 'ec-3') || strpos($rep_codecs, 'ac-4')){
+        if(strpos($rep_codecs, 'ec-3') !== FALSE || strpos($rep_codecs, 'ac-4') !== FALSE){
             if(!in_array('tag:dolby.com,2014:dash:audio_channel_configuration:2011', $rep_audioChConf_scheme))
                 fwrite($mpdreport, "###'DVB check violated: Section 6.3- For E-AC-3 and AC-4 the AudioChannelConfiguration element SHALL use the \"tag:dolby.com,2014:dash:audio_channel_configuration:2011\" scheme URI', conformance is not satisfied in Period $period_count Adaptation Set " . ($i+1) . " Representation " . ($j+1) . " AudioChannelConfiguration.\n");
         }
-        if(strpos($rep_codecs, 'dtsc') || strpos($rep_codecs, 'dtsh') || strpos($rep_codecs, 'dtse') || strpos($rep_codecs, 'dtsi')){
+        if(strpos($rep_codecs, 'dtsc') !== FALSE || strpos($rep_codecs, 'dtsh') !== FALSE || strpos($rep_codecs, 'dtse') !== FALSE || strpos($rep_codecs, 'dtsi') !== FALSE){
             if(!in_array('tag:dts.com,2014:dash:audio_channel_configuration:2012', $adapt_audioChConf_scheme))
                 fwrite($mpdreport, "###'DVB check violated: Section 6.4- For all DTS audio formats AudioChannelConfiguration element SHALL use the \"tag:dts.com,2014:dash:audio_channel_configuration:2012\" for the @schemeIdUri attribute', conformance is not satisfied in Period $period_count Adaptation Set " . ($i+1) . " Representation " . ($j+1) . " AudioChannelConfiguration.\n");
         }
@@ -411,14 +517,40 @@ function DVB_audio_checks($adapt, $reps, $mpdreport, $i, $contentTemp_aud_found)
 }
 
 function DVB_subtitle_checks($adapt, $reps, $mpdreport, $i){
-    global $period_count;
+    global $period_count, $subtitle_bw;
     
     $adapt_mimeType = $adapt->getAttribute('mimeType');
     $adapt_codecs = $adapt->getAttribute('codecs');
     $adapt_type = $adapt->getAttribute('contentType');
+    $contentComp = false;
+    $contentComp_type = array();
+    $subtitle = false;
+    $supp_present = false; $supp_scheme = array(); $supp_val = array(); $supp_url = array(); $supp_fontFam = array(); $supp_mime = array();
+    $ess_present = false; $ess_scheme = array(); $ess_val = array(); $ess_url = array(); $ess_fontFam = array(); $ess_mime = array();
+    
+    $ids = array();
     foreach($adapt->childNodes as $ch){
         if($ch->nodeName == 'ContentComponent'){
-            $contentComp_type[] = $adapt->getAttribute('contentType');
+            $contentComp = true;
+            $contentComp_type[] = $ch->getAttribute('contentType');
+            if($ch->getAttribute('contentType') == 'text')
+                $ids[] = $ch->getAttribute('contentType');
+        }
+        if($ch->nodeName == 'SupplementalProperty'){
+            $supp_present = true;
+            $supp_scheme[] = $ch->getAttribute('schemeIdUri');
+            $supp_val[] = $ch->getAttribute('value');
+            $supp_url[] = $ch->getAttribute('url');
+            $supp_fontFam[] = $ch->getAttribute('fontFamily');
+            $supp_mime[] = $ch->getAttribute('mimeType');
+        }
+        if($ch->nodeName == 'EssentialProperty'){
+            $ess_present = true;
+            $ess_scheme[] = $ch->getAttribute('schemeIdUri');
+            $ess_val[] = $ch->getAttribute('value');
+            $ess_url[] = $ch->getAttribute('url');
+            $ess_fontFam[] = $ch->getAttribute('fontFamily');
+            $ess_mime[] = $ch->getAttribute('mimeType');
         }
     }
     
@@ -429,21 +561,109 @@ function DVB_subtitle_checks($adapt, $reps, $mpdreport, $i){
         $rep_codecs = $rep->getAttribute('codecs');
         $subrep_codecs = array();
         foreach ($rep->childNodes as $ch){
-            if($ch->nodeName == 'SubRepresentation')
+            if($ch->nodeName == 'SubRepresentation'){
                 $subrep_codecs[] = $ch->getAttribute('codecs');
+            
+                ##Information from this part is for Section 11.3.0: audio stream bandwidth percentage
+                if(in_array($ch->getAttribute('contentComponent'), $ids)){
+                    $subtitle_bw += ($rep->getAttribute('bandwidth') != '') ? (float)($rep->getAttribute('bandwidth')) : (float)($ch->getAttribute('bandwidth'));
+                }
+                ##
+            }
         }
         
         ## Information from this part is for Section 7.1: subtitle carriage
         if($adapt_mimeType == 'application/mp4' || $rep->getAttribute('mimeType') == 'application/mp4'){
-            if(strpos($adapt_codecs, 'stpp') || strpos($rep_codecs, 'stpp') || in_array('stpp', $subrep_codecs)){
+            if(strpos($adapt_codecs, 'stpp') !== FALSE || strpos($rep_codecs, 'stpp') !== FALSE || in_array('stpp', $subrep_codecs) !== FALSE){
+                $subtitle = true;
+                
                 if($adapt_type != 'text' && !in_array('text', $contentComp_type))
                     fwrite($mpdreport, "###'DVB check violated: Section 7.1.1- The @contetnType attribute indicated for subtitles SHALL be \"text\"', found as ". $adapt->getAttribute('contentType') . " in Period $period_count Adaptation Set " . ($i+1) . " Representation " . ($j+1) . ".\n");
-            
+                
                 if($adapt->getAttribute('lang') == '')
                     fwrite($mpdreport, "###'DVB check violated: Section 7.1.2- In oder to allow a Player to identify the primary purpose of a subtitle track, the language attribute SHALL be set on the Adaptation Set', not found on Adaptaion Set ". ($i+1) . ".\n");
             }
+            
+            ##Information from this part is for Section 11.3.0: audio stream bandwidth percentage 
+            if(! $contentComp){
+                $subtitle_bw += (float)($rep->getAttribute('bandwidth'));
+            }
+            ##
         }
         ##
+    }
+    
+    ## Information from this part is for Section 7.2: downloadable fonts and descriptors needed for them
+    if($subtitle){
+        if($supp_present){
+            $x = 0;
+            foreach($supp_scheme as $supp_scheme_i){
+                if($supp_scheme_i == 'urn:dvb:dash:fontdownload:2014'){
+                    if($supp_val[$x] != '1'){
+                        fwrite($mpdreport, "###'DVB check violated: Section 7.2.1.1- This descriptor (SupplementalProperty for downloadable fonts) SHALL use the values for @schemeIdUri and @value specified in clause 7.2.1.2', found as \"$supp_scheme_i\" and \"". $supp_val[$x] . "\" in Period $period_count Adaptation Set " . ($i+1) . ".\n");
+                    }
+                    if($supp_url[$x] == '' || $supp_fontFam[$x] == '' || $supp_mime[$x] != 'application/font-sfnt' || $supp_mime[$x] != 'application/font-woff'){
+                        fwrite($mpdreport, "###'DVB check violated: Section 7.2.1.1- The descriptor (SupplementalProperty for downloadable fonts) SHALL carry all the mandatory additional attributes defined in clause 7.2.1.3', not complete in Period $period_count Adaptation Set " . ($i+1) . ".\n");
+                    }
+                }
+                $x++;
+            }
+        }
+        elseif($ess_present){
+            $x = 0;
+            foreach($ess_scheme as $ess_scheme_i){
+                if($ess_scheme_i == 'urn:dvb:dash:fontdownload:2014'){
+                    if($ess_val[$x] != '1'){
+                        fwrite($mpdreport, "###'DVB check violated: Section 7.2.1.1- This descriptor (EssentialProperty for downloadable fonts) SHALL use the values for @schemeIdUri and @value specified in clause 7.2.1.2', found as \"$ess_scheme_i\" and \"". $ess_val[$x] . "\" in Period $period_count Adaptation Set " . ($i+1) . ".\n");
+                    }
+                    if($ess_url[$x] == '' || $ess_fontFam[$x] == '' || $ess_mime[$x] != 'application/font-sfnt' || $ess_mime[$x] != 'application/font-woff'){
+                        fwrite($mpdreport, "###'DVB check violated: Section 7.2.1.1- The descriptor (EssentialProperty for downloadable fonts) SHALL carry all the mandatory additional attributes defined in clause 7.2.1.3', not complete in Period $period_count Adaptation Set " . ($i+1) . ".\n");
+                    }
+                }
+                $x++;
+            }
+        }
+    }
+    
+    $all_supp = $adapt->getElementsByTagName('SupplementalProperty');
+    $all_ess = $adapt->getElementsByTagName('EssentialProperty');
+    foreach($all_supp as $supp) {
+        if($supp->getAttribute('schemeIdUri') == 'urn:dvb:dash:fontdownload:2014' && $supp->getAttribute('value') == '1' && $supp->getAttribute('url') != '' && $supp->getAttribute('fontFamily') != '' && ($supp->getAttribute('mimeType') == 'application/font-sfnt' || $supp->getAttribute('mimeType') == 'application/font-woff')){
+            if($supp->parentNode->nodeName != 'AdaptationSet')
+                fwrite($mpdreport, "###'DVB check violated: Section 7.2.1.1- A descriptor (EssentialProperty for downloadable fonts) with these properties SHALL only be placed within an AdaptationSet containing subtitle Representations', not found on Adaptation Set " . " in Period $period_count Adaptation Set " . ($i+1) . ".\n");
+        }
+    }
+    foreach($all_ess as $ess) {
+        if($ess->getAttribute('schemeIdUri') == 'urn:dvb:dash:fontdownload:2014' && $ess->getAttribute('value') == '1' && $ess->getAttribute('url') != '' && $ess->getAttribute('fontFamily') != '' && ($supp->getAttribute('mimeType') == 'application/font-sfnt' || $ess->getAttribute('mimeType') == 'application/font-woff')){
+            if($ess->parentNode->nodeName != 'AdaptationSet')
+                fwrite($mpdreport, "###'DVB check violated: Section 7.2.1.1- A descriptor (EssentialProperty for downloadable fonts) with these properties SHALL only be placed within an AdaptationSet containing subtitle Representations', not found on Adaptation Set " . " in Period $period_count Adaptation Set " . ($i+1) . ".\n");
+        }
+    }
+    ##
+}
+
+function DVB_content_protection($adapt, $reps, $mpdreport, $i, $cenc){
+    global $period_count;
+    
+    $mp4protection_count = 0;
+    
+    $default_KIDs = array();
+    $contentProtection = $adapt->getElementsByTagName('ContentProtection');
+    foreach ($contentProtection as $contentProtection_i){
+        if($contentProtection_i->parentNode->nodeName != 'AdaptationSet')
+            fwrite($mpdreport, "###'DVB check violated: Section 8.3- ContentProtection descriptor SHALL be placed at he AdaptationSet level', found at \"" . $contentProtection_i->parentNode->nodeName . "\" level in Period $period_count Adaptation Set " . ($i+1) . ".\n");
+        else{
+            if($contentProtection_i->getAttribute('schemeIdUri') == 'urn:mpeg:dash:mp4protection:2011' && $contentProtection_i->getAttribute('value') == 'cenc'){
+                $mp4protection_count++;
+                $default_KIDs[] = $contentProtection_i->getAttribute('cenc:default_KID');
+            }
+        }
+    }
+    
+    if($contentProtection->length != 0 && $mp4protection_count == 0){
+        fwrite($mpdreport, "###'DVB check violated: Section 8.4- Any Adaptation Set containing protected content SHALL contain one \"mp4protection\" ContentProtection descriptor with @schemeIdUri=\"urn:mped:dash:mp4protection:2011\" and @value=\"cenć\", not found in Period $period_count Adaptation Set " . ($i+1) . ".\n");
+        if($cenc == '' || ($cenc != '' && empty($default_KIDs)))
+            fwrite($mpdreport, "Warning for DVB check: Section 8.4- '\"mp4protection\" ContentProtection descriptor SHOULD include the extension defined in ISO/IEC 23001-7 clause 11.2', not found in Period $period_count Adaptation Set " . ($i+1) . ".\n");
     }
 }
 
