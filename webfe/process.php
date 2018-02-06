@@ -112,6 +112,10 @@ $string_info = '<!doctype html>
   <meta charset="utf-8">
   <title>Log detail</title>
   <style>
+  #info {
+    color: blue;
+    margin: 8px;
+  }
   #warning {
     color: orange;
     margin: 8px;
@@ -126,6 +130,7 @@ $string_info = '<!doctype html>
 <body>
  
 <p id="init">Processing...</p>
+<p id="info"></p>
 <p id="warning"></p>
 <p id="error"></p>
  
@@ -146,6 +151,7 @@ $.post (location,
 function(result){
 $( "#init" ).remove();
 resultant=JSON.parse(result);
+var end0 = "";
 var end1 = "";
 var end2 = "";
 for(var i =0;i<resultant.length;i++)
@@ -154,7 +160,13 @@ for(var i =0;i<resultant.length;i++)
 resultant[i]=resultant[i]+"<br />";
 var Warning=resultant[i].search("Warning") ;
 var WARNING=resultant[i].search("WARNING");
-if(Warning !==-1  || WARNING !==-1){
+var errorFound=resultant[i].search("###");
+
+if(Warning===-1 && WARNING===-1 && errorFound===-1){
+end0 = end0+" "+resultant[i];
+$( "#info" ).html( end0);
+}
+else if(errorFound===-1){
     end1 = end1+" "+resultant[i];
     $( "#warning" ).html( end1);
 }

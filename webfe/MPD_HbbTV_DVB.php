@@ -688,7 +688,7 @@ function HbbTV_mpdvalidator($dom, $mpdreport){
                 $reps = $adapts->item($i)->getElementsByTagName('Representation');
                 $startWithSAP=$adapts->item($i)->getAttribute('subsegmentStartsWithSAP');
                     if($startWithSAP == 1 || $startWithSAP ==2)
-                        fwrite($mpdreport, "###:'HbbTV profile violated: The MPD contains an attribute that is not part of the HbbTV profile', i.e., found 'subsegmentStartsWithSAP' ".$startWithSAP." in AdaptationSet ".($i+1). " \n");
+                        fwrite($mpdreport, "###'HbbTV profile violated: The MPD contains an attribute that is not part of the HbbTV profile', i.e., found 'subsegmentStartsWithSAP' ".$startWithSAP." in AdaptationSet ".($i+1). " \n");
                     else if ($startWithSAP==3){
                         if(!($reps->length>1))
                             fwrite($mpdreport, "###'HbbTV profile violated: The MPD contains an attribute that is not part of the HbbTV profile', i.e., found 'subsegmentStartsWithSAP' ".$startWithSAP." in AdaptationSet ".($i+1). " not containing more than one Representation \n");
