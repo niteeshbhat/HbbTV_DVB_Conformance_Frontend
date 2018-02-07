@@ -67,8 +67,6 @@ function DVB_HbbTV_cross_profile_check($dom, $mpdreport){
     $periods = $MPD->getElementsByTagName('Period');
     foreach($periods as $period){
         foreach($period->childNodes as $child){
-            if($child->nodeName == 'SegmentList')
-                fwrite($mpdreport, "Information on DVB-HbbTV conformance: SegmentList element is found in the MPD. This element is scoped by DVB profile that the tool is not validating against.\n");
             if($child->nodeName == 'EventStream'){
                 fwrite($mpdreport, "Information on DVB-HbbTV conformance: EventStream element is found in the MPD. This element is scoped by DVB profile that the tool is not validating against.\n");
                 
