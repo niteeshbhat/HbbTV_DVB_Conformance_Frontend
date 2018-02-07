@@ -22,7 +22,11 @@ function HbbTV_DVB_mpdvalidator($dom, $hbbtv, $dvb) {
     fwrite($mpdreport, "HbbTV-DVB Validation \n");
     fwrite($mpdreport, "===========================\n\n");
 
-
+    // Informational cross-profile check
+    if(!$dvb && $hbbtv){
+        DVB_HbbTV_cross_profile_check($dom, $mpdreport);
+    }
+    
     if($dvb){
         DVB_mpdvalidator($dom, $mpdreport);
     }
@@ -44,6 +48,37 @@ function HbbTV_DVB_mpdvalidator($dom, $hbbtv, $dvb) {
              $returnValue="warning";
     
     return $returnValue;
+}
+
+function DVB_HbbTV_cross_profile_check($dom, $mpdreport){
+    // All the elements here for cross-profile checks exist in DVB but not in HbbTV
+    $MPD = $dom->getElementsByTagName('MPD')->item(0);
+    
+    $BaseURLs = $MPD->getElementsByTagName('BaseURL');
+    if($BaseURLs->length != 0)
+        fwrite($mpdreport, "Information on DVB-HbbTV conformance: BaseURL element is found in the MPD. This element is scoped by DVB profile that the tool is not validating against.\n");
+    
+    if($MPD->getAttribute('type') == 'dynamic' || $MPD->getAttribute('availabilityStartTime') != ''){
+        $UTCTimings = $MPD->getElementsByTagName('UTCTiming');
+        if($UTCTimings->length != 0)
+            fwrite($mpdreport, "Information on DVB-HbbTV conformance: UTCTiming element is found in the MPD. This element is scoped by DVB profile that the tool is not validating against.\n");
+    }
+    
+    $periods = $MPD->getElementsByTagName('Period');
+    foreach($periods as $period){
+        foreach($period->childNodes as $child){
+            if($child->nodeName == 'SegmentList')
+                fwrite($mpdreport, "Information on DVB-HbbTV conformance: SegmentList element is found in the MPD. This element is scoped by DVB profile that the tool is not validating against.\n");
+            if($child->nodeName == 'EventStream'){
+                fwrite($mpdreport, "Information on DVB-HbbTV conformance: EventStream element is found in the MPD. This element is scoped by DVB profile that the tool is not validating against.\n");
+                
+                foreach($child->childNodes as $ch){
+                    if($ch->nodeName == 'Event')
+                        fwrite($mpdreport, "Information on DVB-HbbTV conformance: Event element is found in the MPD. This element is scoped by DVB profile that the tool is not validating against.\n");
+                }
+            }
+        }
+    }
 }
 
 function DVB_mpdvalidator($dom, $mpdreport){
