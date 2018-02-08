@@ -86,7 +86,7 @@ function DVB_HbbTV_profile_specific_media_types_report($dom, $mpdreport){
                     $str = $str . " $mpd_media_type"; 
             }
             if($str != '')
-                fwrite($mpdreport, "###DVB-HbbTV Conformace violated: media type:$str is missing after the provided MPD is processed for profile: " . $profiles_arr[$ind] . ".\n");
+                fwrite($mpdreport, "###DVB/HbbTV Conformace violated: media type:$str is missing after the provided MPD is processed for profile: " . $profiles_arr[$ind] . ".\n");
             
             $ind++;
         }
