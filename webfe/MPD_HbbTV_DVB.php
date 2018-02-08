@@ -842,6 +842,17 @@ function DVB_content_protection($adapt, $reps, $mpdreport, $i, $cenc){
 
 function HbbTV_mpdvalidator($dom, $mpdreport){
     
+    $mpd_string = $dom->saveXML();
+    $mpd_bytes = strlen($mpd_string);
+    if($mpd_bytes > 100*1024){
+        fwrite($mpdreport, "###'HbbTV check violated: Section 4.5- The MPD size shall not exceed 100 Kbytes', found " . ($mpd_bytes/1024) . " Kbytes.\n");
+    }
+    
+    //$docType=$dom->getElementsByTagName('!DOCTYPE');
+    $docType=$dom->doctype;
+    if($docType!==NULL)
+       fwrite($mpdreport, "###'HbbTV check violated: The MPD must not contain an XML Document Type Definition(<!DOCTYPE>)', but found in the MPD \n");
+
     $MPD = $dom->getElementsByTagName('MPD')->item(0);
     // Periods within MPD
     $period_count = 0;
@@ -851,14 +862,43 @@ function HbbTV_mpdvalidator($dom, $mpdreport){
            
             // Adaptation Sets within each Period
             $adapts = $node->getElementsByTagName('AdaptationSet');
+            $adapt_count=0;
+            $adapt_video_cnt=0;
+            $adapt_audio_cnt=0;
+            $main_video_found=0;
+            $main_audio_found=0;
             //Following has error reporting code if MPD element is not part of validating profile.
             for($i=0; $i< ($adapts->length); $i++){
+                $adapt_count++;
                 $subSegAlign=$adapts->item($i)->getAttribute('subsegmentAlignment');
                 if($subSegAlign == TRUE)
                     fwrite($mpdreport, "###'HbbTV profile violated: The MPD contains an attribute that is not part of the HbbTV profile', i.e., found 'subsegmentAlignment' as true in AdaptationSet ".($i+1)." \n");
-
                 
+               $role=$adapts->item($i)->getElementsByTagName('Role');
+               if($role->length>0){
+                    $schemeIdUri=$role->item(0)->getAttribute('schemeIdUri');
+                    $role_value=$role->item(0)->getAttribute('value');
+               }
+                //Representation in AS and its checks
+               $rep_count=0;
                 $reps = $adapts->item($i)->getElementsByTagName('Representation');
+                
+                if($adapts->item($i)->getAttribute('contentType')=='video' || $adapts->item($i)->getAttribute('mimeType')=='video/mp4' || $reps->item(0)->getAttribute('mimeType')=='video/mp4')
+                {    $adapt_video_cnt++;
+                     if($role->length>0 && (strpos($schemeIdUri,"urn:mpeg:dash:role:2011")!==false && $role_value=="main"))
+                           $main_video_found++;
+                     HbbTV_VideoRepChecks($adapts->item($i), $adapt_count,$period_count,$mpdreport );
+                }
+     
+                    
+                if($adapts->item($i)->getAttribute('contentType')=='audio' || $adapts->item($i)->getAttribute('mimeType')=='audio/mp4' ||$reps->item(0)->getAttribute('mimeType')=='audio/mp4' )
+                {   $adapt_audio_cnt++;
+                    if($role->length>0 && (strpos($schemeIdUri,"urn:mpeg:dash:role:2011")!==false && $role_value=="main"))
+                           $main_audio_found++;
+                    HbbTV_AudioRepChecks($adapts->item($i), $adapt_count,$period_count,$mpdreport);
+                }
+
+                 //Following has error reporting code if MPD element is not part of validating profile.
                 $startWithSAP=$adapts->item($i)->getAttribute('subsegmentStartsWithSAP');
                     if($startWithSAP == 1 || $startWithSAP ==2)
                         fwrite($mpdreport, "###'HbbTV profile violated: The MPD contains an attribute that is not part of the HbbTV profile', i.e., found 'subsegmentStartsWithSAP' ".$startWithSAP." in AdaptationSet ".($i+1). " \n");
@@ -869,6 +909,7 @@ function HbbTV_mpdvalidator($dom, $mpdreport){
                       
                     }
                 for($j=0;$j<($reps->length);$j++){
+                    $rep_count++;
                     $baseURL=$reps->item($j)->getElementsByTagName('BaseURL');
                     if($baseURL->length>0)
                         fwrite($mpdreport, "###'HbbTV profile violated: The MPD contains an element that is not part of the HbbTV profile', i.e., found 'BaseURL' element in Representation ".($j+1)." of AdaptationSet ".($i+1). ". \n");
@@ -888,11 +929,26 @@ function HbbTV_mpdvalidator($dom, $mpdreport){
                      }
 
                 }
+                if($rep_count>16)
+                   fwrite($mpdreport, "###'HbbTV check violated: There shall be no more than 16 Representations per Adaptatation Set  in an MPD', but found ".$rep_count." Represenations in Adaptation Set ".$adapt_count." in Period ".$period_count." \n");
+
                 
             }
-    
+            if($adapt_count>16)
+                fwrite($mpdreport, "###'HbbTV check violated: There shall be no more than 16 Adaptation Sets per Period in an MPD', but found ".$adapt_count." Adaptation Sets in Period ".$period_count." \n");
+            if($adapt_video_cnt==0)
+                fwrite($mpdreport, "###'HbbTV check violated: There shall be at least one video Adaptation Set per Period in an MPD', but found ".$adapt_video_cnt." video Adaptation Sets in Period ".$period_count." \n");
+            if($adapt_video_cnt>1 && $main_video_found!=1)
+                fwrite($mpdreport, "###'HbbTV check violated: If there is more than one video AdaptationSet, exactly one shall be labelled with Role@value 'main' ', but found ".$main_video_found." Role@value 'main' in Period ".$period_count." \n");
+            if($adapt_audio_cnt>1 && $main_audio_found!=1)
+                fwrite($mpdreport, "###'HbbTV check violated: If there is more than one audio AdaptationSet, exactly one shall be labelled with Role@value 'main' ', but found ".$main_audio_found." Role@value 'main' in Period ".$period_count." \n");
+            
         }  
+        
     }
+    if($period_count>32)
+            fwrite($mpdreport, "###'HbbTV check violated: There shall be no more than 32 Periods in an MPD', but found ".$period_count." Periods \n");
+  
 }
 //Function to find the next Sibling. php funciton next_sibling() is not working.So using this helper function.
 function nextElementSibling($node)
@@ -903,4 +959,105 @@ function nextElementSibling($node)
         }
     }
     return $node;
+}
+
+function HbbTV_VideoRepChecks($adapt, $adapt_num,$period_num,$mpdreport)
+{
+    $width=$adapt->getAttribute('width');
+    $height=$adapt->getAttribute('height');
+    $frameRate=$adapt->getAttribute('frameRate');
+    $scanType=$adapt->getAttribute('scanType');
+    $codecs=$adapt->getAttribute('codecs');
+    if($codecs!=NULL && strpos($codes, 'avc')===false)
+        fwrite($mpdreport, "###'HbbTV check violated: The video content referenced by MPD shall only be encoded using video codecs defined in 7.3.1 (AVC)', but ".$codecs." found in Adaptation Set ".$adapt_num." in Period ".$period_num." \n");
+
+    
+    $reps=$adapt->getElementsByTagName('Representation');
+    for($i=0;$i<$reps->length;$i++)
+    {
+        if($width==NULL && $reps->item($i)->getAttribute('width')==NULL)
+            fwrite($mpdreport, "###'HbbTV check violated: The profile-specific MPD shall provide @width information for all Representations', but not found for Representation ".($i+1)." of Adaptation Set ".$adapt_num." in Period ".$period_num." \n");
+        if($height==NULL && $reps->item($i)->getAttribute('height')==NULL)
+            fwrite($mpdreport, "###'HbbTV check violated: The profile-specific MPD shall provide @height information for all Representations', but not found for Representation ".($i+1)." of Adaptation Set ".$adapt_num." in Period ".$period_num." \n");
+        if($frameRate==NULL && $reps->item($i)->getAttribute('frameRate')==NULL)
+            fwrite($mpdreport, "###'HbbTV check violated: The profile-specific MPD shall provide @frameRate information for all Representations', but not found for Representation ".($i+1)." of Adaptation Set ".$adapt_num." in Period ".$period_num." \n");
+        if($scanType==NULL && $reps->item($i)->getAttribute('scanType')==NULL)
+            fwrite($mpdreport, "###'HbbTV check violated: The profile-specific MPD shall provide @scanType information for all Representations', but not found for Representation ".($i+1)." of Adaptation Set ".$adapt_num." in Period ".$period_num." \n");
+        if($codecs==NULL && strpos($reps->item($i)->getAttribute('codecs'),'avc')===false)
+            fwrite($mpdreport, "###'HbbTV check violated: The video content referenced by MPD shall only be encoded using video codecs defined in 7.3.1 (AVC)', but '".($reps->item($i)->getAttribute('codecs'))."' found for Representation ".($i+1)." of Adaptation Set ".$adapt_num." in Period ".$period_num." \n");
+        
+    }
+}
+
+function HbbTV_AudioRepChecks($adapt, $adapt_num,$period_num,$mpdreport)
+{
+    $SamplingRate=$adapt->getAttribute('audioSamplingRate');
+    $lang=$adapt->getAttribute('lang');
+    $channelConfig_adapt=$adapt->getElementsByTagName('AudioChannelConfiguration');
+    $reps=$adapt->getElementsByTagName('Representation');
+    
+    $role=$adapt->getElementsByTagName('Role');
+    if($role->length>0)
+        $roleValue=$role->item(0)->getAttribute('value');
+    
+    $accessibility=$adapt->getElementsByTagName('Accessibility');
+    if($accessibility->length>0)
+        $accessibilityValue=$accessibility->item(0)->getAttribute('value');
+    
+    $codecs_adapt=$adapt->getAttribute('codecs');
+    if($codecs_adapt!=NULL && strpos($codecs_adapt, 'mp4a')===false && strpos($codecs_adapt, 'ec-3')===false)
+        fwrite($mpdreport, "###'HbbTV check violated: The audio content referenced by MPD shall only be encoded using video codecs defined in 7.3.1 (HE-AAC, E-AC-3)', but '".$codecs_adapt."' found in Adaptation Set ".$adapt_num." in Period ".$period_num." \n");
+
+    
+    for($i=0;$i<$reps->length;$i++)
+    {
+        if($SamplingRate==NULL && $reps->item($i)->getAttribute('audioSamplingRate')==NULL)
+            fwrite($mpdreport, "###'HbbTV check violated: The profile-specific MPD shall provide @audioSamplingRate information for all Representations', but not found for Representation ".($i+1)." of Adaptation Set ".$adapt_num." in Period ".$period_num." \n");
+        if($lang==NULL)
+            fwrite($mpdreport, "###'HbbTV check violated: The profile-specific MPD shall provide @lang information inherited by all Representations', but not found for Representation ".($i+1)." of Adaptation Set ".$adapt_num." in Period ".$period_num." \n");
+        if($roleValue=="commentary" &&  $accessibilityValue==1 && $reps->item($i)->getAttribute('dependencyId')==NULL)
+            fwrite($mpdreport, "###'HbbTV check violated: For receiver mix audio description the associated audio stream shall use dependencyId ', but not found for Representation ".($i+1)." of Adaptation Set ".$adapt_num." in Period ".$period_num." \n");
+        
+        if($codecs_adapt==NULL){
+            $codecs=$reps->item($i)->getAttribute('codecs');
+            $temp=strpos($codecs, 'mp4a');
+            if(strpos($codecs, 'mp4a')===false && strpos($codecs, 'ec-3')===false)
+                fwrite($mpdreport, "###'HbbTV check violated: The audio content referenced by MPD shall only be encoded using video codecs defined in 7.3.1 (HE-AAC, E-AC-3)', but '".$codecs."' found in Representation ".($i+1)." Adaptation Set ".$adapt_num." in Period ".$period_num." \n");
+        }
+        if($channelConfig_adapt->length==0){
+            $channelConfig=$reps->item($i)->getElementsByTagName('AudioChannelConfiguration');
+            if($channelConfig->length==0)
+                fwrite($mpdreport, "###'HbbTV check violated: The profile-specific MPD shall provide AudioChannelConfiguration for all Representations', but not found for Representation ".($i+1)." of Adaptation Set ".$adapt_num." in Period ".$period_num." \n");
+            else
+                HbbTV_AudioChannelCheck($channelConfig,($codecs_adapt.$codecs),$i, $adapt_num,$period_num,$mpdreport);
+        }
+        else
+            HbbTV_AudioChannelCheck($channelConfig_adapt,($codecs_adapt.$codecs),$i, $adapt_num,$period_num,$mpdreport);
+    }
+    
+    
+    
+}
+
+function HbbTV_AudioChannelCheck($channelConfig,$codecs,$rep_num, $adapt_num,$period_num,$mpdreport)
+{
+    $scheme=$channelConfig->item(0)->getAttribute("schemeIdUri");
+    $value=$channelConfig->item(0)->getAttribute("value");
+    if(strpos($codecs,'mp4a')!==false)
+    {
+        if(strpos($scheme,"urn:mpeg:dash:23003:3:audio_channel_configuration:2011")===false)
+            fwrite($mpdreport, "###'HbbTV check violated: For HE-AAC the Audio Channel Configuration shall use urn:mpeg:dash:23003:3:audio_channel_configuration:2011 schemeIdURI', but this schemeIdUri not found for Representation ".($rep_num+1)." of Adaptation Set ".$adapt_num." in Period ".$period_num." \n");
+
+        if(!(is_numeric($value) && $value == round($value)))
+            fwrite($mpdreport, "###'HbbTV check violated: For HE-AAC the Audio Channel Configuration shall use urn:mpeg:dash:23003:3:audio_channel_configuration:2011 schemeIdURI with value set to an integer number', but non-integer value found for Representation ".($rep_num+1)." of Adaptation Set ".$adapt_num." in Period ".$period_num." \n");
+
+    }
+    else if (strpos($codecs,'ec-3')!==false)
+    {
+        if((strpos($scheme,"tag:dolby.com,2014:dash:audio_channel_configuration:2011")===false && strpos($scheme,"urn:dolby:dash:audio_channel_configuration:2011")===false))
+            fwrite($mpdreport, "###'HbbTV check violated: For E-AC-3 the Audio Channel Configuration shall use either the tag:dolby.com,2014:dash:audio_channel_configuration:2011 or urn:dolby:dash:audio_channel_configuration:2011 schemeIdURI', but neither of these found for Representation ".($rep_num+1)." of Adaptation Set ".$adapt_num." in Period ".$period_num." \n");
+        if(strlen($value)!=4 || !ctype_xdigit($value))
+            fwrite($mpdreport, "###'HbbTV check violated: For E-AC-3 the Audio Channel Configuration value shall contain a four digit hexadecimal number', but found value '".$value."' for Representation ".($rep_num+1)." of Adaptation Set ".$adapt_num." in Period ".$period_num." \n");
+
+    }
 }
