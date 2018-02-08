@@ -276,6 +276,10 @@ function DVB_mpdvalidator($dom, $mpdreport){
                 if($child->nodeName == 'EventStream'){
                     DVB_event_checks($child, $mpdreport);
                 }
+                if($child->nodename == 'SegmentTemplate'){
+                    if(strpos($profiles, 'urn:dvb:dash:profile:dvb-dash:isoff-ext-on-demand:2014') === TRUE)
+                        fwrite($mpdreport, "###'DVB check violated: Section 4.2.6- The Period.SegmentTemplate SHALL not be present for Period elements conforming to On Demand profile', but found in Period $period_count.\n");
+                }
             }
             
             // Adaptation Sets within each Period
