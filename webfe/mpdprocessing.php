@@ -682,6 +682,9 @@ function process_mpd()
                 checkRepresentationsConformance();//Check after downloading all AdaptationSets.
                 checkSwitchingSets();
                 }
+            if($check_hbbtv_conformance || $check_dvb_conformance){
+                CrossValidation_HbbTV_DVB_Segments($check_hbbtv_conformance,$check_dvb_conformance);
+            }
             crossRepresentationProcess();
             $missingexist = file_exists($locate . '/missinglink.txt'); //check if any broken urls is detected
             if ($missingexist)
