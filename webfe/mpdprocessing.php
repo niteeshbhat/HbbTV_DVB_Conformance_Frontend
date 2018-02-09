@@ -683,7 +683,7 @@ function process_mpd()
                 checkSwitchingSets();
                 }
             if($check_hbbtv_conformance || $check_dvb_conformance){
-                CrossValidation_HbbTV_DVB_Segments($check_hbbtv_conformance,$check_dvb_conformance);
+                CrossValidation_HbbTV_DVB($check_hbbtv_conformance,$check_dvb_conformance);
             }
             crossRepresentationProcess();
             $missingexist = file_exists($locate . '/missinglink.txt'); //check if any broken urls is detected
@@ -1026,7 +1026,7 @@ function process_mpd()
                 
                 // Compare representations
                 //if($shouldCompare){
-                if($cmaf_val == "yes"){
+                if($cmaf_val == "yes" || $check_dvb_conformance || $check_hbbtv_conformance){
                     $new_pathdir = $locate . "/Adapt" . $count1;
                     if (!file_exists($new_pathdir)){
                         $oldmask = umask(0);
