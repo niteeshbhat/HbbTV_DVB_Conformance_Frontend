@@ -28,6 +28,7 @@ include 'assemble.php';
 include 'schematronIssuesAnalyzer.php';
 include 'compare.php';
 include 'MPD_HbbTV_DVB.php';
+include 'CrossValidation_HbbTV_DVB.php';
 
 set_time_limit(0); // php run without time limit
 ini_set("log_errors", 1);
