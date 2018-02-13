@@ -86,7 +86,7 @@ function DVB_HbbTV_profile_specific_media_types_report($dom, $mpdreport){
                     $str = $str . " $mpd_media_type"; 
             }
             if($str != '')
-                fwrite($mpdreport, "###DVB/HbbTV Conformace violated: media type:$str is missing after the provided MPD is processed for profile: " . $profiles_arr[$ind] . ".\n");
+                fwrite($mpdreport, "###DVB/HbbTV Conformance violated: media type:$str is missing after the provided MPD is processed for profile: " . $profiles_arr[$ind] . ".\n");
             
             $ind++;
         }
@@ -669,7 +669,7 @@ function DVB_audio_checks($adapt, $reps, $mpdreport, $i, $contentTemp_aud_found)
         
         ## Information from this part is for Section 6.1 Table 3
         if($adapt_role_element_found == false && $contentComp_role_element_found == false && $rep_role_element_found == false)
-            fwrite($mpdreport, "###'DVB check violated: Section 6.1.1- All audio Representations SHALL either define or inherit the elements and attributes shown in Table 3', Role element could not be found in neither Period $period_count Adaptation Set " . ($i+1) . " nor Period $period_count Adaptation Set " . ($i+1) . " Representation " . ($j+1) . ".\n");
+            fwrite($mpdreport, "###'DVB check violated: Section 6.1.1- All audio Representations SHALL either define or inherit the elements and attributes shown in Table 3', Role element could not be found in Period $period_count Adaptation Set " . ($i+1) . ".\n");
         if($adapt_audioChConf_element_found == false && $rep_audioChConf_element_found == false)
             fwrite($mpdreport, "###'DVB check violated: Section 6.1.1- All audio Representations SHALL either define or inherit the elements and attributes shown in Table 3', AudioChannelConfiguration element could not be found in neither Period $period_count Adaptation Set " . ($i+1) . " nor Period $period_count Adaptation Set " . ($i+1) . " Representation " . ($j+1) . ".\n");
         if($adapt_mimeType == '' && $rep->getAttribute('mimeType') == '')
