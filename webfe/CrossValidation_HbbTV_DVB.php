@@ -8,18 +8,10 @@
 
 function CrossValidation_HbbTV_DVB($dom,$hbbtv,$dvb)
 {
-    common_crossValidation();
-
-    if($hbbtv){
-        crossValidation_HbbTV_Representations($dom);
-    }
-    
-    if($dvb){
-        crossValidation_DVB_Representations($dom);
-    }
+    common_crossValidation($dom,$hbbtv,$dvb);
 }
 
-function common_crossValidation()
+function common_crossValidation($dom,$hbbtv,$dvb)
 {
     global $locate, $Period_arr;
     
@@ -37,6 +29,21 @@ function common_crossValidation()
             return;
         }
         
+        for($r=0; $r<$filecount; $r++){
+            $xml_r = xmlFileLoad($files[$r]);
+            
+            for($d=$r+1; $d<$filecount; $d++){
+                $xml_d = xmlFileLoad($files[$d]);
+                
+                if($hbbtv){
+                    crossValidation_HbbTV_Representations($dom, $opfile, $xml_r, $xml_d, $adapt_count, $r, $d);
+                }
+                if($dvb){
+                    crossValidation_DVB_Representations($dom, $opfile, $xml_r, $xml_d, $adapt_count, $r, $d);
+                }
+            }
+        }
+        
         if(file_exists($loc)){
        
         }
@@ -46,28 +53,7 @@ function common_crossValidation()
     }
 }
 
-function crossValidation_DVB_Representations($dom){
-    global $locate, $Period_arr, $string_info;
-    
-    for($i=0; $i<sizeof($Period_arr); $i++){
-        $loc = $locate . '/Adapt' . $i . '/';
-        $opfile = fopen($locate."/Adapt".$adapt_count."_compInfo.txt", 'a');
-        
-        $rep_files = glob($loc . '*.xml');
-        $count = count($rep_files);
-        
-        for($r=0; $r<$count; $r++){
-            $xml_r = xmlFileLoad($rep_files[$r]);
-            
-            for($d=$r+1; $d<$count; $d++){
-                $xml_d = xmlFileLoad($rep_files[$d]);
-                DVB_compareRepresentations($dom, $opfile, $xml_r, $xml_d, $i, $r, $d);
-            }
-        }
-    }
-}
-
-function DVB_compareRepresentations($dom, $opfile, $xml_r, $xml_d, $i, $r, $d){
+function crossValidation_DVB_Representations($dom, $opfile, $xml_r, $xml_d, $i, $r, $d){
     ## Section 4.3 checks for sample entry type and track_ID
     $hdlr_r = $xml_r->getElementsByTagName('hdlr')->item(0);
     $hdlr_type_r = $hdlr_r->getAttribute('handler_type');
@@ -375,6 +361,52 @@ function DVB_compareRepresentations($dom, $opfile, $xml_r, $xml_d, $i, $r, $d){
         }
     }
     ##
+}
+
+function crossValidation_HbbTV_Representations($dom, $opfile, $xml_r, $xml_d, $i, $r, $d){
+    $adapt = $dom->getElementsByTagName('AdaptationSet')->item($i);
+    $rep_r = $adapt->getElementsByTagName('Representation')->item($r);
+    $rep_d = $adapt->getElementsByTagName('Representation')->item($d);
+    
+    ## Section E.3.2 checks on Adaptation Sets
+    // First bullet on same media component type
+    $adapt_mimeType = $adapt->getAttribute('mimeType');
+    if($adapt_mimeType == ''){
+        $rep_mimeType_r = $rep_r->getAttribute('mimeType');
+        $rep_mimeType_d = $rep_d->getAttribute('mimeType');
+        
+        if((strpos('video', $rep_mimeType_r) === TRUE && strpos('audio', $rep_mimeType_d) === TRUE) || (strpos('video', $rep_mimeType_d) === TRUE && strpos('audio', $rep_mimeType_r) === TRUE))
+            fwrite($opfile, "###'HbbTV check violated: Section E.3.2- Each Representation SHALL contain only one media component', more than one content component found in Adaptation Set " . ($i+1) . ".\n");
+    }
+    
+    // Second bullet on same trackID
+    $tkhd_r = $xml_r->getElementsByTagName('tkhd')->item(0);
+    $track_ID_r = $tkhd_r->getAttribute('trackID');
+    $tfhds_r = $xml_r->getElementsByTagName('tfhd');
+    
+    $tkhd_d = $xml_d->getElementsByTagName('tkhd')->item(0);
+    $track_ID_d = $tkhd_d->getAttribute('trackID');
+    $tfhds_d = $xml_d->getElementsByTagName('tfhd');
+    
+    $tfhd_info = '';
+    foreach($tfhds_r as $index => $tfhd_r){
+        if($tfhd_r->getAttribute('trackID') != $tfhds_d->item($index)->getAttribute('trackID'))
+            $tfhd_info .= ' error'; 
+    }
+    
+    if($tfhd_info != '' || $track_ID_r != $track_ID_d)
+        fwrite($opfile, "###'HbbTV check violated: Section E.3.2- All ISO BMFF Representations SHALL have the same track_ID in the track header box and track fragment header box', not equal in Adaptation Set " . ($i+1) . ": Representation " . ($r+1) . " and Representation " . ($d+1) . ".\n");
+    
+    // Third bullet on initialization segment identicalness
+    $stsd_r = $xml_r->getElementsByTagName('stsd')->item(0);
+    $stsd_d = $xml_d->getElementsByTagName('stsd')->item(0);
+    
+    if(!nodes_equal($stsd_r, $stsd_d))
+        fwrite($opfile, "###'HbbTV check violated: Section E.3.2- Initialization Segment SHALL be common for all Representations', not equal in Adaptation Set " . ($i+1) . ": Representation " . ($r+1) . " and Representation " . ($d+1) . ".\n");
+    
+    ##
+    
+    
 }
 
 // Check if the nodes and their descendandts are the same
