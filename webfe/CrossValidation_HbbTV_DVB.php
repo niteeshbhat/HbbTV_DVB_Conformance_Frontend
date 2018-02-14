@@ -9,6 +9,7 @@
 function CrossValidation_HbbTV_DVB($dom,$hbbtv,$dvb)
 {
     common_crossValidation($dom,$hbbtv,$dvb);
+    common_codecValidation($dom,$hbbtv,$dvb);
 }
 
 function common_crossValidation($dom,$hbbtv,$dvb)
@@ -586,4 +587,101 @@ function nodes_equal($node_1, $node_2){
     }
     
     return $equal;
+}
+
+function common_codecValidation($dom,$hbbtv,$dvb){
+    global $locate, $Period_arr;
+    
+    for($adapt_count=0; $adapt_count<sizeof($Period_arr); $adapt_count++){
+        $Adapt = $Period_arr[$adapt_count];
+        
+        $loc = $locate . '/Adapt' . $adapt_count.'/';
+        $filecount = 0;
+        $files = glob($loc . "*.xml");
+        if($files)
+            $filecount = count($files);
+        
+        for($rep_count=0; $rep_count<$filecount; $rep_count++){
+            if(!($opfile = fopen($locate."/Adapt".$adapt_count."rep".$rep_count."log.txt", 'a'))){
+                echo "Error opening/creating HbbTV/DVB codec validation file: "."/Adapt".$adapt_count."rep".$rep_count."log.txt";
+                return;
+            }
+            
+            $xml_rep = xmlFileLoad($files[$rep_count]);
+            
+            if($dvb){
+                codecValidation_DVB($opfile, $dom, $xml_rep, $adapt_count, $rep_count);
+            }
+            if($hbbtv){
+                codecValidation_HbbTV($opfile, $dom, $xml_rep, $adapt_count, $rep_count);
+            }
+        }
+    }
+}
+
+function codecValidation_DVB($opfile, $dom, $xml_rep, $adapt_count, $rep_count){
+    $adapt = $dom->getElementsByTagName('AdaptationSet')->item($adapt_count);
+    $rep = $adapt->getElementsByTagName('Representation')->item($rep_count);
+    
+    ## Report on any resolutions used that are not in the tables of resoultions in 10.3 of the DVB DASH specification
+    $res_result = resolutionCheck($opfile, $adapt, $rep);
+    if($res_result[0] == false)
+        fwrite ($opfile, "Information on DVB codec conformance: Resolution value \"" . $res_result[1] . 'x' . $res_result[2] . "\" provided in Adaptation Set " . ($adapt_count+1) . " Representation " . ($rep_count+1) . " is not in the table of resolutions in 10.3 of the DVB DASH specification.\n");
+    ##
+}
+
+function codecValidation_HbbTV($opfile, $dom, $xml_rep, $adapt_count, $rep_count){
+    $adapt = $dom->getElementsByTagName('AdaptationSet')->item($adapt_count);
+    $rep = $adapt->getElementsByTagName('Representation')->item($rep_count);
+    
+    ## Report on any resolutions used that are not in the tables of resoultions in 10.3 of the DVB DASH specification
+    $res_result = resolutionCheck($opfile, $adapt, $rep);
+    if($res_result[0] == false)
+        fwrite ($opfile, "Information on HbbTV codec conformance: Resolution value \"" . $res_result[1] . 'x' . $res_result[2] . "\" provided in Adaptation Set " . ($adapt_count+1) . " Representation " . ($rep_count+1) . " is not in the table of resolutions in 10.3 of the DVB DASH specification.\n");
+    ##
+}
+
+// Report on any resolutions used that are not in the tables of resoultions in 10.3 of the DVB DASH specification
+function resolutionCheck($opfile, $adapt, $rep){
+    $conformant = true;
+    
+    $progressive_width  = array('1920', '1600', '1280', '1024', '960', '852', '768', '720', '704', '640', '512', '480', '384', '320', '192', '3840', '3200', '2560');
+    $progressive_height = array('1080', '900',  '720',  '576',  '540', '480', '432', '404', '396', '360', '288', '270', '216', '180', '108', '2160', '1800', '1440');
+    
+    $interlaced_width  = array('1920', '704', '544', '352');
+    $interlaced_height = array('1080', '576', '576', '288');
+    
+    $scanType = $adapt->getAttribute('scanType');
+    if($scanType == ''){
+        $scanType = $rep->getAttribute('scanType');
+        
+        if($scanType == '')
+            $scanType = 'progressive';
+    }
+    
+    $width = $adapt->getAttribute('width');
+    $height = $adapt->getAttribute('height');
+    if($width == '' && $height == ''){
+        $width = $rep->getAttribute('width');
+        $height = $rep->getAttribute('height');
+        
+        if($width != '' && $height != ''){
+            if($scanType == 'progressive'){
+                $ind1 = array_search($width, $progressive_width);
+                if($ind1 !== FALSE){
+                    if($height != $progressive_height[$ind1])
+                        $conformant = false;
+                }
+            }
+            elseif($scanType == 'interlaced'){
+                $ind1 = array_search($width, $interlaced_width);
+                if($ind1 !== FALSE){
+                    if($height != $interlaced_height[$ind1])
+                        $conformant = false;
+                }
+            }
+        }
+    }
+    
+    return array($conformant, $width, $height);
 }
