@@ -178,11 +178,11 @@ function process_mpd()
     $MPD = $dom->getElementsByTagName('MPD')->item(0); // access the parent "MPD" in mpd file
     createMpdFeatureList($dom, $schematronIssuesReport);
        
-    if($check_hbbtv_conformance || $check_dvb_conformance){
-        $result_hbbtvDvb=HbbTV_DVB_mpdvalidator($dom, $check_hbbtv_conformance, $check_dvb_conformance);
-        if($result_hbbtvDvb!=="")
-            $temp_mpdres = $temp_mpdres . $result_hbbtvDvb;
-    }
+#    if($check_hbbtv_conformance || $check_dvb_conformance){
+#        $result_hbbtvDvb=HbbTV_DVB_mpdvalidator($dom, $check_hbbtv_conformance, $check_dvb_conformance);
+#        if($result_hbbtvDvb!=="")
+#            $temp_mpdres = $temp_mpdres . $result_hbbtvDvb;
+#    }
     
     $progressXML->MPDConformance = $temp_mpdres;
     $progressXML->MPDConformance->addAttribute('url', str_replace($_SERVER['DOCUMENT_ROOT'], 'http://' . $_SERVER['SERVER_NAME'], $locate . '/mpdreport.txt'));
@@ -936,8 +936,25 @@ function process_mpd()
                         }
                     }
                 }
-                 
-
+                
+                if($check_dvb_conformance || $check_hbbtv_conformance){
+                    if($Period_arr[$count1]['frameRate'] === NULL)
+                        $processArguments = $processArguments . " -framerate " . $Period_arr[$count1]['Representation']['frameRate'][$count2];
+                    else
+                        $processArguments = $processArguments . " -framerate " . $Period_arr[$count1]['frameRate'];
+                    
+                    $codec_arr = explode('.', $codecs);
+                    if(strpos($codecs, 'hev')!==FALSE || strpos($codecs, 'hvc')!==FALSE){
+                        $processArguments = $processArguments . " -codecprofile " . $codec_arr[1];
+                        $processArguments = $processArguments . " -codectier " . substr($codec_arr[3], 0, 1);
+                        $processArguments = $processArguments . " -codeclevel " . substr($codec_arr[3], 1);
+                    }
+                    if(strpos($codecs, 'avc')!==FALSE){
+                        $processArguments = $processArguments . " -codecprofile " . (string)hexdec(substr($codec_arr[1], 0, 2));
+                        $processArguments = $processArguments . " -codeclevel " . (string)hexdec(substr($codec_arr[1], -2));
+                    }
+                }
+                
                 error_log("validatemp4");
                 // Work out which validator binary to use
                 $validatemp4 = (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') ? "validatemp4-vs2010.exe" : "ValidateMP4.exe";
