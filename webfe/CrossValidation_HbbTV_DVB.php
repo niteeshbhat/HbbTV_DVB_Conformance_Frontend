@@ -406,7 +406,6 @@ function crossValidation_HbbTV_Representations($dom, $opfile, $xml_r, $xml_d, $i
         fwrite($opfile, "###'HbbTV check violated: Section E.3.2- Initialization Segment SHALL be common for all Representations', not equal in Adaptation Set " . ($i+1) . ": Representation " . ($r+1) . " and Representation " . ($d+1) . ".\n");
     ##
     
-    ## Section E.4.2 checks
     $hdlr_r = $xml_r->getElementsByTagName('hdlr')->item(0);
     $hdlr_type_r = $hdlr_r->getAttribute('handler_type');
     $sdType_r = $xml_r->getElementsByTagName($hdlr_type_r.'_sampledescription')->item(0)->getAttribute('sdType');
@@ -415,113 +414,20 @@ function crossValidation_HbbTV_Representations($dom, $opfile, $xml_r, $xml_d, $i
     $hdlr_type_d = $hdlr_d->getAttribute('handler_type');
     $sdType_d = $xml_d->getElementsByTagName($hdlr_type_d.'_sampledescription')->item(0)->getAttribute('sdType');
     
-    ## Section E.4.2.1 on video tracks
+    ## E.3.1.1 on ISO BMFF
+    if($sdType_r != $sdType_d)
+        fwrite($opfile, "###'HbbTV check violated: Section E.3.1.1- (As stated in DVB DASH specification clause 4.3) All the initialization segments for Representations within an Adaptation Set SHALL have the same sample entry type', found $sdType_r in Adaptation Set " . ($i+1) . " Representation " . ($r+1) . " $sdType_d in Adaptation Set " . ($i+1) . " Representation " . ($d+1) . ".\n");
+    ##
+    
+    ## Highlight HEVC and AVC for different representations in the same Adaptation Set
     if($hdlr_type_r == 'vide' && $hdlr_type_d == 'vide'){
-        if(strpos($sdType_r, 'avc') !== FALSE && strpos($sdType_d, 'avc') !== FALSE){
-            // First bullet on bit rate
-            $att_r = $rep_r->attributes;
-            $att_d = $rep_d->attributes;
-            if($att_r->length != $att_d->length)
-                fwrite($opfile, "Warning for HbbTV check: Section E.4.2.1- 'Terminals SHALL support transitions between video Representations (encoded with AVC) which differ by bit-rate', other different attributes found in Adaptation Set " . ($i+1) . ": Representation " . ($r+1) . " and Representation " . ($d+1) . ".\n");
-            else{
-                for($a=0; $a<$att_r->length; $a++){
-                    if($att_r->item($i)->name != $att_d->item($i)->name)
-                        fwrite($opfile, "Warning for HbbTV check: Section E.4.2.1- 'Terminals SHALL support transitions between video Representations (encoded with AVC) which differ by bit-rate', other different attributes found in Adaptation Set " . ($i+1) . ": Representation " . ($r+1) . " and Representation " . ($d+1) . ".\n");
-                    else{
-                        if($att_r->item($a)->name != 'bandwidth' && $att_r->item($a)->name != 'id' && $att_r->item($a)->name != 'width' && $att_r->item($a)->name != 'height' && $att_r->item($a)->name != 'codecs'){
-                            if($att_r->item($a)->value != $att_d->item($a)->value)
-                                fwrite($opfile, "Warning for HbbTV check: Section E.4.2.1- 'Terminals SHALL support transitions between video Representations (encoded with AVC) which differ by bit-rate', other different attribute values found in Adaptation Set " . ($i+1) . ": Representation " . ($r+1) . " and Representation " . ($d+1) . ".\n");
-                        }
-                    }
-                }
-            }
-            
-            // Second bullet on profile and/or level
-            $desc_r = $xml_r->getElementsByTagName($hdlr_type_r.'_sampledescription')->item(0)->childNodes->item(1);
-            $desc_d = $xml_d->getElementsByTagName($hdlr_type_d.'_sampledescription')->item(0)->childNodes->item(1);
-            
-            if($hdlr_type_r != $hdlr_type_d){
-                $vide_profile_r = $desc_r->getAttribute('profile');
-                $vide_profile_d = $desc_d->getAttribute('profile');
-                
-                $vide_level_r = $desc_r->childNodes->item(1)->getAttribue('level');
-                $vide_level_d = $desc_d->childNodes->item(1)->getAttribue('level');
-                
-                if($vide_profile_r != $vide_profile_d || $vide_level_r != $vide_level_d)
-                    fwrite($opfile, "Warning for HbbTV check: Section E.4.2.1- 'Terminals SHALL support transitions between video Representations (encoded with AVC) which differ by profile and/or level', different AVC codec version with different profile and/or level found in Adaptation Set " . ($i+1) . ": Representation " . ($r+1) . " and Representation " . ($d+1) . ".\n");
-            }
-            
-            // Third bullet on full-screen resolution
-            $width_r = $rep_r->getAttribute('width');
-            $height_r = $rep_r->getAttribute('height');
-            $width_d = $rep_d->getAttribute('width');
-            $height_d = $rep_d->getAttribute('height');
-            if($width_r != '' && $height_r != '' && $width_d != '' && $height_d != ''){
-                if($adapt->getAttribute('par') != ''){
-                    $par = $adapt->getAttribute('par');
-                    if($width_r != $width_d || $height_r != $height_d){
-                        $par_arr = explode(':', $par);
-                        $par_ratio = (float)$par_arr[0] / (float)$par_arr[1];
-                        
-                        $par_r = $width_r/$height_r;
-                        $par_d = $width_d/$height_d;
-                        if($par_r != $par_d || $par_r != $par_ratio || $par_d != $par_ratio)
-                            fwrite($opfile, "Warning for HbbTV check: Section E.4.2.1- 'Terminals SHALL support transitions between video Representations (encoded with AVC) which differ by full-screen resolution as long as picture aspect ratio remains the same', not satisfied in Adaptation Set " . ($i+1) . ": Representation " . ($r+1) . " and Representation " . ($d+1) . ".\n");
-                    }
-                }
-                else{
-                    $content_comps = $adapt->getEelementsByTagName('ContentComponent');
-                    foreach($content_comps as $content_comp){
-                        $pars[] = $content_comp->getAttribute('par');
-                    }
-                    
-                    if(array_unique($pars) != 1 || array_unique($pars) == 1 && in_array('', $pars))
-                        fwrite($opfile, "Warning for HbbTV check: Section E.4.2.1- 'Terminals SHALL support transitions between video Representations (encoded with AVC) which differ by full-screen resolution as long as picture aspect ratio remains the same', not satisfied in Adaptation Set " . ($i+1) . ": Representation " . ($r+1) . " and Representation " . ($d+1) . ".\n");
-                    
-                    elseif(array_unique($pars) == 1 && !in_array('', $pars)){
-                        if($width_r != $width_d || $height_r != $height_d){
-                            $par = $pars[0];
-                            $par_arr = explode(':', $par);
-                            $par_ratio = (float)$par_arr[0] / (float)$par_arr[1];
-                            
-                            $par_r = $width_r/$height_r;
-                            $par_d = $width_d/$height_d;
-                            if($par_r != $par_d || $par_r != $par_ratio || $par_d != $par_ratio)
-                                fwrite($opfile, "Warning for HbbTV check: Section E.4.2.1- 'Terminals SHALL support transitions between video Representations (encoded with AVC) which differ by full-screen resolution as long as picture aspect ratio remains the same', not satisfied in Adaptation Set " . ($i+1) . ": Representation " . ($r+1) . " and Representation " . ($d+1) . ".\n");
-                        }
-                    }
-                }
-            }
-        }
-        
-        ## Highlight HEVC and AVC for different representations in the same Adaptation Set
         if((($sdType_r == 'hev1' || $sdType_r == 'hvc1') && strpos($sdType_d, 'avc')) || (($sdType_d == 'hev1' || $sdType_d == 'hvc1') && strpos($sdType_r, 'avc')))
             fwrite($opfile, "Warning for HbbTV check: 'Terminals cannot switch between HEVC and AVC video Represntations present in the same Adaptation Set', found in Adaptation Set " . ($i+1) . ": Representation " . ($r+1) . " and Representation " . ($d+1) . ".\n");
-        ##
     }
     ##
     
-    ## Section E.4.2.2 on audio tracks
+    ## Highlight 5.1 Audio and 2.0 Audio
     if($hdlr_type_r == 'soun' && $hdlr_type_d == 'soun'){
-        // First bullet on bit-rate
-        $att_r = $rep_r->attributes;
-        $att_d = $rep_d->attributes;
-        if($att_r->length != $att_d->length)
-            fwrite($opfile, "Warning for HbbTV check: Section E.4.2.2- 'Terminals SHALL support seamless swicthing between audio Representations which only differ in bit rate', different attributes found in Adaptation Set " . ($i+1) . ": Representation " . ($r+1) . " and Representation " . ($d+1) . ".\n");
-        else{
-            for($a=0; $a<$att_r->length; $a++){
-                if($att_r->item($a)->name != $att_d->item($a)->name)
-                    fwrite($opfile, "Warning for HbbTV check: Section E.4.2.2- 'Terminals SHALL support seamless swicthing between audio Representations which only differ in bit rate', different attributes found in Adaptation Set " . ($i+1) . ": Representation " . ($r+1) . " and Representation " . ($d+1) . ".\n");
-                else{
-                    if($att_r->item($a)->name != 'bandwidth' && $att_r->item($a)->name != 'id'){
-                        if($att_r->item($a)->value != $att_d->item($a)->value)
-                            fwrite($opfile, "Warning for HbbTV check: Section E.4.2.2- 'Terminals SHALL support seamless swicthing between audio Representations which only differ in bit rate', different attribute values found in Adaptation Set " . ($i+1) . ": Representation " . ($r+1) . " and Representation " . ($d+1) . ".\n");
-                    }
-                }
-            }
-        }
-        
-        ## Highlight 5.1 Audio and 2.0 Audio
         $soun_r = $xml_r->getElementsByTagName('soun_sampledescription')->item(0);
         $conf_r = $soun_r->getElementsByTagName('DecoderSpecificInfo')->item(0);
         $conf_atts_r = $conf_r->attributes;
@@ -544,14 +450,46 @@ function crossValidation_HbbTV_Representations($dom, $opfile, $xml_r, $xml_d, $i
             if(($conf_aud_r == 'config is 5+1' && $conf_aud_d == 'config is stereo') || ($conf_aud_d == 'config is 5+1' && $conf_aud_r == 'config is stereo'))
                 fwrite($opfile, "Warning for HbbTV check: '5.1 Audio and 2.0 Audio SHOULD NOT be present within the same Adaptation Set for the presence of consistent Representations within an Adaptation Set ', found in Adaptation Set " . ($i+1) . ": Representation " . ($r+1) . " and Representation " . ($d+1) . ".\n");
         }
+        
+        ## E.2.5 check regarding AudioChannelConfiguration cross representation condition stated in DVB DASH 6.1.1 Table 3
+        $adapt_audioChConf = array();
+        foreach($adapt->childNodes as $adapt_ch){
+            if($adapt_ch->nodeName == 'AudioChannelConfiguration')
+                $adapt_audioChConf[] = $adapt_ch;
+        }
+        
+        if(empty($adapt_audioChConf)){
+            $rep_audioChConf_r = array();
+            $rep_audioChConf_d = array();
+            foreach($rep_r->childNodes as $rep_r_ch){
+                if($rep_r_ch->nodeName == 'AudioChannelConfiguration')
+                    $rep_audioChConf_r[] = $rep_r_ch;
+            }
+            foreach($rep_d->childNodes as $rep_d_ch){
+                if($rep_d_ch->nodeName == 'AudioChannelConfiguration')
+                    $rep_audioChConf_d[] = $rep_d_ch;
+            }
+            
+            if(!empty($rep_audioChConf_r) && !empty($rep_audioChConf_d)){
+                $equal_info = '';
+                if($rep_audioChConf_r->length != $rep_audioChConf_d->length)
+                    fwrite($opfile, "Warning for HbbTV check: Section E.2.5- ' (As stated in DVB DASH specification clause 6.1.1) AudioChannelConfiguration SHOULD be common between all audio Representations in an Adaptation Set', not common in Adaptation Set " . ($i+1) . ": Representation " . ($r+1) . " and Representation " . ($d+1) . ".\n");
+                else{
+                    for($racc=0; $racc<$rep_audioChConf_r->length; $racc++){
+                        $rep_audioChConf_r_i = $rep_audioChConf_r->item($racc);
+                        $rep_audioChConf_d_i = $rep_audioChConf_d->item($racc);
+                        
+                        if(!nodes_equal($rep_audioChConf_r_i, $rep_audioChConf_d_i))
+                            $equal_info .= 'no';
+                    }
+                }
+                
+                if($equal_info != '')
+                    fwrite($opfile, "Warning for HbbTV check: Section E.2.5- ' (As stated in DVB DASH specification clause 6.1.1) AudioChannelConfiguration SHOULD be common between all audio Representations in an Adaptation Set', not common in Adaptation Set " . ($i+1) . ": Representation " . ($r+1) . " and Representation " . ($d+1) . ".\n");
+            }
+        }
         ##
     }
-    ##
-    ##
-    
-    ## E.3.1.1 on ISO BMFF
-    if($sdType_r != $sdType_d)
-        fwrite($opfile, "###'HbbTV check violated: Section E.3.1.1- (As stated in DVB DASH specification clause 4.3) All the initialization segments for Representations within an Adaptation Set SHALL have the same sample entry type', found $sdType_r in Adaptation Set " . ($i+1) . " Representation " . ($r+1) . " $sdType_d in Adaptation Set " . ($i+1) . " Representation " . ($d+1) . ".\n");
     ##
 }
 
@@ -627,6 +565,34 @@ function codecValidation_DVB($opfile, $dom, $xml_rep, $adapt_count, $rep_count){
     $res_result = resolutionCheck($opfile, $adapt, $rep);
     if($res_result[0] == false)
         fwrite ($opfile, "Information on DVB codec conformance: Resolution value \"" . $res_result[1] . 'x' . $res_result[2] . "\" provided in Adaptation Set " . ($adapt_count+1) . " Representation " . ($rep_count+1) . " is not in the table of resolutions in 10.3 of the DVB DASH specification.\n");
+    ##
+    
+    ## Check on the support of the provided codec
+    // MPD part
+    $codecs = $adapt->getAttribute('codecs');
+    if($codecs == ''){
+        $codecs = $rep->getAttribute('codecs');
+        
+        if($codecs != ''){
+            $codecs_arr = explode(',', $codecs);
+            
+            $str_info = '';
+            foreach($codecs_arr as $codec){
+                if(strpos($codec, 'avc') === FALSE && strpos($codec, 'hev1') === FALSE && strpos($codec, 'hvc1') === FALSE && 
+                   strpos($codec, 'mp4a') === FALSE && strpos($codec, 'ec-3') === FALSE && strpos($codec, 'ac-4') === FALSE &&
+                   strpos($codec, 'dtsc') === FALSE && strpos($codec, 'dtsh') === FALSE && strpos($codec, 'dtse') === FALSE && strpos($codec, 'dtsi') === FALSE &&
+                   strpos($codec, 'stpp') === FALSE)
+            
+                    $str_info .= "$codec "; 
+            }
+            
+            if($str_info != '')
+                fwrite($opfile, "###'DVB check violated: @codecs in the MPD is not supported by the specification', found $str_info in Adaptation Set " . ($adapt_count+1) . " Representation " . ($rep_count+1) . ".\n");
+        }
+    }
+    
+    // Segment part
+    
     ##
 }
 
