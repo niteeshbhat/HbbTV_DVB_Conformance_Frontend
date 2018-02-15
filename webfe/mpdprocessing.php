@@ -178,11 +178,11 @@ function process_mpd()
     $MPD = $dom->getElementsByTagName('MPD')->item(0); // access the parent "MPD" in mpd file
     createMpdFeatureList($dom, $schematronIssuesReport);
        
-#    if($check_hbbtv_conformance || $check_dvb_conformance){
-#        $result_hbbtvDvb=HbbTV_DVB_mpdvalidator($dom, $check_hbbtv_conformance, $check_dvb_conformance);
-#        if($result_hbbtvDvb!=="")
-#            $temp_mpdres = $temp_mpdres . $result_hbbtvDvb;
-#    }
+    if($check_hbbtv_conformance || $check_dvb_conformance){
+        $result_hbbtvDvb=HbbTV_DVB_mpdvalidator($dom, $check_hbbtv_conformance, $check_dvb_conformance);
+        if($result_hbbtvDvb!=="")
+            $temp_mpdres = $temp_mpdres . $result_hbbtvDvb;
+    }
     
     $progressXML->MPDConformance = $temp_mpdres;
     $progressXML->MPDConformance->addAttribute('url', str_replace($_SERVER['DOCUMENT_ROOT'], 'http://' . $_SERVER['SERVER_NAME'], $locate . '/mpdreport.txt'));
