@@ -936,8 +936,25 @@ function process_mpd()
                         }
                     }
                 }
-                 
-
+                
+                if($check_dvb_conformance || $check_hbbtv_conformance){
+                    if($Period_arr[$count1]['frameRate'] === NULL)
+                        $processArguments = $processArguments . " -framerate " . $Period_arr[$count1]['Representation']['frameRate'][$count2];
+                    else
+                        $processArguments = $processArguments . " -framerate " . $Period_arr[$count1]['frameRate'];
+                    
+                    $codec_arr = explode('.', $codecs);
+                    if(strpos($codecs, 'hev')!==FALSE || strpos($codecs, 'hvc')!==FALSE){
+                        $processArguments = $processArguments . " -codecprofile " . $codec_arr[1];
+                        $processArguments = $processArguments . " -codectier " . substr($codec_arr[3], 0, 1);
+                        $processArguments = $processArguments . " -codeclevel " . substr($codec_arr[3], 1);
+                    }
+                    if(strpos($codecs, 'avc')!==FALSE){
+                        $processArguments = $processArguments . " -codecprofile " . (string)hexdec(substr($codec_arr[1], 0, 2));
+                        $processArguments = $processArguments . " -codeclevel " . (string)hexdec(substr($codec_arr[1], -2));
+                    }
+                }
+                
                 error_log("validatemp4");
                 // Work out which validator binary to use
                 $validatemp4 = (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') ? "validatemp4-vs2010.exe" : "ValidateMP4.exe";
