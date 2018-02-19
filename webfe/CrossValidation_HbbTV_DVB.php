@@ -370,16 +370,6 @@ function crossValidation_HbbTV_Representations($dom, $opfile, $xml_r, $xml_d, $i
     $rep_d = $adapt->getElementsByTagName('Representation')->item($d);
     
     ## Section E.3.2 checks on Adaptation Sets
-    // First bullet on same media component type
-    $adapt_mimeType = $adapt->getAttribute('mimeType');
-    if($adapt_mimeType == ''){
-        $rep_mimeType_r = $rep_r->getAttribute('mimeType');
-        $rep_mimeType_d = $rep_d->getAttribute('mimeType');
-        
-        if((strpos($rep_mimeType_r, 'video') === TRUE && strpos($rep_mimeType_d, 'audio') === TRUE) || (strpos($rep_mimeType_d, 'video') === TRUE && strpos($rep_mimeType_r, 'audio') === TRUE))
-            fwrite($opfile, "###'HbbTV check violated: Section E.3.2- Each Representation SHALL contain only one media component', more than one content component found in Adaptation Set " . ($i+1) . ".\n");
-    }
-    
     // Second bullet on same trackID
     $tkhd_r = $xml_r->getElementsByTagName('tkhd')->item(0);
     $track_ID_r = $tkhd_r->getAttribute('trackID');
@@ -414,11 +404,6 @@ function crossValidation_HbbTV_Representations($dom, $opfile, $xml_r, $xml_d, $i
     $hdlr_type_d = $hdlr_d->getAttribute('handler_type');
     $sdType_d = $xml_d->getElementsByTagName($hdlr_type_d.'_sampledescription')->item(0)->getAttribute('sdType');
     
-    ## E.3.1.1 on ISO BMFF
-    if($sdType_r != $sdType_d)
-        fwrite($opfile, "###'HbbTV check violated: Section E.3.1.1- (As stated in DVB DASH specification clause 4.3) All the initialization segments for Representations within an Adaptation Set SHALL have the same sample entry type', found $sdType_r in Adaptation Set " . ($i+1) . " Representation " . ($r+1) . " $sdType_d in Adaptation Set " . ($i+1) . " Representation " . ($d+1) . ".\n");
-    ##
-    
     ## Highlight HEVC and AVC for different representations in the same Adaptation Set
     if($hdlr_type_r == 'vide' && $hdlr_type_d == 'vide'){
         if((($sdType_r == 'hev1' || $sdType_r == 'hvc1') && strpos($sdType_d, 'avc')) || (($sdType_d == 'hev1' || $sdType_d == 'hvc1') && strpos($sdType_r, 'avc')))
@@ -450,45 +435,6 @@ function crossValidation_HbbTV_Representations($dom, $opfile, $xml_r, $xml_d, $i
             if(($conf_aud_r == 'config is 5+1' && $conf_aud_d == 'config is stereo') || ($conf_aud_d == 'config is 5+1' && $conf_aud_r == 'config is stereo'))
                 fwrite($opfile, "Warning for HbbTV check: '5.1 Audio and 2.0 Audio SHOULD NOT be present within the same Adaptation Set for the presence of consistent Representations within an Adaptation Set ', found in Adaptation Set " . ($i+1) . ": Representation " . ($r+1) . " and Representation " . ($d+1) . ".\n");
         }
-        
-        ## E.2.5 check regarding AudioChannelConfiguration cross representation condition stated in DVB DASH 6.1.1 Table 3
-        $adapt_audioChConf = array();
-        foreach($adapt->childNodes as $adapt_ch){
-            if($adapt_ch->nodeName == 'AudioChannelConfiguration')
-                $adapt_audioChConf[] = $adapt_ch;
-        }
-        
-        if(empty($adapt_audioChConf)){
-            $rep_audioChConf_r = array();
-            $rep_audioChConf_d = array();
-            foreach($rep_r->childNodes as $rep_r_ch){
-                if($rep_r_ch->nodeName == 'AudioChannelConfiguration')
-                    $rep_audioChConf_r[] = $rep_r_ch;
-            }
-            foreach($rep_d->childNodes as $rep_d_ch){
-                if($rep_d_ch->nodeName == 'AudioChannelConfiguration')
-                    $rep_audioChConf_d[] = $rep_d_ch;
-            }
-            
-            if(!empty($rep_audioChConf_r) && !empty($rep_audioChConf_d)){
-                $equal_info = '';
-                if($rep_audioChConf_r->length != $rep_audioChConf_d->length)
-                    fwrite($opfile, "Warning for HbbTV check: Section E.2.5- ' (As stated in DVB DASH specification clause 6.1.1) AudioChannelConfiguration SHOULD be common between all audio Representations in an Adaptation Set', not common in Adaptation Set " . ($i+1) . ": Representation " . ($r+1) . " and Representation " . ($d+1) . ".\n");
-                else{
-                    for($racc=0; $racc<$rep_audioChConf_r->length; $racc++){
-                        $rep_audioChConf_r_i = $rep_audioChConf_r->item($racc);
-                        $rep_audioChConf_d_i = $rep_audioChConf_d->item($racc);
-                        
-                        if(!nodes_equal($rep_audioChConf_r_i, $rep_audioChConf_d_i))
-                            $equal_info .= 'no';
-                    }
-                }
-                
-                if($equal_info != '')
-                    fwrite($opfile, "Warning for HbbTV check: Section E.2.5- ' (As stated in DVB DASH specification clause 6.1.1) AudioChannelConfiguration SHOULD be common between all audio Representations in an Adaptation Set', not common in Adaptation Set " . ($i+1) . ": Representation " . ($r+1) . " and Representation " . ($d+1) . ".\n");
-            }
-        }
-        ##
     }
     ##
 }
@@ -572,27 +518,75 @@ function codecValidation_DVB($opfile, $dom, $xml_rep, $adapt_count, $rep_count){
     $codecs = $adapt->getAttribute('codecs');
     if($codecs == ''){
         $codecs = $rep->getAttribute('codecs');
+    }
+    
+    if($codecs != ''){
+        $codecs_arr = explode(',', $codecs);
         
-        if($codecs != ''){
-            $codecs_arr = explode(',', $codecs);
-            
-            $str_info = '';
-            foreach($codecs_arr as $codec){
-                if(strpos($codec, 'avc') === FALSE && strpos($codec, 'hev1') === FALSE && strpos($codec, 'hvc1') === FALSE && 
-                   strpos($codec, 'mp4a') === FALSE && strpos($codec, 'ec-3') === FALSE && strpos($codec, 'ac-4') === FALSE &&
-                   strpos($codec, 'dtsc') === FALSE && strpos($codec, 'dtsh') === FALSE && strpos($codec, 'dtse') === FALSE && strpos($codec, 'dtsi') === FALSE &&
-                   strpos($codec, 'stpp') === FALSE)
-            
-                    $str_info .= "$codec "; 
+        $str_info = '';
+        foreach($codecs_arr as $codec){
+            if(strpos($codec, 'avc') === FALSE && strpos($codec, 'hev1') === FALSE && strpos($codec, 'hvc1') === FALSE && 
+                strpos($codec, 'mp4a') === FALSE && strpos($codec, 'ec-3') === FALSE && strpos($codec, 'ac-4') === FALSE &&
+                strpos($codec, 'dtsc') === FALSE && strpos($codec, 'dtsh') === FALSE && strpos($codec, 'dtse') === FALSE && strpos($codec, 'dtsi') === FALSE &&
+                strpos($codec, 'stpp') === FALSE){
+                
+                $str_info .= "$codec "; 
             }
-            
-            if($str_info != '')
-                fwrite($opfile, "###'DVB check violated: @codecs in the MPD is not supported by the specification', found $str_info in Adaptation Set " . ($adapt_count+1) . " Representation " . ($rep_count+1) . ".\n");
         }
+        
+        if($str_info != '')
+            fwrite($opfile, "###'DVB check violated: @codecs in the MPD is not supported by the specification', found $str_info in Adaptation Set " . ($adapt_count+1) . " Representation " . ($rep_count+1) . ".\n");
     }
     
     // Segment part
+    $hdlr_type = $xml_rep->getElementsByTagName('hdlr')->item(0)->getAttribute('handler_type');
+    $sdType = $xml_rep->getElementsByTagName("$hdlr_type".'_sampledescription')->item(0)->getAttribute('sdType');
     
+    if(strpos($sdType, 'avc') === FALSE && strpos($sdType, 'hev1') === FALSE && strpos($sdType, 'hvc1') === FALSE && 
+       strpos($sdType, 'mp4a') === FALSE && strpos($sdType, 'ec-3') === FALSE && strpos($sdType, 'ac-4') === FALSE &&
+       strpos($sdType, 'dtsc') === FALSE && strpos($sdType, 'dtsh') === FALSE && strpos($sdType, 'dtse') === FALSE && strpos($sdType, 'dtsi') === FALSE &&
+       strpos($sdType, 'stpp') === FALSE)
+        fwrite($opfile, "###'DVB check violated: codec in the Segment is not supported by the specification', found $sdType in Adaptation Set " . ($adapt_count+1) . " Representation " . ($rep_count+1) . ".\n");
+    
+    if(strpos($sdType, 'avc') !== FALSE){
+        $nal_units = $xml_rep->getElementsByTagName('NALUnit');
+        foreach($nal_units as $nal_unit){
+            if($nal_unit->getAttribute('nal_type') == '0x07'){
+                if($nal_unit->getAttribute('profile_idc') != 100)
+                    fwrite($opfile, "###'DVB check violated: profile used for the codec in Segment is not supported by the specification', found in Adaptation Set " . ($adapt_count+1) . " Representation " . ($rep_count+1) . ".\n");
+            
+                $level_idc = $nal_unit->getElementsByTagName('comment')->item(0)->getAttribute('level_idc');
+                if($level_idc != 30 && $level_idc != 31 && $level_idc != 32 && $level_idc != 40)
+                    fwrite($opfile, "###'DVB check violated: level used for the codec in Segment is not supported by the specification', found in Adaptation Set " . ($adapt_count+1) . " Representation " . ($rep_count+1) . ".\n");
+            }
+        }
+    }
+    elseif(strpos($sdType, 'hev1') !== FALSE || strpos($sdType, 'hvc1') !== FALSE){
+        $width = $xml_rep->getElementsByTagName("$hdlr_type".'_sampledescription')->item(0)->getAttribute('width');
+        $height = $xml_rep->getElementsByTagName("$hdlr_type".'_sampledescription')->item(0)->getAttribute('height');
+        $nal_units = $xml_rep->getElementsByTagName('NALUnit');
+        foreach($nal_units as $nal_unit){
+            if($nal_unit->getAttribute('nalUnitType') == '33'){
+                if($nal_unit->getAttribute('gen_tier_flag') != '0')
+                    fwrite($opfile, "###'DVB check violated: tier used for the codec in Segment is not supported by the specification', found in Adaptation Set " . ($adapt_count+1) . " Representation " . ($rep_count+1) . ".\n");
+                if($nal_unit->getAttribute('bit_depth_luma_minus8') != 0 && $nal_unit->getAttribute('bit_depth_luma_minus8') != 2)
+                    fwrite($opfile, "###'DVB check violated: bit depth used for the codec in Segment is not supported by the specification', found in Adaptation Set " . ($adapt_count+1) . " Representation " . ($rep_count+1) . ".\n");
+                
+                if((int)$width <= 1920 && (int)$height <= 1080){
+                    if($nal_unit->getAttribute('gen_profile_idc') != '1' && $nal_unit->getAttribute('gen_profile_idc') != '2')
+                        fwrite($opfile, "###'DVB check violated: profile used for the codec in Segment is not supported by the specification', found in Adaptation Set " . ($adapt_count+1) . " Representation " . ($rep_count+1) . ".\n");
+                    if((int)($nal_unit->getAttribute('sps_max_sub_layers_minus1')) == 0 && (int)($nal_unit->getAttribute('gen_level_idc')) > 123)
+                        fwrite($opfile, "###'DVB check violated: level used for the codec in Segment is not supported by the specification', found in Adaptation Set " . ($adapt_count+1) . " Representation " . ($rep_count+1) . ".\n");
+                }
+                elseif((int)$width > 1920 && (int)$height > 1080){
+                    if($nal_unit->getAttribute('gen_profile_idc') != '2')
+                        fwrite($opfile, "###'DVB check violated: profile used for the codec in Segment is not supported by the specification', found in Adaptation Set " . ($adapt_count+1) . " Representation " . ($rep_count+1) . ".\n");
+                    if((int)($nal_unit->getAttribute('sps_max_sub_layers_minus1')) == 0 && (int)($nal_unit->getAttribute('gen_level_idc')) > 153)
+                        fwrite($opfile, "###'DVB check violated: level used for the codec in Segment is not supported by the specification', found in Adaptation Set " . ($adapt_count+1) . " Representation " . ($rep_count+1) . ".\n");
+                }
+            }
+        }
+    }
     ##
 }
 
@@ -600,10 +594,62 @@ function codecValidation_HbbTV($opfile, $dom, $xml_rep, $adapt_count, $rep_count
     $adapt = $dom->getElementsByTagName('AdaptationSet')->item($adapt_count);
     $rep = $adapt->getElementsByTagName('Representation')->item($rep_count);
     
-    ## Report on any resolutions used that are not in the tables of resoultions in 10.3 of the DVB DASH specification
-    $res_result = resolutionCheck($opfile, $adapt, $rep);
-    if($res_result[0] == false)
-        fwrite ($opfile, "Information on HbbTV codec conformance: Resolution value \"" . $res_result[1] . 'x' . $res_result[2] . "\" provided in Adaptation Set " . ($adapt_count+1) . " Representation " . ($rep_count+1) . " is not in the table of resolutions in 10.3 of the DVB DASH specification.\n");
+    ## Check on the support of the provided codec
+    // MPD part
+    $codecs = $adapt->getAttribute('codecs');
+    if($codecs == ''){
+        $codecs = $rep->getAttribute('codecs');
+    }
+    
+    if($codecs != ''){
+        $codecs_arr = explode(',', $codecs);
+        
+        $str_info = '';
+        foreach($codecs_arr as $codec){
+            if(strpos($codec, 'avc') === FALSE &&
+                strpos($codec, 'mp4a') === FALSE && strpos($codec, 'ec-3')){
+                
+                $str_info .= "$codec "; 
+            }
+        }
+        
+        if($str_info != '')
+            fwrite($opfile, "###'HbbTV check violated: @codecs in the MPD is not supported by the specification', found $str_info in Adaptation Set " . ($adapt_count+1) . " Representation " . ($rep_count+1) . ".\n");
+    }
+    
+    // Segment part
+    $hdlr_type = $xml_rep->getElementsByTagName('hdlr')->item(0)->getAttribute('handler_type');
+    $sdType = $xml_rep->getElementsByTagName("$hdlr_type".'_sampledescription')->item(0)->getAttribute('sdType');
+    
+    if(strpos($sdType, 'avc') === FALSE && 
+       strpos($sdType, 'mp4a') === FALSE && strpos($sdType, 'ec-3') === FALSE)
+        fwrite($opfile, "###'HbbTV check violated: codec in Segment is not supported by the specification', found $sdType in Adaptation Set " . ($adapt_count+1) . " Representation " . ($rep_count+1) . ".\n");
+    
+    if(strpos($sdType, 'avc') !== FALSE){
+        $width = $xml_rep->getElementsByTagName("$hdlr_type".'_sampledescription')->item(0)->getAttribute('width');
+        $height = $xml_rep->getElementsByTagName("$hdlr_type".'_sampledescription')->item(0)->getAttribute('height');
+        $nal_units = $xml_rep->getElementsByTagName('NALUnit');
+        foreach($nal_units as $nal_unit){
+            if($nal_unit->getAttribute('nal_type') == '0x07'){
+                if((int)$width <= 720 && (int)$height <= 576){
+                    if($nal_unit->getAttribute('profile_idc') != 77 && $nal_unit->getAttribute('profile_idc') != 100)
+                        fwrite($opfile, "###'HbbTV check violated: profile used for the codec in Segment is not supported by the specification', found in Adaptation Set " . ($adapt_count+1) . " Representation " . ($rep_count+1) . ".\n");
+                    
+                    $level_idc = $nal_unit->getElementsByTagName('comment')->item(0)->getAttribute('level_idc');
+                    if($level_idc != 30)
+                        fwrite($opfile, "###'HbbTV check violated: level used for the codec in Segment is not supported by the specification', found in Adaptation Set " . ($adapt_count+1) . " Representation " . ($rep_count+1) . ".\n");
+                }
+                elseif((int)$width >= 720 && (int)$height >= 640){
+                    if($nal_unit->getAttribute('profile_idc') != 100)
+                        fwrite($opfile, "###'HbbTV check violated: profile used for the codec in Segment is not supported by the specification', found in Adaptation Set " . ($adapt_count+1) . " Representation " . ($rep_count+1) . ".\n");
+                    
+                    $level_idc = $nal_unit->getElementsByTagName('comment')->item(0)->getAttribute('level_idc');
+                    if($level_idc != 30 && $level_idc != 31 && $level_idc != 32 && $level_idc != 40)
+                        fwrite($opfile, "###'HbbTV check violated: level used for the codec in Segment is not supported by the specification', found in Adaptation Set " . ($adapt_count+1) . " Representation " . ($rep_count+1) . ".\n");
+                }
+            }
+        }
+    }
     ##
 }
 
