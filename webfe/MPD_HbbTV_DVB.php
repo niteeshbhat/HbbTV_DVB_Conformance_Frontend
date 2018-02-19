@@ -231,8 +231,11 @@ function DVB_mpdvalidator($dom, $mpdreport){
     if(strpos($profiles, 'urn:dvb:dash:profile:dvb-dash:2014') === FALSE)
         fwrite($mpdreport, "###'DVB check violated: Section 4.1- The URN for the profile (MPEG Interoperability Point) SHALL be \"urn:dvb:dash:profile:dvb-dash:2014\"', specified profile could not be found.\n");
     
+    $profile_exists = false;
     if(strpos($profiles, 'urn:dvb:dash:profile:dvb-dash:2014') === FALSE && (strpos($profiles, 'urn:dvb:dash:profile:dvb-dash:isoff-ext-live:2014') === FALSE || strpos($profiles, 'urn:dvb:dash:profile:dvb-dash:isoff-ext-on-demand:2014') === FALSE))
         fwrite($mpdreport, "Warning for DVB check: Section 11.1- 'All Representations that are intended to be decoded and presented by a DVB conformant Player SHOULD be such that they will be inferred to have an @profiles attribute that includes the profile name defined in clause 4.1 as well as either the one defined in 4.2.5 or the one defined in 4.2.8', found profiles: $profiles.\n");
+    elseif(strpos($profiles, 'urn:dvb:dash:profile:dvb-dash:2014') === TRUE && (strpos($profiles, 'urn:dvb:dash:profile:dvb-dash:isoff-ext-live:2014') === TRUE || strpos($profiles, 'urn:dvb:dash:profile:dvb-dash:isoff-ext-on-demand:2014') === TRUE))
+        $profile_exists = true;
     ##
     
     ## Information from this part is used for Section 11.9.5: relative url warning
@@ -294,6 +297,12 @@ function DVB_mpdvalidator($dom, $mpdreport){
                 $video_found = false;
                 $audio_found = false;
                 
+                $adapt_profiles = $adapt->getAttribute('profiles');
+                if($profile_exists && $adapt_profiles != ''){
+                    if(strpos($adapt_profiles, 'urn:dvb:dash:profile:dvb-dash:2014') === FALSE && (strpos($adapt_profiles, 'urn:dvb:dash:profile:dvb-dash:isoff-ext-live:2014') === FALSE || strpos($adapt_profiles, 'urn:dvb:dash:profile:dvb-dash:isoff-ext-on-demand:2014') === FALSE))
+                        fwrite($mpdreport, "Warning for DVB check: Section 11.1- 'All Representations that are intended to be decoded and presented by a DVB conformant Player SHOULD be such that they will be inferred to have an @profiles attribute that includes the profile name defined in clause 4.1 as well as either the one defined in 4.2.5 or the one defined in 4.2.8', found profiles: $adapt_profiles.\n");
+                }
+                
                 $reps = $adapt->getElementsByTagName('Representation');
                 $reps_len = $reps->length;
                 if($reps_len > 16)
@@ -309,10 +318,29 @@ function DVB_mpdvalidator($dom, $mpdreport){
                             $contentTemp_aud_found = true;
                     }
                     if($ch->nodeName == 'Representation'){
+                        if($profile_exists && $adapt_profiles == ''){
+                            $rep_profiles = $ch->getAttribute('profiles');
+                            if($rep_profiles != ''){
+                                if(strpos($rep_profiles, 'urn:dvb:dash:profile:dvb-dash:2014') === FALSE && (strpos($rep_profiles, 'urn:dvb:dash:profile:dvb-dash:isoff-ext-live:2014') === FALSE || strpos($rep_profiles, 'urn:dvb:dash:profile:dvb-dash:isoff-ext-on-demand:2014') === FALSE))
+                                    fwrite($mpdreport, "Warning for DVB check: Section 11.1- 'All Representations that are intended to be decoded and presented by a DVB conformant Player SHOULD be such that they will be inferred to have an @profiles attribute that includes the profile name defined in clause 4.1 as well as either the one defined in 4.2.5 or the one defined in 4.2.8', found profiles: $rep_profiles.\n");
+                            }
+                        }
                         if(strpos($ch->getAttribute('mimeType'), 'video') !== FALSE)
                             $video_found = true;
                         if(strpos($ch->getAttribute('mimeType'), 'audio') !== FALSE)
                             $audio_found = true;
+                        
+                        if($profile_exists && $adapt_profiles == '' && $rep_profiles == ''){
+                            foreach($ch->childNodes as $c){
+                                if($c->nodeName == 'SubRepresentation'){
+                                    $subrep_profiles = $c->getAttribute('profiles');
+                                    if($subrep_profiles != ''){
+                                        if(strpos($subrep_profiles, 'urn:dvb:dash:profile:dvb-dash:2014') === FALSE && (strpos($subrep_profiles, 'urn:dvb:dash:profile:dvb-dash:isoff-ext-live:2014') === FALSE || strpos($subrep_profiles, 'urn:dvb:dash:profile:dvb-dash:isoff-ext-on-demand:2014') === FALSE))
+                                            fwrite($mpdreport, "Warning for DVB check: Section 11.1- 'All Representations that are intended to be decoded and presented by a DVB conformant Player SHOULD be such that they will be inferred to have an @profiles attribute that includes the profile name defined in clause 4.1 as well as either the one defined in 4.2.5 or the one defined in 4.2.8', found profiles: $subrep_profiles.\n");
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
                 
