@@ -651,6 +651,68 @@ function codecValidation_HbbTV($opfile, $dom, $xml_rep, $adapt_count, $rep_count
         }
     }
     ##
+    ##Segment checks.
+    $stsd = $xml_rep->getElementsByTagName('stsd')->item(0);
+    $vide_sample=$stsd->getElementsByTagName('vide_sampledescription');
+    $soun_sample=$stsd->getElementsByTagName('soun_sampledescription');
+    if($vide_sample->length>0 && $soun_sample->length>0)
+        fwrite($opfile, "###'HbbTV check violated Section E.2.3: Each Representation shall contain only one media component', found both video and audio samples\n");
+
+    if($hdlr_type =='vide')
+    {
+        $avcC = $xml_rep->getElementsByTagName('avcC');
+        if($avcC->length>0)
+        {
+            $nals=$xml_rep->getElementsByTagName('NALUnit');
+            foreach($nals as $nal_unit)
+            {
+                if($nal_unit->getAttribute('nal_type') =='0x07')
+                    $sps_found=1;
+                if($nal_unit->getAttribute('nal_type') =='0x08')
+                    $pps_found=1;
+            }
+            if($sps_found!=1)
+                fwrite($opfile, "###'HbbTV check violated Section E.2.3: All info necessary to decode any Segment shall be provided in Initialization Segment', for AVC video, Sequence parameter set not found\n");
+            if($pps_found!=1)
+                fwrite($opfile, "###'HbbTV check violated Section E.2.3: All info necessary to decode any Segment shall be provided in Initialization Segment', for AVC video, Picture parameter set not found \n");
+
+        }
+        else
+            fwrite($opfile, "###'HbbTV check violated Section E.2.3: All info necessary to decode any Segment shall be provided in Initialization Segment', for video, AVC decoder config record not found \n");
+
+    }
+    else if($hdlr_type =='soun'){
+        $soun_sample=$xml_rep->getElementsByTagName('soun_sampledescription');
+        $sdType=$soun_sample->item(0)->getAttribute('sdType');
+        $samplingRate=$soun_sample->item(0)->getAttribute('sampleRate');    
+        $xml_audioDec=$xml_rep->getElementsByTagName('DecoderSpecificInfo');
+        if($xml_audioDec->length>0)
+           $channelConfig=$xml_audioDec->item(0)->getAttribute('channelConfig');
+        if($sdType==NULL  )
+            fwrite($opfile, "###'HbbTV check violated Section E.2.3: All info necessary to decode any Segment shall be provided in Initialization Segment', for audio, sample description type not found \n");
+        if($samplingRate==NULL)
+            fwrite($opfile, "###'HbbTV check violated Section E.2.3: All info necessary to decode any Segment shall be provided in Initialization Segment', for audio, sampling rate not found \n");
+        if($channelConfig==NULL)
+            fwrite($opfile, "###'HbbTV check violated Section E.2.3: All info necessary to decode any Segment shall be provided in Initialization Segment', for audio, channel config in decoder specific info not found \n");
+
+    }
+    
+    $mdhd=$xml_rep->getElementsByTagName('mdhd')->item(0);
+    $timescale=$mdhd->getAttribute('timescale');
+    $num_moofs=$xml_rep->getElementsByTagName('moof')->length;
+    for($j=0;$j<$num_moofs-1;$j++)
+    {
+        $trun=$xml_rep->getElementsByTagName('trun')->item($j);
+        $cummulatedSampleDuration=$trun->getAttribute('cummulatedSampleDuration');
+        $segDur=$cummulatedSampleDuration/$timescale;
+        if($segDur <1)
+            fwrite($opfile, "###'HbbTV check violated Section E.2.3: Segments shall be at least 1s long except last segment of Period', segment ".($j+1)." found with duration ".$segDur." \n");
+        if($hdlr_type =='vide' && $segDur>15)
+            fwrite($opfile, "###'HbbTV check violated Section E.2.3: Each video segment shall have a duration of not more than 15s', segment ".($j+1)." found with duration ".$segDur." \n");
+        if($hdlr_type =='soun' && $segDur>15)
+            fwrite($opfile, "###'HbbTV check violated Section E.2.3: Each audio segment shall have a duration of not more than 15s', segment ".($j+1)." found with duration ".$segDur." \n");
+
+    }
 }
 
 // Report on any resolutions used that are not in the tables of resoultions in 10.3 of the DVB DASH specification
