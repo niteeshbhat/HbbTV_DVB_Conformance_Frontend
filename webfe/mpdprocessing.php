@@ -1014,6 +1014,35 @@ function process_mpd()
 
                 $destiny[] = $locate . '/' . $repno . "_infofile.txt";
                 rename($locate . '/' . "stderr.txt", $locate . '/' . $repno . "log.txt"); //Rename conformance software output file to representation number file
+                
+                // Compare representations
+                //if($shouldCompare){
+                if($cmaf_val == "yes" || $check_dvb_conformance || $check_hbbtv_conformance){
+                    $new_pathdir = $locate . "/Adapt" . $count1;
+                    if (!file_exists($new_pathdir)){
+                        $oldmask = umask(0);
+                        mkdir($new_pathdir, 0777, true); // create folder for each presentation
+                        umask($oldmask);
+                    }
+                    rename($locate . '/' . "atominfo.xml", $new_pathdir . '/' . $repno . ".xml");
+                
+                    //if($cmaf_val == "yes"){
+                        $new_pathdir =  $new_pathdir . "/comparisonResults"; 
+                        if (!file_exists($new_pathdir)){
+                            $oldmask = umask(0);
+                            mkdir($new_pathdir, 0777, true); // create folder for each presentation
+                            umask($oldmask);
+                        }
+                    }
+                //}
+               // else{
+               //     unlink($locate . '/' . "atominfo.xml");
+               // }
+                
+                if($check_dvb_conformance || $check_hbbtv_conformance){
+                    common_validation($dom,$check_hbbtv_conformance,$check_dvb_conformance, $sizearray);
+                }
+                
                 $temp_string = str_replace(array('$Template$'), array($repno . "log"), $string_info); // this string shows a text file on HTML
 
                 file_put_contents($locate . '/' . $repno . "log.html", $temp_string); // Create html file containing log file result
@@ -1040,31 +1069,16 @@ function process_mpd()
                     $ResultXML->Period[0]->Adaptation[$tempcount1]->Representation[$count2 - 1] = "error";
                     $file_location[] = "error"; //else notify client with error
                 }
-                
-                // Compare representations
-                //if($shouldCompare){
-                if($cmaf_val == "yes" || $check_dvb_conformance || $check_hbbtv_conformance){
-                    $new_pathdir = $locate . "/Adapt" . $count1;
-                    if (!file_exists($new_pathdir)){
-                        $oldmask = umask(0);
-                        mkdir($new_pathdir, 0777, true); // create folder for each presentation
-                        umask($oldmask);
+                if($check_dvb_conformance || $check_hbbtv_conformance){
+                    if (strpos($search, "###") === false){
+                        $ResultXML->Period[0]->Adaptation[$tempcount1]->Representation[$count2 - 1] = "noerror";
+                        $file_location[] = "noerror";
                     }
-                    rename($locate . '/' . "atominfo.xml", $new_pathdir . '/' . $repno . ".xml");
-                
-                    //if($cmaf_val == "yes"){
-                        $new_pathdir =  $new_pathdir . "/comparisonResults"; 
-                        if (!file_exists($new_pathdir)){
-                            $oldmask = umask(0);
-                            mkdir($new_pathdir, 0777, true); // create folder for each presentation
-                            umask($oldmask);
-                        }
+                    else{
+                        $ResultXML->Period[0]->Adaptation[$tempcount1]->Representation[$count2 - 1] = "error";
+                        $file_location[] = "error";
                     }
-                //}
-               // else{
-               //     unlink($locate . '/' . "atominfo.xml");
-               // }
-                
+                }
                 
                 $ResultXML->Period[0]->Adaptation[$tempcount1]->Representation[$count2 - 1]->addAttribute('url', str_replace($_SERVER['DOCUMENT_ROOT'], 'http://' . $_SERVER['SERVER_NAME'], $locate . '/' . $repno . "log.txt"));
                 $progressXML->asXml(trim($locate . '/progress.xml'));
