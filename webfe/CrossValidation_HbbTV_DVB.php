@@ -9,7 +9,6 @@
 function CrossValidation_HbbTV_DVB($dom,$hbbtv,$dvb)
 {
     common_crossValidation($dom,$hbbtv,$dvb);
-    common_codecValidation($dom,$hbbtv,$dvb);
 }
 
 function common_crossValidation($dom,$hbbtv,$dvb)
@@ -473,44 +472,34 @@ function nodes_equal($node_1, $node_2){
     return $equal;
 }
 
-function common_codecValidation($dom,$hbbtv,$dvb){
-    global $locate, $Period_arr;
+function common_validation($dom,$hbbtv,$dvb, $sizearray){
+    global $locate, $count1, $count2;
     
-    for($adapt_count=0; $adapt_count<sizeof($Period_arr); $adapt_count++){
-        $Adapt = $Period_arr[$adapt_count];
-        
-        $loc = $locate . '/Adapt' . $adapt_count.'/';
-        $filecount = 0;
-        $files = glob($loc . "*.xml");
-        if($files)
-            $filecount = count($files);
-        
-        for($rep_count=0; $rep_count<$filecount; $rep_count++){
-            if(!($opfile = fopen($locate."/Adapt".$adapt_count."rep".$rep_count."log.txt", 'a'))){
-                echo "Error opening/creating HbbTV/DVB codec validation file: "."/Adapt".$adapt_count."rep".$rep_count."log.txt";
-                return;
-            }
-            
-            $xml_rep = xmlFileLoad($files[$rep_count]);
-            
-            if($dvb){
-                codecValidation_DVB($opfile, $dom, $xml_rep, $adapt_count, $rep_count);
-            }
-            if($hbbtv){
-                codecValidation_HbbTV($opfile, $dom, $xml_rep, $adapt_count, $rep_count);
-            }
-        }
+    if(!($opfile = fopen($locate."/Adapt".$count1."rep".$count2."log.txt", 'a'))){
+        echo "Error opening/creating HbbTV/DVB codec validation file: "."/Adapt".$count1."rep".$count2."log.txt";
+        return;
+    }
+    
+    $xml_rep = xmlFileLoad($locate.'/Adapt'.$count1.'/Adapt'.$count1.'rep'.$count2.'.xml');
+    
+    if($dvb){
+        common_validation_DVB($opfile, $dom, $xml_rep, $count1, $count2, $sizearray);
+    }
+    if($hbbtv){
+        common_validation_HbbTV($opfile, $dom, $xml_rep, $count1, $count2);
     }
 }
 
-function codecValidation_DVB($opfile, $dom, $xml_rep, $adapt_count, $rep_count){
+function common_validation_DVB($opfile, $dom, $xml_rep, $adapt_count, $rep_count, $sizearray){
+    global $profiles, $locate;
+    
     $adapt = $dom->getElementsByTagName('AdaptationSet')->item($adapt_count);
     $rep = $adapt->getElementsByTagName('Representation')->item($rep_count);
     
     ## Report on any resolutions used that are not in the tables of resoultions in 10.3 of the DVB DASH specification
     $res_result = resolutionCheck($opfile, $adapt, $rep);
     if($res_result[0] == false)
-        fwrite ($opfile, "Information on DVB codec conformance: Resolution value \"" . $res_result[1] . 'x' . $res_result[2] . "\" provided in Adaptation Set " . ($adapt_count+1) . " Representation " . ($rep_count+1) . " is not in the table of resolutions in 10.3 of the DVB DASH specification.\n");
+        fwrite ($opfile, "Information on DVB codec conformance: Resolution value \"" . $res_result[1] . 'x' . $res_result[2] . "\" is not in the table of resolutions in 10.3 of the DVB DASH specification.\n");
     ##
     
     ## Check on the support of the provided codec
@@ -535,7 +524,7 @@ function codecValidation_DVB($opfile, $dom, $xml_rep, $adapt_count, $rep_count){
         }
         
         if($str_info != '')
-            fwrite($opfile, "###'DVB check violated: @codecs in the MPD is not supported by the specification', found $str_info in Adaptation Set " . ($adapt_count+1) . " Representation " . ($rep_count+1) . ".\n");
+            fwrite($opfile, "###'DVB check violated: @codecs in the MPD is not supported by the specification', found $str_info.\n");
     }
     
     // Segment part
@@ -546,18 +535,18 @@ function codecValidation_DVB($opfile, $dom, $xml_rep, $adapt_count, $rep_count){
        strpos($sdType, 'mp4a') === FALSE && strpos($sdType, 'ec-3') === FALSE && strpos($sdType, 'ac-4') === FALSE &&
        strpos($sdType, 'dtsc') === FALSE && strpos($sdType, 'dtsh') === FALSE && strpos($sdType, 'dtse') === FALSE && strpos($sdType, 'dtsi') === FALSE &&
        strpos($sdType, 'stpp') === FALSE)
-        fwrite($opfile, "###'DVB check violated: codec in the Segment is not supported by the specification', found $sdType in Adaptation Set " . ($adapt_count+1) . " Representation " . ($rep_count+1) . ".\n");
+        fwrite($opfile, "###'DVB check violated: codec in the Segment is not supported by the specification', found $sdType.\n");
     
     if(strpos($sdType, 'avc') !== FALSE){
         $nal_units = $xml_rep->getElementsByTagName('NALUnit');
         foreach($nal_units as $nal_unit){
             if($nal_unit->getAttribute('nal_type') == '0x07'){
                 if($nal_unit->getAttribute('profile_idc') != 100)
-                    fwrite($opfile, "###'DVB check violated: profile used for the codec in Segment is not supported by the specification', found in Adaptation Set " . ($adapt_count+1) . " Representation " . ($rep_count+1) . ".\n");
+                    fwrite($opfile, "###'DVB check violated: profile used for the codec in Segment is not supported by the specification', found " . $nal_unit->getAttribute('profile_idc') . ".\n");
             
                 $level_idc = $nal_unit->getElementsByTagName('comment')->item(0)->getAttribute('level_idc');
                 if($level_idc != 30 && $level_idc != 31 && $level_idc != 32 && $level_idc != 40)
-                    fwrite($opfile, "###'DVB check violated: level used for the codec in Segment is not supported by the specification', found in Adaptation Set " . ($adapt_count+1) . " Representation " . ($rep_count+1) . ".\n");
+                    fwrite($opfile, "###'DVB check violated: level used for the codec in Segment is not supported by the specification', found $level_idc.\n");
             }
         }
     }
@@ -568,29 +557,176 @@ function codecValidation_DVB($opfile, $dom, $xml_rep, $adapt_count, $rep_count){
         foreach($nal_units as $nal_unit){
             if($nal_unit->getAttribute('nalUnitType') == '33'){
                 if($nal_unit->getAttribute('gen_tier_flag') != '0')
-                    fwrite($opfile, "###'DVB check violated: tier used for the codec in Segment is not supported by the specification', found in Adaptation Set " . ($adapt_count+1) . " Representation " . ($rep_count+1) . ".\n");
+                    fwrite($opfile, "###'DVB check violated: tier used for the codec in Segment is not supported by the specification', found " . $nal_unit->getAttribute('gen_tier_flag') . ".\n");
                 if($nal_unit->getAttribute('bit_depth_luma_minus8') != 0 && $nal_unit->getAttribute('bit_depth_luma_minus8') != 2)
-                    fwrite($opfile, "###'DVB check violated: bit depth used for the codec in Segment is not supported by the specification', found in Adaptation Set " . ($adapt_count+1) . " Representation " . ($rep_count+1) . ".\n");
+                    fwrite($opfile, "###'DVB check violated: bit depth used for the codec in Segment is not supported by the specification', found " . $nal_unit->getAttribute('bit_depth_luma_minus8') . ".\n");
                 
                 if((int)$width <= 1920 && (int)$height <= 1080){
                     if($nal_unit->getAttribute('gen_profile_idc') != '1' && $nal_unit->getAttribute('gen_profile_idc') != '2')
-                        fwrite($opfile, "###'DVB check violated: profile used for the codec in Segment is not supported by the specification', found in Adaptation Set " . ($adapt_count+1) . " Representation " . ($rep_count+1) . ".\n");
+                        fwrite($opfile, "###'DVB check violated: profile used for the codec in Segment is not supported by the specification', found " . $nal_unit->getAttribute('gen_profile_idc') . ".\n");
                     if((int)($nal_unit->getAttribute('sps_max_sub_layers_minus1')) == 0 && (int)($nal_unit->getAttribute('gen_level_idc')) > 123)
-                        fwrite($opfile, "###'DVB check violated: level used for the codec in Segment is not supported by the specification', found in Adaptation Set " . ($adapt_count+1) . " Representation " . ($rep_count+1) . ".\n");
+                        fwrite($opfile, "###'DVB check violated: level used for the codec in Segment is not supported by the specification', found " . $nal_unit->getAttribute('gen_level_idc') . ".\n");
                 }
                 elseif((int)$width > 1920 && (int)$height > 1080){
                     if($nal_unit->getAttribute('gen_profile_idc') != '2')
-                        fwrite($opfile, "###'DVB check violated: profile used for the codec in Segment is not supported by the specification', found in Adaptation Set " . ($adapt_count+1) . " Representation " . ($rep_count+1) . ".\n");
+                        fwrite($opfile, "###'DVB check violated: profile used for the codec in Segment is not supported by the specification', found " . $nal_unit->getAttribute('gen_profile_idc') . ".\n");
                     if((int)($nal_unit->getAttribute('sps_max_sub_layers_minus1')) == 0 && (int)($nal_unit->getAttribute('gen_level_idc')) > 153)
-                        fwrite($opfile, "###'DVB check violated: level used for the codec in Segment is not supported by the specification', found in Adaptation Set " . ($adapt_count+1) . " Representation " . ($rep_count+1) . ".\n");
+                        fwrite($opfile, "###'DVB check violated: level used for the codec in Segment is not supported by the specification', found " . $nal_unit->getAttribute('gen_level_idc') . ".\n");
                 }
             }
         }
     }
     ##
+    
+    ## Segment checks
+    $moof_boxes = $xml_rep->getElementsByTagName('moof');
+    // Section 4.3 on on-demand profile periods containing sidx boxes
+    if(strpos($profiles, 'urn:mpeg:dash:profile:isoff-on-demand:2011') !== FALSE){
+        if($xml_rep->getElementsByTagName('sidx')->length != 1)
+            fwrite($opfile, "###'DVB check violated: Section 4.3- (For On Demand profile) The segment SHALL contain only one single Segment Index box ('sidx) for the entire segment', found more than one sidx boxes.\n");
+        
+        if(count(glob($locate.'/Adapt'.$adapt_count.'rep'.$rep_count.'/*mp4')) < 1)
+            fwrite($opfile, "###'DVB check violated: Section 4.3- (For On Demand profile) Each Representation SHALL have only one Segment', found more.\n");
+    }
+    
+    // Section 4.3 on traf box count in moof boxes
+    foreach($moof_boxes as $moof_box){
+        if($moof_box->getElementsByTagName('traf')->length != 1)
+            fwrite($opfile, "###'DVB check violated: Section 4.3- The movie fragment box ('moof') SHALL contain only one track fragment box ('traf')', found more than one.\n");
+    }
+    
+    // Section 4.5 on segment and subsegment durations
+    $sidx_boxes = $xml_rep->getElementsByTagName('sidx');
+    $subsegment_signaling = array();
+    if($sidx_boxes->length != 0){
+        foreach($sidx_boxes as $sidx_box){
+            $subsegment_signaling[] = (int)($sidx_box->getAttribute('referenceCount'));
+        }
+    }
+    
+    $timescale=$xml_rep->getElementsByTagName('mdhd')->item(0)->getAttribute('timescale');
+    $num_moofs=$moof_boxes->length;
+    $sidx_index = 0;
+    $cum_subsegDur=0;
+    for($j=0;$j<$num_moofs-1;$j++){
+        $cummulatedSampleDuration=$xml_rep->getElementsByTagName('trun')->item($j)->getAttribute('cummulatedSampleDuration');
+        $segDur=$cummulatedSampleDuration/$timescale;
+        
+        if(empty($subsegment_signaling) || (!empty($subsegment_signaling) && sizeof(array_unique($subsegment_signaling)) == 1 && in_array(0, $subsegment_signaling))){
+            if($hdlr_type =='vide' && $segDur>15)
+                fwrite($opfile, "###'DVB check violated Section 4.5: Where subsegments are not signalled, each video segment SHALL have a duration of not more than 15 seconds', segment ".($j+1)." found with duration ".$segDur." \n");
+            if($hdlr_type =='soun' && $segDur>15)
+                fwrite($opfile, "###'DVB check violated Section 4.5: Where subsegments are not signalled, each audio segment SHALL have a duration of not more than 15 seconds', segment ".($j+1)." found with duration ".$segDur." \n");
+            
+            if($segDur <1)
+                fwrite($opfile, "###'DVB check violated Section 4.5: Segment duration SHALL be at least 1 second except for the last segment of a Period', segment ".($j+1)." found with duration ".$segDur." \n");
+        }
+        elseif(!empty($subsegment_signaling) && !in_array(0, $subsegment_signaling)){
+            $ref_count = $subsegment_signaling[$sidx_index];
+            $cum_subsegDur += $segDur;
+            if($hdlr_type =='vide' && $segDur>15)
+                fwrite($opfile, "###'DVB check violated Section 4.5: Each video subsegment SHALL have a duration of not more than 15 seconds', subsegment ".($j+1)." found with duration ".$segDur." \n");
+            if($hdlr_type =='soun' && $segDur>15)
+                fwrite($opfile, "###'DVB check violated Section 4.5: Each audio subsegment SHALL have a duration of not more than 15 seconds', subsegment ".($j+1)." found with duration ".$segDur." \n");
+            
+            $subsegment_signaling[$sidx_index] = $ref_count - 1;
+            if($subsegment_signaling[$sidx_index] == 0){
+                if($cum_subsegDur < 1)
+                    fwrite($opfile, "###'DVB check violated Section 4.5: Segment duration SHALL be at least 1 second except for the last segment of a Period', segment ".($j+1)." found with duration ".$segDur." \n");
+                
+                $sidx_index++;
+                $cum_subsegDur = 0;
+            }
+            
+            // Section 5.1.2 on AVC content's SAP type
+            if($hdlr_type == 'vide' && strpos($sdType, 'avc') !== FALSE){
+                $subseg = $sidx_box->getElementsByTagName('subsegment')->item(0);
+                if($subseg != NULL && $subseg->getAttribute('starts_with_SAP') == '1'){
+                    $sap_type = $subseg->getAttribute('SAP_type');
+                    if($sap_type != '1' && $sap_type != '2')
+                        fwrite($opfile, "###'DVB check violated: Section 5.1.2- Segments SHALL start with SAP types of 1 or 2', found $sap_type.\n");
+                }
+            }
+            //
+        }
+        else{
+            $ref_count = $subsegment_signaling[$sidx_index];
+            if($ref_count == 0){
+                if($hdlr_type =='vide' && $segDur>15)
+                    fwrite($opfile, "###'DVB check violated Section 4.5: Where subsegments are not signalled, each video segment SHALL have a duration of not more than 15 seconds', segment ".($j+1)." found with duration ".$segDur." \n");
+                if($hdlr_type =='soun' && $segDur>15)
+                    fwrite($opfile, "###'DVB check violated Section 4.5: Where subsegments are not signalled, each audio segment SHALL have a duration of not more than 15 seconds', segment ".($j+1)." found with duration ".$segDur." \n");
+                
+                if($segDur <1)
+                    fwrite($opfile, "###'DVB check violated Section 4.5: Segment duration SHALL be at least 1 second except for the last segment of a Period', segment ".($j+1)." found with duration ".$segDur." \n");
+                
+                $sidx_index++;
+            }
+            else{
+                $subsegment_signaling[$sidx_index] = $ref_count - 1;
+                $cum_subsegDur += $segDur;
+                if($hdlr_type =='vide' && $segDur>15)
+                    fwrite($opfile, "###'DVB check violated Section 4.5: Each video subsegment SHALL have a duration of not more than 15 seconds', subsegment ".($j+1)." found with duration ".$segDur." \n");
+                if($hdlr_type =='soun' && $segDur>15)
+                    fwrite($opfile, "###'DVB check violated Section 4.5: Each audio subsegment SHALL have a duration of not more than 15 seconds', subsegment ".($j+1)." found with duration ".$segDur." \n");
+                
+                if($subsegment_signaling[$sidx_index] == 0){
+                    $sidx_index++;
+                    if($cum_subsegDur < 1)
+                        fwrite($opfile, "###'DVB check violated Section 4.5: Segment duration SHALL be at least 1 second except for the last segment of a Period', segment ".($j+1)." found with duration ".$segDur." \n");
+                    
+                    $cum_subsegDur = 0;
+                }
+                
+                // Section 5.1.2 on AVC content's SAP type
+                if($hdlr_type == 'vide' && strpos($sdType, 'avc') !== FALSE){
+                $subseg = $sidx_box->getElementsByTagName('subsegment')->item(0);
+                    if($subseg != NULL && $subseg->getAttribute('starts_with_SAP') == '1'){
+                        $sap_type = $subseg->getAttribute('SAP_type');
+                        if($sap_type != '1' && $sap_type != '2')
+                            fwrite($opfile, "###'DVB check violated: Section 5.1.2- Segments SHALL start with SAP types of 1 or 2', found $sap_type.\n");
+                    }
+                }
+                //
+            }
+        }
+        
+        // Section 6.2 on HE_AACv2 and 6.5 on MPEG Surround audio content's SAP type
+        if($hdlr_type == 'soun' && strpos($sdType, 'mp4a') !== FALSE){
+            $subsegments = $sidx_box->getElementsByTagName('subsegment');
+            if($subsegments->length != 0){
+                foreach($subsegments as $subsegment){
+                    if($subsegment->getAttribute('starts_with_SAP') == '1'){
+                        $sap_type = $subsegment->getAttribute('SAP_type');
+                        if($sap_type != '1')
+                            fwrite($opfile, "###'DVB check violated: Section 6.2/6.5- The content preparation SHALL ensure that each (Sub)Segment starts with a SAP type 1', found $sap_type in Adaptation Set " . ($adapt_count+1) . " Representation " . ($rep_count+1) . ".\n");
+                    }
+                }
+            }
+        }
+        //
+    }
+    ##
+    
+    // Section 5.1.2 on AVC content's sample entry type
+    if($hdlr_type == 'vide' && strpos($sdType, 'avc') !== FALSE){
+        if($sdType != 'avc3' && $sdType != 'avc4')
+            fwrite($opfile, "Warning for DVB check: Section 5.1.2- 'Content SHOULD be offered using Inband storage for SPS/PPS i.e. sample entries 'avc3' and 'avc4'.', found $sdType.\n");
+    }
+    
+    // Section 4.5 on subtitle segment sizes
+    if($hdlr_type == 'subt'){
+        $segsize_info = '';
+        foreach($sizearray as $segsize){
+            if($segsize > 512*1024)
+                $segsize_info .= 'large ';
+        }
+        if($segsize_info != '')
+            fwrite($opfile, "###'DVB check violated: Section 4.5- Subtitle segments SHALL have a maximum segment size of 512KB', found larger segment size.\n");
+    }
 }
 
-function codecValidation_HbbTV($opfile, $dom, $xml_rep, $adapt_count, $rep_count){
+function common_validation_HbbTV($opfile, $dom, $xml_rep, $adapt_count, $rep_count){
     $adapt = $dom->getElementsByTagName('AdaptationSet')->item($adapt_count);
     $rep = $adapt->getElementsByTagName('Representation')->item($rep_count);
     
@@ -614,7 +750,7 @@ function codecValidation_HbbTV($opfile, $dom, $xml_rep, $adapt_count, $rep_count
         }
         
         if($str_info != '')
-            fwrite($opfile, "###'HbbTV check violated: @codecs in the MPD is not supported by the specification', found $str_info in Adaptation Set " . ($adapt_count+1) . " Representation " . ($rep_count+1) . ".\n");
+            fwrite($opfile, "###'HbbTV check violated: @codecs in the MPD is not supported by the specification', found $str_info.\n");
     }
     
     // Segment part
@@ -623,7 +759,7 @@ function codecValidation_HbbTV($opfile, $dom, $xml_rep, $adapt_count, $rep_count
     
     if(strpos($sdType, 'avc') === FALSE && 
        strpos($sdType, 'mp4a') === FALSE && strpos($sdType, 'ec-3') === FALSE)
-        fwrite($opfile, "###'HbbTV check violated: codec in Segment is not supported by the specification', found $sdType in Adaptation Set " . ($adapt_count+1) . " Representation " . ($rep_count+1) . ".\n");
+        fwrite($opfile, "###'HbbTV check violated: codec in Segment is not supported by the specification', found $sdType.\n");
     
     if(strpos($sdType, 'avc') !== FALSE){
         $width = $xml_rep->getElementsByTagName("$hdlr_type".'_sampledescription')->item(0)->getAttribute('width');
@@ -633,19 +769,19 @@ function codecValidation_HbbTV($opfile, $dom, $xml_rep, $adapt_count, $rep_count
             if($nal_unit->getAttribute('nal_type') == '0x07'){
                 if((int)$width <= 720 && (int)$height <= 576){
                     if($nal_unit->getAttribute('profile_idc') != 77 && $nal_unit->getAttribute('profile_idc') != 100)
-                        fwrite($opfile, "###'HbbTV check violated: profile used for the codec in Segment is not supported by the specification', found in Adaptation Set " . ($adapt_count+1) . " Representation " . ($rep_count+1) . ".\n");
+                        fwrite($opfile, "###'HbbTV check violated: profile used for the codec in Segment is not supported by the specification', found " . $nal_unit->getAttribute('profile_idc') . ".\n");
                     
                     $level_idc = $nal_unit->getElementsByTagName('comment')->item(0)->getAttribute('level_idc');
                     if($level_idc != 30)
-                        fwrite($opfile, "###'HbbTV check violated: level used for the codec in Segment is not supported by the specification', found in Adaptation Set " . ($adapt_count+1) . " Representation " . ($rep_count+1) . ".\n");
+                        fwrite($opfile, "###'HbbTV check violated: level used for the codec in Segment is not supported by the specification', found $level_idc.\n");
                 }
                 elseif((int)$width >= 720 && (int)$height >= 640){
                     if($nal_unit->getAttribute('profile_idc') != 100)
-                        fwrite($opfile, "###'HbbTV check violated: profile used for the codec in Segment is not supported by the specification', found in Adaptation Set " . ($adapt_count+1) . " Representation " . ($rep_count+1) . ".\n");
+                        fwrite($opfile, "###'HbbTV check violated: profile used for the codec in Segment is not supported by the specification', found " . $nal_unit->getAttribute('profile_idc') . ".\n");
                     
                     $level_idc = $nal_unit->getElementsByTagName('comment')->item(0)->getAttribute('level_idc');
                     if($level_idc != 30 && $level_idc != 31 && $level_idc != 32 && $level_idc != 40)
-                        fwrite($opfile, "###'HbbTV check violated: level used for the codec in Segment is not supported by the specification', found in Adaptation Set " . ($adapt_count+1) . " Representation " . ($rep_count+1) . ".\n");
+                        fwrite($opfile, "###'HbbTV check violated: level used for the codec in Segment is not supported by the specification', found $level_idc.\n");
                 }
             }
         }
