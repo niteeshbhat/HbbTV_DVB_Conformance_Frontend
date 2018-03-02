@@ -481,12 +481,16 @@ function common_validation($dom,$hbbtv,$dvb, $sizearray){
     }
     
     $xml_rep = xmlFileLoad($locate.'/Adapt'.$count1.'/Adapt'.$count1.'rep'.$count2.'.xml');
-    
+
     if($dvb){
         common_validation_DVB($opfile, $dom, $xml_rep, $count1, $count2, $sizearray);
     }
     if($hbbtv){
         common_validation_HbbTV($opfile, $dom, $xml_rep, $count1, $count2);
+    }
+    $checks = segmentToPeriodDurationCheck($xml_rep);
+    if(!$checks[0]){
+        fwrite($opfile, "###'HbbTV/DVB check violated: The accumulated duration of the segments [".$checks[1]. "seconds] in the representation does not match the period duration[".$checks[2]."seconds].\n'");
     }
 }
 
@@ -836,6 +840,7 @@ function common_validation_HbbTV($opfile, $dom, $xml_rep, $adapt_count, $rep_cou
     $mdhd=$xml_rep->getElementsByTagName('mdhd')->item(0);
     $timescale=$mdhd->getAttribute('timescale');
     $num_moofs=$xml_rep->getElementsByTagName('moof')->length;
+    $totalSegmentDuration = 0;
     for($j=0;$j<$num_moofs-1;$j++)
     {
         $trun=$xml_rep->getElementsByTagName('trun')->item($j);
@@ -847,8 +852,25 @@ function common_validation_HbbTV($opfile, $dom, $xml_rep, $adapt_count, $rep_cou
             fwrite($opfile, "###'HbbTV check violated Section E.2.3: Each video segment shall have a duration of not more than 15s', segment ".($j+1)." found with duration ".$segDur." \n");
         if($hdlr_type =='soun' && $segDur>15)
             fwrite($opfile, "###'HbbTV check violated Section E.2.3: Each audio segment shall have a duration of not more than 15s', segment ".($j+1)." found with duration ".$segDur." \n");
+        
+    }   
+}
 
+function segmentToPeriodDurationCheck($xml_rep) {
+    global $PeriodDuration;
+    $mdhd=$xml_rep->getElementsByTagName('mdhd')->item(0);
+    $timescale=$mdhd->getAttribute('timescale');
+    $num_moofs=$xml_rep->getElementsByTagName('moof')->length;
+    $totalSegmentDuration = 0;
+    for ( $j = 0; $j <= $num_moofs - 1 ; $j++ )
+    {
+        $trun = $xml_rep->getElementsByTagName('trun')->item($j);
+        $cummulatedSampleDuration = $trun->getAttribute('cummulatedSampleDuration');
+        $segDur = ( $cummulatedSampleDuration * 1.00 ) / $timescale;      
+        $totalSegmentDuration += $segDur;
     }
+    
+    return [$totalSegmentDuration==$PeriodDuration, $totalSegmentDuration, $PeriodDuration];
 }
 
 // Report on any resolutions used that are not in the tables of resoultions in 10.3 of the DVB DASH specification
@@ -894,4 +916,8 @@ function resolutionCheck($opfile, $adapt, $rep){
     }
     
     return array($conformant, $width, $height);
+}
+
+function float2int($value) {
+    return value | 0;
 }
