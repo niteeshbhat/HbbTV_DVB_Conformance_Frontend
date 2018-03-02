@@ -591,9 +591,9 @@ function common_validation_DVB($opfile, $dom, $xml_rep, $adapt_count, $rep_count
     // Section 4.3 on on-demand profile periods containing sidx boxes
     if(strpos($profiles, 'urn:mpeg:dash:profile:isoff-on-demand:2011') !== FALSE){
         if($xml_rep->getElementsByTagName('sidx')->length != 1)
-            fwrite($opfile, "###'DVB check violated: Section 4.3- (For On Demand profile) The segment SHALL contain only one single Segment Index box ('sidx) for the entire segment', found more than one sidx boxes.\n");
+            fwrite($opfile, "###'DVB check violated: 'Segment includes features that are not required by the profile being validated against', found ". $xml_rep->getElementsByTagName('sidx')->length ." sidx boxes while according to Section 4.3 \"(For On Demand profile) The segment SHALL contain only one single Segment Index box ('sidx) for the entire segment\"'.\n");
         
-        if(count(glob($locate.'/Adapt'.$adapt_count.'rep'.$rep_count.'/*mp4')) < 1)
+        if(count(glob($locate.'/Adapt'.$adapt_count.'rep'.$rep_count.'/*mp4')) != 1)
             fwrite($opfile, "###'DVB check violated: Section 4.3- (For On Demand profile) Each Representation SHALL have only one Segment', found more.\n");
     }
     
@@ -858,6 +858,9 @@ function common_validation_HbbTV($opfile, $dom, $xml_rep, $adapt_count, $rep_cou
             fwrite($opfile, "###'HbbTV check violated Section E.2.3: Each audio segment shall have a duration of not more than 15s', segment ".($j+1)." found with duration ".$segDur." \n");
         
     }   
+    
+    if($dom->getElementsByTagName('MPD')->item(0)->getAttribute('type') == 'dynamic' && count(glob($locate.'/Adapt'.$adapt_count.'rep'.$rep_count.'/*mp4')) == 1)
+        fwrite($opfile, "###'HbbTV check violated 'Segment includes features that are not required by the profile being validated against', found only segment in the representation while MPD@type is dynamic.\n");
 }
 
 function segmentToPeriodDurationCheck($xml_rep) {
