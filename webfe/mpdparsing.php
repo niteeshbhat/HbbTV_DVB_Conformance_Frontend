@@ -19,7 +19,7 @@
  * */
 function processPeriod($period, &$dir)
 {
-    global $Adapt_arr, $Period_arr, $period_baseurl, $perioddepth, $Adapt_urlbase, $profiles, $Timeoffset, $id;
+    global $Periodduration, $Adapt_arr, $Period_arr, $period_baseurl, $perioddepth, $Adapt_urlbase, $profiles, $Timeoffset, $id;
 
     $domper = new DOMDocument('1.0'); // Empty document object 
     $period = $domper->importNode($period, true); // add period node to domper

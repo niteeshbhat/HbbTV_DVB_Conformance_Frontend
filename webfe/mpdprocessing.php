@@ -213,7 +213,6 @@ function process_mpd()
     $bufferdepth = $MPD->getAttribute('timeShiftBufferDepth');
     $bufferdepth = timeparsing($bufferdepth);
     $presentationduration = timeparsing($mediaPresentationDuration);
-
     //createMpdFeatureList($dom, $schematronIssuesReport);
 
     $type = $MPD->getAttribute('type'); // get mpd type
