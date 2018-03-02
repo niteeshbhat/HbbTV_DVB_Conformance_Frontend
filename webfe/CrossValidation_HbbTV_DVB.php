@@ -43,6 +43,7 @@ function common_crossValidation($dom,$hbbtv,$dvb)
                 }
             }
         }
+        init_seg_commonCheck($files,$opfile);
         
         if(file_exists($loc)){
        
@@ -488,10 +489,13 @@ function common_validation($dom,$hbbtv,$dvb, $sizearray){
     if($hbbtv){
         common_validation_HbbTV($opfile, $dom, $xml_rep, $count1, $count2);
     }
+     seg_timing_common($opfile,$xml_rep);
+
     $checks = segmentToPeriodDurationCheck($xml_rep);
     if(!$checks[0]){
         fwrite($opfile, "###'HbbTV/DVB check violated: The accumulated duration of the segments [".$checks[1]. "seconds] in the representation does not match the period duration[".$checks[2]."seconds].\n'");
     }
+
 }
 
 function common_validation_DVB($opfile, $dom, $xml_rep, $adapt_count, $rep_count, $sizearray){
@@ -918,7 +922,38 @@ function resolutionCheck($opfile, $adapt, $rep){
     
     return array($conformant, $width, $height);
 }
+<<<<<<< HEAD
 
 function float2int($value) {
     return value | 0;
+=======
+function init_seg_commonCheck($files,$opfile)
+{
+    $rep_count=count($files);
+    fwrite($opfile, "Info: There are ".$rep_count." Representation in the AdaptationSet with \n");
+    for($i=0;$i<$rep_count;$i++)
+    {
+        $xml = xmlFileLoad($files[$i]);
+        $avcC_count=$xml->getElementsByTagName('avcC')->length;
+        fwrite($opfile, ", ".$avcC_count." 'avcC' in Representation ".($i+1)." \n");
+    }
+
+}
+
+function seg_timing_common($opfile,$xml_rep)
+{      
+    $xml_num_moofs=$xml_rep->getElementsByTagName('moof')->length;
+    $xml_trun=$xml_rep->getElementsByTagName('trun');
+    $xml_tfdt=$xml_rep->getElementsByTagName('tfdt');
+    for($j=1;$j<$xml_num_moofs;$j++){
+
+        $cummulatedSampleDurFragPrev=$xml_trun->item($j-1)->getAttribute('cummulatedSampleDuration');
+        $decodeTimeFragPrev=$xml_tfdt->item($j-1)->getAttribute('baseMediaDecodeTime');
+        $decodeTimeFragCurr=$xml_tfdt->item($j)->getAttribute('baseMediaDecodeTime');
+
+        if($decodeTimeFragCurr!=$decodeTimeFragPrev+$cummulatedSampleDurFragPrev){
+            fprintf($opfile, "###'HbbTV/DVB check violated: A gap in the timing within the segments of the Representation found at segment number ".($j+1)."\n");
+        }
+    }
+>>>>>>> 5a174eb4a3abb33b6af66c35e2078038af94192f
 }
