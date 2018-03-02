@@ -16,7 +16,7 @@
 
 function process_mpd()
 {
-    global $PeriodDuration, $Adapt_arr, $Period_arr, $repno, $repnolist, $period_url, $locate, $string_info
+    global $Adapt_arr, $Period_arr, $repno, $repnolist, $period_url, $locate, $string_info
     , $count1, $count2, $perioddepth, $adaptsetdepth, $period_baseurl, $foldername, $type, $minBufferTime, $profiles, $MPD, $session_id, $progressXML; //Global variables to be used within the main function
     //  $path_parts = pathinfo($mpdurl); 
     $Baseurl = false; //define if Baseurl is used or no
@@ -213,7 +213,6 @@ function process_mpd()
     $bufferdepth = $MPD->getAttribute('timeShiftBufferDepth');
     $bufferdepth = timeparsing($bufferdepth);
     $presentationduration = timeparsing($mediaPresentationDuration);
-    $PeriodDuration = timeparsing($MPD->getElementsbyTagName('Period')->item(0)->getAttribute('duration'));
     //createMpdFeatureList($dom, $schematronIssuesReport);
 
     $type = $MPD->getAttribute('type'); // get mpd type

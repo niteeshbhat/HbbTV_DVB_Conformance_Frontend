@@ -857,7 +857,8 @@ function common_validation_HbbTV($opfile, $dom, $xml_rep, $adapt_count, $rep_cou
 }
 
 function segmentToPeriodDurationCheck($xml_rep) {
-    global $PeriodDuration;
+    global $Periodduration;
+    $Pd = timeparsing($Periodduration);
     $mdhd=$xml_rep->getElementsByTagName('mdhd')->item(0);
     $timescale=$mdhd->getAttribute('timescale');
     $num_moofs=$xml_rep->getElementsByTagName('moof')->length;
