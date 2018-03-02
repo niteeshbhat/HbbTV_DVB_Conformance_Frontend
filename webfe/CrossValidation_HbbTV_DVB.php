@@ -875,7 +875,7 @@ function segmentToPeriodDurationCheck($xml_rep) {
         $totalSegmentDuration += $segDur;
     }
     
-    return [$totalSegmentDuration==$PeriodDuration, $totalSegmentDuration, $PeriodDuration];
+    return [$totalSegmentDuration==$Pd, $totalSegmentDuration, $Pd];
 }
 
 // Report on any resolutions used that are not in the tables of resoultions in 10.3 of the DVB DASH specification
@@ -922,11 +922,10 @@ function resolutionCheck($opfile, $adapt, $rep){
     
     return array($conformant, $width, $height);
 }
-<<<<<<< HEAD
 
 function float2int($value) {
     return value | 0;
-=======
+}
 function init_seg_commonCheck($files,$opfile)
 {
     $rep_count=count($files);
@@ -955,5 +954,5 @@ function seg_timing_common($opfile,$xml_rep)
             fprintf($opfile, "###'HbbTV/DVB check violated: A gap in the timing within the segments of the Representation found at segment number ".($j+1)."\n");
         }
     }
->>>>>>> 5a174eb4a3abb33b6af66c35e2078038af94192f
+
 }
