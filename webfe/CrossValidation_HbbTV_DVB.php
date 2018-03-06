@@ -965,12 +965,22 @@ function seg_timing_common($opfile,$xml_rep, $dom, $pstart)
     
     
     // Segment information
+    $type = $dom->getElementsByTagName('MPD')->item(0)->getAttribute('type');
+    
     $sidx_boxes = $xml_rep->getElementsByTagName('sidx');
     $subsegment_signaling = array();
     if($sidx_boxes->length != 0){
         foreach($sidx_boxes as $sidx_box){
             $subsegment_signaling[] = (int)($sidx_box->getAttribute('referenceCount'));
         }
+    }
+    
+    $xml_elst = $xml_rep->getElementsByTagName('elst');
+    if($xml_elst->length == 0){
+        $mediaTime = 0;
+    }
+    else{
+        $mediaTime = (int)($xml_elst->item(0)->getElementsByTagName('elstEntry')->item(0)->getAttribute('mediaTime'));
     }
     
     $timescale=$xml_rep->getElementsByTagName('mdhd')->item(0)->getAttribute('timescale');
@@ -989,20 +999,23 @@ function seg_timing_common($opfile,$xml_rep, $dom, $pstart)
         }
         ##
         
-        if(!empty($mpd_timing)){ //Empty means that there is no mediaPresentationDuration attribute in which case the media presentation duration is unknown.
+        if(!empty($mpd_timing) && $type != 'dynamic'){ //Empty means that there is no mediaPresentationDuration attribute in which case the media presentation duration is unknown.
             $decodeTime = $xml_tfdt->item($j)->getAttribute('baseMediaDecodeTime');
+            $compTime = $xml_trun->item($j)->getAttribute('earliestCompositionTime');
+            
+            $segmentTime = ($decodeTime + $compTime - $mediaTime)/$timescale;
             if(empty($subsegment_signaling) && $j < sizeof($mpd_timing)){
-                if($decodeTime/$timescale != $mpd_timing[$j])
-                    fprintf($opfile, "###'HbbTV/DVB check violated: Start time within the segment " . ($j+1) . " is not consistent with the timing indicated by the MPD.\n");
+                if(abs(($segmentTime - $mpd_timing[$j])/$mpd_timing[$j]) > 0.00001)
+                    fprintf($opfile, "###'HbbTV/DVB check violated: Start time \"$segmentTime\" within the segment " . ($j+1) . " is not consistent with the timing indicated by the MPD \"$mpd_timing[$j]\".\n");
             }
             else{
                 $ref_count = 1;
                 if($sidx_index < sizeof($subsegment_signaling))
                     $ref_count = $subsegment_signaling[$sidx_index];
-            
+                
                 if($cum_subsegDur == 0 && $sidx_index < sizeof($mpd_timing)){
-                    if($decodeTime/$timescale != $mpd_timing[$sidx_index])
-                        fprintf($opfile, "###'HbbTV/DVB check violated: Start time within the segment " . ($sidx_index+1) . " is not consistent with the timing indicated by the MPD.\n");
+                    if(abs(($segmentTime - $mpd_timing[$sidx_index])/$mpd_timing[$sidx_index]) > 0.00001)
+                        fprintf($opfile, "###'HbbTV/DVB check violated: Start time \"$segmentTime\" within the segment " . ($sidx_index+1) . " is not consistent with the timing indicated by the MPD \"$mpd_timing[$sidx_index]\".\n");
                 }
             
                 $cummulatedSampleDuration=$xml_trun->item($j)->getAttribute('cummulatedSampleDuration');
@@ -1083,7 +1096,7 @@ function mdp_timing_info($dom, $pstart){
     if(!empty($segbase)){
         foreach($segbase as $segb)
             $pto = ($segb->getAttribute('presentationTimeOffset') != '') ? (int)($segb->getAttribute('presentationTimeOffset')) : 0;
-        $pres_start = $pstart - $pto;
+        $pres_start = $pstart + $pto;
         
         $mpd_timing[] = $pres_start;
     }
@@ -1094,7 +1107,6 @@ function mdp_timing_info($dom, $pstart){
         if(!empty($segtemplate)){
             foreach($segtemplate as $segtemp){
                 $pto = ($segtemp->getAttribute('presentationTimeOffset') != '') ? (int)($segtemp->getAttribute('presentationTimeOffset')) : 0;
-                $pres_start = $pstart - $pto;
                 
                 if($segtemp->getAttribute('duration') != '')
                     $duration = (int)($segtemp->getAttribute('duration'));
@@ -1107,7 +1119,6 @@ function mdp_timing_info($dom, $pstart){
         elseif(!empty($seglist)){
             foreach($seglist as $segl){
                 $pto = ($segl->getAttribute('presentationTimeOffset') != '') ? (int)($segl->getAttribute('presentationTimeOffset')) : 0;
-                $pres_start = $pstart - $pto;
                 
                 if($segl->getAttribute('duration') != '')
                     $duration = (int)($segl->getAttribute('duration'));
@@ -1120,6 +1131,8 @@ function mdp_timing_info($dom, $pstart){
         
         if($timescale == 0)
             $timescale = 1;
+        
+        $pres_start = $pstart + $pto/$timescale;
         
         if(!empty($segtimeline)){
             $stags = $segtimeline[sizeof($segtimeline)-1]->getElementsByTagName('S');
