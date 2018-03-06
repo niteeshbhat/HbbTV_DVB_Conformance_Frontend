@@ -1045,7 +1045,7 @@ function process_mpd()
                // }
                 
                 if($check_dvb_conformance || $check_hbbtv_conformance){
-                    common_validation($dom,$check_hbbtv_conformance,$check_dvb_conformance, $sizearray);
+                    common_validation($dom,$check_hbbtv_conformance,$check_dvb_conformance, $sizearray,$Period_arr[$count1]['Representation']['bandwidth'][$count2]);
                     $copy_string_info=$string_info;
                     $index = strpos($copy_string_info, '</body>');
                     

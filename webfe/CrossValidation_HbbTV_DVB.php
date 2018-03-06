@@ -474,7 +474,7 @@ function nodes_equal($node_1, $node_2){
 }
 
 function common_validation($dom,$hbbtv,$dvb, $sizearray,$bandwidth){
-    global $locate, $count1, $count2,$Period_arr;
+    global $locate, $count1, $count2;
     
     if(!($opfile = fopen($locate."/Adapt".$count1."rep".$count2."log.txt", 'a'))){
         echo "Error opening/creating HbbTV/DVB codec validation file: "."/Adapt".$count1."rep".$count2."log.txt";
@@ -491,7 +491,7 @@ function common_validation($dom,$hbbtv,$dvb, $sizearray,$bandwidth){
     }
      seg_timing_common($opfile,$xml_rep);
      //seg_bitrate_common($opfile,$xml_rep);
-     bitrate_report($opfile, $dom, $xml_rep, $count1, $count2, $sizearray);
+     bitrate_report($opfile, $dom, $xml_rep, $count1, $count2, $sizearray,$bandwidth);
 
 }
 
@@ -930,25 +930,7 @@ function seg_timing_common($opfile,$xml_rep)
     }
 }
 
-/*function seg_bitrate_common($opfile,$xml_rep)
-{
-    global $locate, $count1, $count2,$Period_arr;
-    
-    //Sort downloaded segments wrto file modified time.
-    $files = array();
-    $dir = new DirectoryIterator($locate.'/Adapt'.$count1.'rep'.$count2);
-    foreach ($dir as $fileinfo) {   
-        if(!$fileinfo->isDot())
-            $files[] = $fileinfo->getFilename();
-    }
-
-    ksort($files);
-    
-    //Open mdat offset file and read mdat size for each mdat.
-    $lines = file($locate.'/Adapt'.$count1.'rep'.$count2.'mdatoffset.txt', FILE_IGNORE_NEW_LINES);
-    
-}*/
-function bitrate_report($opfile, $dom, $xml_rep, $adapt_count, $rep_count, $sizearray){
+function bitrate_report($opfile, $dom, $xml_rep, $adapt_count, $rep_count, $sizearray,$bandwidth){
     global $locate;
     
     $adapt = $dom->getElementsByTagName('AdaptationSet')->item($adapt_count);
@@ -1006,7 +988,7 @@ function bitrate_report($opfile, $dom, $xml_rep, $adapt_count, $rep_count, $size
     $bitrate_info = substr($bitrate_info, 0, strlen($bitrate_info)-2);
     
     $bitrate_report_name = 'Adapt' . $adapt_count . 'rep' . $rep_count . '.png';
-    $command="cd $locate && python bitratereport.py $locate $bitrate_info $bitrate_report_name";
+    $command="cd $locate && python bitratereport.py $locate $bitrate_info $bandwidth $bitrate_report_name";
     exec($command);
 
     //exec($command,$output);
