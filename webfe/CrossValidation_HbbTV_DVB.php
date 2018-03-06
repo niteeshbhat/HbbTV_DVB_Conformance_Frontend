@@ -482,7 +482,7 @@ function common_validation($dom,$hbbtv,$dvb, $sizearray,$bandwidth){
     }
     
     $xml_rep = xmlFileLoad($locate.'/Adapt'.$count1.'/Adapt'.$count1.'rep'.$count2.'.xml');
-    
+
     if($dvb){
         common_validation_DVB($opfile, $dom, $xml_rep, $count1, $count2, $sizearray);
     }
@@ -490,8 +490,15 @@ function common_validation($dom,$hbbtv,$dvb, $sizearray,$bandwidth){
         common_validation_HbbTV($opfile, $dom, $xml_rep, $count1, $count2);
     }
      seg_timing_common($opfile,$xml_rep);
+
      //seg_bitrate_common($opfile,$xml_rep);
      bitrate_report($opfile, $dom, $xml_rep, $count1, $count2, $sizearray,$bandwidth);
+
+
+    $checks = segmentToPeriodDurationCheck($xml_rep);
+    if(!$checks[0]){
+        fwrite($opfile, "###'HbbTV/DVB check violated: The accumulated duration of the segments [".$checks[1]. "seconds] in the representation does not match the period duration[".$checks[2]."seconds].\n'");
+    }
 
 }
 
@@ -588,9 +595,9 @@ function common_validation_DVB($opfile, $dom, $xml_rep, $adapt_count, $rep_count
     // Section 4.3 on on-demand profile periods containing sidx boxes
     if(strpos($profiles, 'urn:mpeg:dash:profile:isoff-on-demand:2011') !== FALSE){
         if($xml_rep->getElementsByTagName('sidx')->length != 1)
-            fwrite($opfile, "###'DVB check violated: Section 4.3- (For On Demand profile) The segment SHALL contain only one single Segment Index box ('sidx) for the entire segment', found more than one sidx boxes.\n");
+            fwrite($opfile, "###'DVB check violated: 'Segment includes features that are not required by the profile being validated against', found ". $xml_rep->getElementsByTagName('sidx')->length ." sidx boxes while according to Section 4.3 \"(For On Demand profile) The segment SHALL contain only one single Segment Index box ('sidx) for the entire segment\"'.\n");
         
-        if(count(glob($locate.'/Adapt'.$adapt_count.'rep'.$rep_count.'/*mp4')) < 1)
+        if(count(glob($locate.'/Adapt'.$adapt_count.'rep'.$rep_count.'/*mp4')) != 1)
             fwrite($opfile, "###'DVB check violated: Section 4.3- (For On Demand profile) Each Representation SHALL have only one Segment', found more.\n");
     }
     
@@ -841,6 +848,7 @@ function common_validation_HbbTV($opfile, $dom, $xml_rep, $adapt_count, $rep_cou
     $mdhd=$xml_rep->getElementsByTagName('mdhd')->item(0);
     $timescale=$mdhd->getAttribute('timescale');
     $num_moofs=$xml_rep->getElementsByTagName('moof')->length;
+    $totalSegmentDuration = 0;
     for($j=0;$j<$num_moofs-1;$j++)
     {
         $trun=$xml_rep->getElementsByTagName('trun')->item($j);
@@ -852,8 +860,29 @@ function common_validation_HbbTV($opfile, $dom, $xml_rep, $adapt_count, $rep_cou
             fwrite($opfile, "###'HbbTV check violated Section E.2.3: Each video segment shall have a duration of not more than 15s', segment ".($j+1)." found with duration ".$segDur." \n");
         if($hdlr_type =='soun' && $segDur>15)
             fwrite($opfile, "###'HbbTV check violated Section E.2.3: Each audio segment shall have a duration of not more than 15s', segment ".($j+1)." found with duration ".$segDur." \n");
+        
+    }   
+    
+    if($dom->getElementsByTagName('MPD')->item(0)->getAttribute('type') == 'dynamic' && count(glob($locate.'/Adapt'.$adapt_count.'rep'.$rep_count.'/*mp4')) == 1)
+        fwrite($opfile, "###'HbbTV check violated 'Segment includes features that are not required by the profile being validated against', found only segment in the representation while MPD@type is dynamic.\n");
+}
 
+function segmentToPeriodDurationCheck($xml_rep) {
+    global $Periodduration;
+    $Pd = timeparsing($Periodduration);
+    $mdhd=$xml_rep->getElementsByTagName('mdhd')->item(0);
+    $timescale=$mdhd->getAttribute('timescale');
+    $num_moofs=$xml_rep->getElementsByTagName('moof')->length;
+    $totalSegmentDuration = 0;
+    for ( $j = 0; $j <= $num_moofs - 1 ; $j++ )
+    {
+        $trun = $xml_rep->getElementsByTagName('trun')->item($j);
+        $cummulatedSampleDuration = $trun->getAttribute('cummulatedSampleDuration');
+        $segDur = ( $cummulatedSampleDuration * 1.00 ) / $timescale;      
+        $totalSegmentDuration += $segDur;
     }
+    
+    return [$totalSegmentDuration==$Pd, $totalSegmentDuration, $Pd];
 }
 
 // Report on any resolutions used that are not in the tables of resoultions in 10.3 of the DVB DASH specification
@@ -900,6 +929,10 @@ function resolutionCheck($opfile, $adapt, $rep){
     
     return array($conformant, $width, $height);
 }
+
+function float2int($value) {
+    return value | 0;
+}
 function init_seg_commonCheck($files,$opfile)
 {
     $rep_count=count($files);
@@ -928,6 +961,7 @@ function seg_timing_common($opfile,$xml_rep)
             fprintf($opfile, "###'HbbTV/DVB check violated: A gap in the timing within the segments of the Representation found at segment number ".($j+1)."\n");
         }
     }
+
 }
 
 function bitrate_report($opfile, $dom, $xml_rep, $adapt_count, $rep_count, $sizearray,$bandwidth){
@@ -994,4 +1028,5 @@ function bitrate_report($opfile, $dom, $xml_rep, $adapt_count, $rep_count, $size
     //exec($command,$output);
     
 }
+
 
