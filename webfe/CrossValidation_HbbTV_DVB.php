@@ -473,7 +473,7 @@ function nodes_equal($node_1, $node_2){
     return $equal;
 }
 
-function common_validation($dom,$hbbtv,$dvb, $sizearray){
+function common_validation($dom,$hbbtv,$dvb, $sizearray, $pstart){
     global $locate, $count1, $count2;
     
     if(!($opfile = fopen($locate."/Adapt".$count1."rep".$count2."log.txt", 'a'))){
@@ -489,7 +489,8 @@ function common_validation($dom,$hbbtv,$dvb, $sizearray){
     if($hbbtv){
         common_validation_HbbTV($opfile, $dom, $xml_rep, $count1, $count2);
     }
-     seg_timing_common($opfile,$xml_rep);
+    
+    seg_timing_common($opfile, $xml_rep, $dom, $pstart);
 
     $checks = segmentToPeriodDurationCheck($xml_rep);
     if(!$checks[0]){
@@ -648,11 +649,13 @@ function common_validation_DVB($opfile, $dom, $xml_rep, $adapt_count, $rep_count
             
             // Section 5.1.2 on AVC content's SAP type
             if($hdlr_type == 'vide' && strpos($sdType, 'avc') !== FALSE){
-                $subseg = $sidx_box->getElementsByTagName('subsegment')->item(0);
-                if($subseg != NULL && $subseg->getAttribute('starts_with_SAP') == '1'){
-                    $sap_type = $subseg->getAttribute('SAP_type');
-                    if($sap_type != '1' && $sap_type != '2')
-                        fwrite($opfile, "###'DVB check violated: Section 5.1.2- Segments SHALL start with SAP types of 1 or 2', found $sap_type.\n");
+                if($sidx_boxes->length != 0){
+                    $subseg = $sidx_boxes[$sidx_index]->getElementsByTagName('subsegment')->item(0);
+                    if($subseg != NULL && $subseg->getAttribute('starts_with_SAP') == '1'){
+                        $sap_type = $subseg->getAttribute('SAP_type');
+                        if($sap_type != '1' && $sap_type != '2')
+                            fwrite($opfile, "###'DVB check violated: Section 5.1.2- Segments SHALL start with SAP types of 1 or 2', found $sap_type.\n");
+                    }
                 }
             }
             //
@@ -688,11 +691,13 @@ function common_validation_DVB($opfile, $dom, $xml_rep, $adapt_count, $rep_count
                 
                 // Section 5.1.2 on AVC content's SAP type
                 if($hdlr_type == 'vide' && strpos($sdType, 'avc') !== FALSE){
-                $subseg = $sidx_box->getElementsByTagName('subsegment')->item(0);
-                    if($subseg != NULL && $subseg->getAttribute('starts_with_SAP') == '1'){
-                        $sap_type = $subseg->getAttribute('SAP_type');
-                        if($sap_type != '1' && $sap_type != '2')
-                            fwrite($opfile, "###'DVB check violated: Section 5.1.2- Segments SHALL start with SAP types of 1 or 2', found $sap_type.\n");
+                    if($sidx_boxes->length != 0){
+                        $subseg = $sidx_boxes[$sidx_index]->getElementsByTagName('subsegment')->item(0);
+                        if($subseg != NULL && $subseg->getAttribute('starts_with_SAP') == '1'){
+                            $sap_type = $subseg->getAttribute('SAP_type');
+                            if($sap_type != '1' && $sap_type != '2')
+                                fwrite($opfile, "###'DVB check violated: Section 5.1.2- Segments SHALL start with SAP types of 1 or 2', found $sap_type.\n");
+                        }
                     }
                 }
                 //
@@ -701,13 +706,15 @@ function common_validation_DVB($opfile, $dom, $xml_rep, $adapt_count, $rep_count
         
         // Section 6.2 on HE_AACv2 and 6.5 on MPEG Surround audio content's SAP type
         if($hdlr_type == 'soun' && strpos($sdType, 'mp4a') !== FALSE){
-            $subsegments = $sidx_box->getElementsByTagName('subsegment');
-            if($subsegments->length != 0){
-                foreach($subsegments as $subsegment){
-                    if($subsegment->getAttribute('starts_with_SAP') == '1'){
-                        $sap_type = $subsegment->getAttribute('SAP_type');
-                        if($sap_type != '1')
-                            fwrite($opfile, "###'DVB check violated: Section 6.2/6.5- The content preparation SHALL ensure that each (Sub)Segment starts with a SAP type 1', found $sap_type in Adaptation Set " . ($adapt_count+1) . " Representation " . ($rep_count+1) . ".\n");
+            if($sidx_boxes->length != 0){
+                $subsegments = $sidx_boxes[$sidx_index]->getElementsByTagName('subsegment');
+                if($subsegments->length != 0){
+                    foreach($subsegments as $subsegment){
+                        if($subsegment->getAttribute('starts_with_SAP') == '1'){
+                            $sap_type = $subsegment->getAttribute('SAP_type');
+                            if($sap_type != '1')
+                                fwrite($opfile, "###'DVB check violated: Section 6.2/6.5- The content preparation SHALL ensure that each (Sub)Segment starts with a SAP type 1', found $sap_type.\n");
+                        }
                     }
                 }
             }
@@ -942,20 +949,226 @@ function init_seg_commonCheck($files,$opfile)
 
 }
 
-function seg_timing_common($opfile,$xml_rep)
-{      
+function seg_timing_common($opfile,$xml_rep, $dom, $pstart)
+{   
     $xml_num_moofs=$xml_rep->getElementsByTagName('moof')->length;
     $xml_trun=$xml_rep->getElementsByTagName('trun');
     $xml_tfdt=$xml_rep->getElementsByTagName('tfdt');
-    for($j=1;$j<$xml_num_moofs;$j++){
-
-        $cummulatedSampleDurFragPrev=$xml_trun->item($j-1)->getAttribute('cummulatedSampleDuration');
-        $decodeTimeFragPrev=$xml_tfdt->item($j-1)->getAttribute('baseMediaDecodeTime');
-        $decodeTimeFragCurr=$xml_tfdt->item($j)->getAttribute('baseMediaDecodeTime');
-
-        if($decodeTimeFragCurr!=$decodeTimeFragPrev+$cummulatedSampleDurFragPrev){
-            fprintf($opfile, "###'HbbTV/DVB check violated: A gap in the timing within the segments of the Representation found at segment number ".($j+1)."\n");
+    
+    ## Consistency check of the start times within the segments with the timing indicated by the MPD
+    // MPD information
+    $mpd_timing = mdp_timing_info($dom, $pstart);
+    
+    
+    // Segment information
+    $sidx_boxes = $xml_rep->getElementsByTagName('sidx');
+    $subsegment_signaling = array();
+    if($sidx_boxes->length != 0){
+        foreach($sidx_boxes as $sidx_box){
+            $subsegment_signaling[] = (int)($sidx_box->getAttribute('referenceCount'));
         }
     }
+    
+    $timescale=$xml_rep->getElementsByTagName('mdhd')->item(0)->getAttribute('timescale');
+    $sidx_index = 0;
+    $cum_subsegDur=0;
+    for($j=0;$j<$xml_num_moofs;$j++){
+        ## Checking for gaps
+        if($j > 0){
+            $cummulatedSampleDurFragPrev=$xml_trun->item($j-1)->getAttribute('cummulatedSampleDuration');
+            $decodeTimeFragPrev=$xml_tfdt->item($j-1)->getAttribute('baseMediaDecodeTime');
+            $decodeTimeFragCurr=$xml_tfdt->item($j)->getAttribute('baseMediaDecodeTime');
+            
+            if($decodeTimeFragCurr!=$decodeTimeFragPrev+$cummulatedSampleDurFragPrev){
+                fprintf($opfile, "###'HbbTV/DVB check violated: A gap in the timing within the segments of the Representation found at segment number ".($j+1)."\n");
+            }
+        }
+        ##
+        
+        if(!empty($mpd_timing)){ //Empty means that there is no mediaPresentationDuration attribute in which case the media presentation duration is unknown.
+            $decodeTime = $xml_tfdt->item($j)->getAttribute('baseMediaDecodeTime');
+            if(empty($subsegment_signaling) && $j < sizeof($mpd_timing)){
+                if($decodeTime/$timescale != $mpd_timing[$j])
+                    fprintf($opfile, "###'HbbTV/DVB check violated: Start time within the segment " . ($j+1) . " is not consistent with the timing indicated by the MPD.\n");
+            }
+            else{
+                $ref_count = 1;
+                if($sidx_index < sizeof($subsegment_signaling))
+                    $ref_count = $subsegment_signaling[$sidx_index];
+            
+                if($cum_subsegDur == 0 && $sidx_index < sizeof($mpd_timing)){
+                    if($decodeTime/$timescale != $mpd_timing[$sidx_index])
+                        fprintf($opfile, "###'HbbTV/DVB check violated: Start time within the segment " . ($sidx_index+1) . " is not consistent with the timing indicated by the MPD.\n");
+                }
+            
+                $cummulatedSampleDuration=$xml_trun->item($j)->getAttribute('cummulatedSampleDuration');
+                $segDur=$cummulatedSampleDuration/$timescale;
+                $cum_subsegDur += $segDur;
+                $subsegment_signaling[$sidx_index] = $ref_count - 1;
+                if($subsegment_signaling[$sidx_index] == 0){
+                    $sidx_index++;
+                    $cum_subsegDur = 0;
+                }
+            }
+        }
+    }
+    ##
+}
 
+function mdp_timing_info($dom, $pstart){
+    global $count1, $count2;
+    
+    $mpd_timing = array();
+    $MPD = $dom->getElementsByTagName('MPD')->item(0);
+    $period = ($MPD->getAttribute('type') != 'dynamic') ? $dom->getElementsByTagName('Period')->item(0) : $dom->getElementsByTagName('Period')->item($dom->getElementsByTagName('Period')->length -1);
+    $adapt = $dom->getElementsByTagName('AdaptationSet')->item($count1);
+    $rep = $adapt->getElementsByTagName('Representation')->item($count2);
+    
+    // Get the segment-related elements
+    $segbase = array();
+    if($period->getElementsByTagName('SegmentBase')->length != 0){
+        if($period->getElementsByTagName('SegmentBase')->item(0)->parentNode->nodeName == 'Period')
+            $segbase[] = $period->getElementsByTagName('SegmentBase')->item(0);
+    }
+    if($adapt->getElementsByTagName('SegmentBase')->length != 0){
+        if($adapt->getElementsByTagName('SegmentBase')->item(0)->parentNode->nodeName == 'AdaptationSet')
+            $segbase[] = $adapt->getElementsByTagName('SegmentBase')->item(0);
+    }
+    if($rep->getElementsByTagName('SegmentBase')->length != 0)
+        $segbase[] = $rep->getElementsByTagName('SegmentBase')->item(0);
+    
+    $segtemplate = array();
+    if($period->getElementsByTagName('SegmentTemplate')->length != 0){
+        if($period->getElementsByTagName('SegmentTemplate')->item(0)->parentNode->nodeName == 'Period')
+            $segtemplate[] = $period->getElementsByTagName('SegmentTemplate')->item(0);
+    }
+    if($adapt->getElementsByTagName('SegmentTemplate')->length != 0){
+        if($adapt->getElementsByTagName('SegmentTemplate')->item(0)->parentNode->nodeName == 'AdaptationSet')
+            $segtemplate[] = $adapt->getElementsByTagName('SegmentTemplate')->item(0);
+    }
+    if($rep->getElementsByTagName('SegmentTemplate')->length != 0)
+        $segtemplate[] = $rep->getElementsByTagName('SegmentTemplate')->item(0);
+    
+    $seglist = array();
+    if($period->getElementsByTagName('SegmentList')->length != 0){
+        if($period->getElementsByTagName('SegmentList')->item(0)->parentNode->nodeName == 'Period')
+            $seglist[] =  $period->getElementsByTagName('SegmentList')->item(0);
+    }
+    if($adapt->getElementsByTagName('SegmentList')->length != 0){
+        if($adapt->getElementsByTagName('SegmentList')->item(0)->parentNode->nodeName == 'AdaptationSet')
+            $seglist[] =  $adapt->getElementsByTagName('SegmentList')->item(0);
+    }
+    if($rep->getElementsByTagName('SegmentList')->length != 0)
+        $seglist[] =  $rep->getElementsByTagName('SegmentList')->item(0);
+    
+    $segtimeline = array();
+    if($period->getElementsByTagName('SegmentTimeline')->length != 0){
+        if($period->getElementsByTagName('SegmentTimeline')->item(0)->parentNode->nodeName == 'Period')
+            $segtimeline[] = $period->getElementsByTagName('SegmentTimeline')->item(0);
+    }
+    if($adapt->getElementsByTagName('SegmentTimeline')->length != 0){
+        if($adapt->getElementsByTagName('SegmentTimeline')->item(0)->parentNode->nodeName == 'AdaptationSet')
+            $segtimeline[] = $adapt->getElementsByTagName('SegmentTimeline')->item(0);
+    }
+    if($rep->getElementsByTagName('SegmentTimeline')->length != 0)
+        $segtimeline[] = $rep->getElementsByTagName('SegmentTimeline')->item(0);
+    
+    // Calculate segment timing information
+    $mediapresdur = timeparsing($MPD->getAttribute('mediaPresentationDuration'));
+    
+    if(!empty($segbase)){
+        foreach($segbase as $segb)
+            $pto = ($segb->getAttribute('presentationTimeOffset') != '') ? (int)($segb->getAttribute('presentationTimeOffset')) : 0;
+        $pres_start = $pstart - $pto;
+        
+        $mpd_timing[] = $pres_start;
+    }
+    elseif(!empty($segtemplate) || !empty($seglist)){
+        $timescale = 0;
+        $duration = 0;
+        $startNumber = 1;
+        if(!empty($segtemplate)){
+            foreach($segtemplate as $segtemp){
+                $pto = ($segtemp->getAttribute('presentationTimeOffset') != '') ? (int)($segtemp->getAttribute('presentationTimeOffset')) : 0;
+                $pres_start = $pstart - $pto;
+                
+                if($segtemp->getAttribute('duration') != '')
+                    $duration = (int)($segtemp->getAttribute('duration'));
+                if($segtemp->getAttribute('timescale') != '')
+                    $timescale = (int)$segtemp->getAttribute('timescale');
+                if($segtemp->getAttribute('startNumber') != '')
+                    $startNumber = (int)$segtemp->getAttribute('startNumber');
+            }
+        }
+        elseif(!empty($seglist)){
+            foreach($seglist as $segl){
+                $pto = ($segl->getAttribute('presentationTimeOffset') != '') ? (int)($segl->getAttribute('presentationTimeOffset')) : 0;
+                $pres_start = $pstart - $pto;
+                
+                if($segl->getAttribute('duration') != '')
+                    $duration = (int)($segl->getAttribute('duration'));
+                if($segl->getAttribute('timescale') != '')
+                    $timescale = (int)$segl->getAttribute('timescale');
+                if($segl->getAttribute('startNumber') != '')
+                    $startNumber = (int)$segl->getAttribute('startNumber');
+            }
+        }
+        
+        if($timescale == 0)
+            $timescale = 1;
+        
+        if(!empty($segtimeline)){
+            $stags = $segtimeline[sizeof($segtimeline)-1]->getElementsByTagName('S');
+            for($s=0; $s<$stags->length; $s++){
+                $duration = (int)($stags->item($s)->getAttribute('d'));
+                $repeat = ($stags->item($s)->getAttribute('r') != '') ? (int)($stags->item($s)->getAttribute('r')) : 0;
+                $time = ($stags->item($s)->getAttribute('t'));
+                $time_next = ($stags->item($s+1) != NULL) ? ($stags->item($s+1)->getAttribute('t')) : '';
+                
+                $segmentDuration = $duration/$timescale;
+                
+                if($repeat == -1){
+                    if($time_next != ''){
+                        $time = (int)$time;
+                        $time_next = (int)$time_next;
+                        
+                        $index = 0;
+                        while($time_next-$time != 0){
+                            $mpd_timing[] = $pres_start + $index*$segmentDuration;
+                            
+                            $time += $duration;
+                            $index++;
+                        }
+                    }
+                    else{
+                        $segment_cnt = ceil($mediapresdur/$segmentDuration);
+                        
+                        for($i=0; $i<$segment_cnt; $i++){
+                            $mpd_timing[] = $pres_start + $i*$segmentDuration;
+                        }
+                    }
+                }
+                else{
+                    for($r=0; $r<$repeat+1; $r++){
+                        $mpd_timing[] = $pres_start + $r*$segmentDuration;
+                    }
+                }
+            }
+        }
+        else{
+            if($duration == 0){
+                $mpd_timing[] = $pres_start;
+            }
+            else{
+                $segmentDuration = $duration/$timescale;
+                $segment_cnt = $mediapresdur/$segmentDuration;
+                
+                for($i=0; $i<$segment_cnt; $i++){
+                    $mpd_timing[] = $pres_start + $i*$segmentDuration;
+                }
+            }
+        }
+    }
+    
+    return $mpd_timing;
 }

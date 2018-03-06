@@ -1039,7 +1039,7 @@ function process_mpd()
                // }
                 
                 if($check_dvb_conformance || $check_hbbtv_conformance){
-                    common_validation($dom,$check_hbbtv_conformance,$check_dvb_conformance, $sizearray);
+                    common_validation($dom,$check_hbbtv_conformance,$check_dvb_conformance, $sizearray, $start);
                 }
                 
                 $temp_string = str_replace(array('$Template$'), array($repno . "log"), $string_info); // this string shows a text file on HTML
