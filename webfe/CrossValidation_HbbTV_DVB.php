@@ -473,7 +473,7 @@ function nodes_equal($node_1, $node_2){
     return $equal;
 }
 
-function common_validation($dom,$hbbtv,$dvb, $sizearray, $pstart){
+function common_validation($dom,$hbbtv,$dvb, $sizearray,$bandwidth, $pstart){
     global $locate, $count1, $count2;
     
     if(!($opfile = fopen($locate."/Adapt".$count1."rep".$count2."log.txt", 'a'))){
@@ -491,6 +491,10 @@ function common_validation($dom,$hbbtv,$dvb, $sizearray, $pstart){
     }
     
     seg_timing_common($opfile, $xml_rep, $dom, $pstart);
+
+     //seg_bitrate_common($opfile,$xml_rep);
+     bitrate_report($opfile, $dom, $xml_rep, $count1, $count2, $sizearray,$bandwidth);
+
 
     $checks = segmentToPeriodDurationCheck($xml_rep);
     if(!$checks[0]){
@@ -1168,7 +1172,73 @@ function mdp_timing_info($dom, $pstart){
                 }
             }
         }
+        
     }
     
     return $mpd_timing;
+}
+
+function bitrate_report($opfile, $dom, $xml_rep, $adapt_count, $rep_count, $sizearray,$bandwidth){
+    global $locate;
+    
+    $adapt = $dom->getElementsByTagName('AdaptationSet')->item($adapt_count);
+    $rep = $adapt->getElementsByTagName('Representation')->item($rep_count);
+    $bitrate = $rep->getAttribute('bandwidth');
+    
+    $sidx_boxes = $xml_rep->getElementsByTagName('sidx');
+    $subsegment_signaling = array();
+    if($sidx_boxes->length != 0){
+        foreach($sidx_boxes as $sidx_box){
+            $subsegment_signaling[] = (int)($sidx_box->getAttribute('referenceCount'));
+        }
+    }
+    
+    $timescale=$xml_rep->getElementsByTagName('mdhd')->item(0)->getAttribute('timescale');
+    $num_moofs=$xml_rep->getElementsByTagName('moof')->length;
+    $bitrate_info = '';
+   
+    $sidx_index = 0;
+    $cum_subsegDur = 0;
+    // Here 2 possible cases are considered for sidx -subsegment signalling.
+    //First case is for no sidx box.
+    if(empty($subsegment_signaling)){
+        for($j=0;$j<$num_moofs-1;$j++){
+            $cummulatedSampleDuration=$xml_rep->getElementsByTagName('trun')->item($j)->getAttribute('cummulatedSampleDuration');
+            $segDur=$cummulatedSampleDuration/$timescale;
+            $segSize = $sizearray[$j];
+            
+            $bitrate_info = $bitrate_info . (string)($segSize*8/$segDur) . ',';
+        }
+    }
+    //Secondly, sidx exists with non-zero reference counts- 1) all segments have subsegments (referenced by some sidx boxes) 2) only some segments have subsegments. 
+    else{
+        for($j=0;$j<$num_moofs;$j++){
+            if($sidx_index>sizeof($subsegment_signaling)-1)
+                $rep_count=1;// This for case 2 of case 2.
+            else
+                $ref_count = $subsegment_signaling[$sidx_index];
+
+            $cummulatedSampleDuration=$xml_rep->getElementsByTagName('trun')->item($j)->getAttribute('cummulatedSampleDuration');
+            $segDur=$cummulatedSampleDuration/$timescale;
+            $cum_subsegDur += $segDur;
+            
+            $subsegment_signaling[$sidx_index] = $ref_count - 1;
+            if($subsegment_signaling[$sidx_index] == 0){
+                $segSize = $sizearray[$sidx_index];
+                $bitrate_info = $bitrate_info . (string)($segSize*8/$cum_subsegDur) . ',';
+                
+                $sidx_index++;
+                $cum_subsegDur = 0;
+            }
+        }
+    }
+    
+    $bitrate_info = substr($bitrate_info, 0, strlen($bitrate_info)-2);
+    
+    $bitrate_report_name = 'Adapt' . $adapt_count . 'rep' . $rep_count . '.png';
+    $command="cd $locate && python bitratereport.py $locate $bitrate_info $bandwidth $bitrate_report_name";
+    exec($command);
+
+    //exec($command,$output);
+    
 }
