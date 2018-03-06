@@ -1044,14 +1044,13 @@ function process_mpd()
                // }
                 
                 if($check_dvb_conformance || $check_hbbtv_conformance){
-                    common_validation($dom,$check_hbbtv_conformance,$check_dvb_conformance, $sizearray,$Period_arr[$count1]['Representation']['bandwidth'][$count2]);
+                    common_validation($dom,$check_hbbtv_conformance,$check_dvb_conformance, $sizearray,$Period_arr[$count1]['Representation']['bandwidth'][$count2], $start);
                     $copy_string_info=$string_info;
                     $index = strpos($copy_string_info, '</body>');
                     
                     $bitrate_report_name = 'Adapt' . $count1 . 'rep' . $count2 . '.png';
                     $copy_string_info = substr($copy_string_info, 0, $index) . "<img id=\"bitrateReport\" src=\"$bitrate_report_name\" width=\"650\" height=\"350\">" . substr($copy_string_info, $index);
                     $temp_string = str_replace(array('$Template$'), array($repno . "log"), $copy_string_info); // this string shows a text file on HTML
-
                 }
                 else
                     $temp_string = str_replace(array('$Template$'), array($repno . "log"), $string_info); // this string shows a text file on HTML
