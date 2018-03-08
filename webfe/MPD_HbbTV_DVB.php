@@ -278,18 +278,30 @@ function DVB_mpdvalidator($dom, $mpdreport){
     $video_service = false;
     $type = $MPD->getAttribute('type');
     $AST = $MPD->getAttribute('availabilityStartTime');
-    foreach($MPD->childNodes as $node){
+    
+    if($type == 'dynamic' || $AST != ''){
+        $UTCTimings = $MPD->getElementsByTagName('UTCTiming');
+        $acceptedTimingURIs = array('urn:mpeg:dash:utc:ntp:2014', 
+                                    'urn:mpeg:dash:utc:http-head:2014', 
+                                    'urn:mpeg:dash:utc:http-xsdate:2014',
+                                    'urn:mpeg:dash:utc:http-iso:2014',
+                                    'urn:mpeg:dash:utc:http-ntp:2014');
+        $utc_info = '';
         
-        if($type == 'dynamic' || $AST != ''){
-            if($node->nodeName == 'UTCTiming'){
-                $acceptedTimingURIs = array('urn:mpeg:dash:utc:ntp:2014', 'urn:mpeg:dash:utc:http-head:2014', 'urn:mpeg:dash:utc:http-xsdate:2014',
-                    'urn:mpeg:dash:utc:http-iso:2014','urn:mpeg:dash:utc:http-ntp:2014');
-                if(!(in_array($node->getAttribute('schemeIdUri'), $acceptedTimingURIs))){
-                    fwrite($mpdreport, "Warning for DVB check: Section 4.7.2- 'If the MPD is dynamic or if the MPD@availabilityStartTime is present then the MPD SHOULD countain at least one UTCTiming element with the @schemeIdUri attribute set to one of the following: $acceptedTimingURIs ', could not be found in the provided MPD.\n");
-                }
+        if($UTCTimings->length == 0)
+            fwrite($mpdreport, "Warning for DVB check: Section 4.7.2- 'If the MPD is dynamic or if the MPD@availabilityStartTime is present then the MPD SHOULD countain at least one UTCTiming element with the @schemeIdUri attribute set to one of the following: $acceptedTimingURIs ', UTCTiming element could not be found in the provided MPD.\n");
+        else{
+            foreach($UTCTimings as $UTCTiming){
+                if(!(in_array($UTCTiming->getAttribute('schemeIdUri'), $acceptedTimingURIs)))
+                    $utc_info .= 'wrong ';
             }
+            
+            if($utc_info != '')
+                fwrite($mpdreport, "Warning for DVB check: Section 4.7.2- 'If the MPD is dynamic or if the MPD@availabilityStartTime is present then the MPD SHOULD countain at least one UTCTiming element with the @schemeIdUri attribute set to one of the following: $acceptedTimingURIs ', could not be found in the provided MPD.\n");
         }
-        
+    }
+    
+    foreach($MPD->childNodes as $node){
         if($node->nodeName == 'Period'){
             $period_count++;
             $adapt_video_count = 0; 
