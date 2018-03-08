@@ -731,6 +731,22 @@ function common_validation_DVB($opfile, $dom, $xml_rep, $adapt_count, $rep_count
     if($hdlr_type == 'vide' && strpos($sdType, 'avc') !== FALSE){
         if($sdType != 'avc3' && $sdType != 'avc4')
             fwrite($opfile, "Warning for DVB check: Section 5.1.2- 'Content SHOULD be offered using Inband storage for SPS/PPS i.e. sample entries 'avc3' and 'avc4'.', found $sdType.\n");
+        
+        $vide_sd = $xml_rep->getElementsByTagName("$hdlr_type".'_sampledescription')->item(0);
+        $nal_units = $vide_sd->getElementsByTagName('NALUnit');
+        $sps_found = false;
+        $pps_found = false;
+        foreach($nal_units as $nal_unit){
+            if($nal_unit->getAttribute('nal_type') == '0x07')
+                $sps_found = true;
+            if($nal_unit->getAttribute('nal_type') == '0x08')
+                $pps_found = true;
+        }
+        
+        if(!$sps_found)
+            fwrite($opfile, "###'DVB check violated: Section 5.1.2- All information necessary to decode any Segment chosen from the Representation SHALL be provided in the initiaölization Segment', SPS not found.\n");
+        if(!$pps_found)
+            fwrite($opfile, "###'DVB check violated: Section 5.1.2- All information necessary to decode any Segment chosen from the Representation SHALL be provided in the initiaölization Segment', PPS not found.\n");
     }
     
     // Section 4.5 on subtitle segment sizes
