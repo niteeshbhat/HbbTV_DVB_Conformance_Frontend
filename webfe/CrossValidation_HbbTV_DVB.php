@@ -473,14 +473,9 @@ function nodes_equal($node_1, $node_2){
     return $equal;
 }
 
-<<<<<<< HEAD
-function common_validation($dom,$hbbtv,$dvb, $sizearray){
-    global $Periodduration, $locate, $count1, $count2, $Adapt_arr;
-=======
 function common_validation($dom,$hbbtv,$dvb, $sizearray,$bandwidth, $pstart){
-    global $locate, $count1, $count2;
->>>>>>> 2065ed518708bece6e628f01aa76ae016ffb4ddf
-    
+    global $Periodduration, $locate, $count1, $count2, $Adapt_arr;
+
     if(!($opfile = fopen($locate."/Adapt".$count1."rep".$count2."log.txt", 'a'))){
         echo "Error opening/creating HbbTV/DVB codec validation file: "."/Adapt".$count1."rep".$count2."log.txt";
         return;
@@ -493,9 +488,13 @@ function common_validation($dom,$hbbtv,$dvb, $sizearray,$bandwidth, $pstart){
     }
     if($hbbtv){
         common_validation_HbbTV($opfile, $dom, $xml_rep, $count1, $count2);
-    }
-<<<<<<< HEAD
-     seg_timing_common($opfile,$xml_rep);
+    } 
+    seg_timing_common($opfile, $xml_rep, $dom, $pstart);
+
+     //seg_bitrate_common($opfile,$xml_rep);
+     bitrate_report($opfile, $dom, $xml_rep, $count1, $count2, $sizearray,$bandwidth);
+
+
     if ($Periodduration !== "") {
         $checks = segmentToPeriodDurationCheck($xml_rep);
         if(!$checks[0]){
@@ -509,21 +508,8 @@ function common_validation($dom,$hbbtv,$dvb, $sizearray,$bandwidth, $pstart){
     $maxSegmentDuration = $stats[3];
     if (averageDurationCheck($meanSegmentDuration, $Adapt_arr)==-1) {
         fwrite($opfile, "###'HbbTV/DVB check violated: The average segment duration is not consistent with the durations advertised by the MPD.\n'");
-    }    
-=======
-    
-    seg_timing_common($opfile, $xml_rep, $dom, $pstart);
+    }  
 
-     //seg_bitrate_common($opfile,$xml_rep);
-     bitrate_report($opfile, $dom, $xml_rep, $count1, $count2, $sizearray,$bandwidth);
-
-
-    $checks = segmentToPeriodDurationCheck($xml_rep);
-    if(!$checks[0]){
-        fwrite($opfile, "###'HbbTV/DVB check violated: The accumulated duration of the segments [".$checks[1]. "seconds] in the representation does not match the period duration[".$checks[2]."seconds].\n'");
-    }
-
->>>>>>> 2065ed518708bece6e628f01aa76ae016ffb4ddf
 }
 
 function common_validation_DVB($opfile, $dom, $xml_rep, $adapt_count, $rep_count, $sizearray){
