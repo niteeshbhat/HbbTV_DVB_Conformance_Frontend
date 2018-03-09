@@ -203,7 +203,7 @@ function process_mpd()
         $progressXML->asXml(trim($locate . '/progress.xml'));
         echo $progressXML->asXML();
         writeEndTime((int)$progressXML->completed->attributes());
-        exit; //Exit
+        exit(); //Exit
     }
 
     ///////////////////////////////////////Processing mpd attributes in order to get value//////////////////////////////////////////////////////////
