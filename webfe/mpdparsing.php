@@ -525,8 +525,33 @@ function processSegmentBase($basedom)
 //timeparsing function convert the time format specified in mpd into absolute seconds example :PT1H2M4.00S>>  3724 second
 function timeparsing($mediaPresentationDuration)
 {
+    $y = str_replace("P", "", $mediaPresentationDuration); // process mediapersentation duration
+    if(strpos($y, 'Y') !== false){
+        $Y = explode("Y", $y); //get years
 
-    $y = str_replace("PT", "", $mediaPresentationDuration); // process mediapersentation duration
+        $y = substr($y, strpos($y, 'Y') + 1);
+    }
+    else
+        $Y[0] = 0;
+    
+    if(strpos($y, 'M') !== false && strpos($y, 'M') < strpos($y, 'T')){
+        $Mo = explode("M", $y); //get years
+
+        $y = substr($y, strpos($y, 'M') + 1);
+    }
+    else
+        $Mo[0] = 0;
+    
+    if(strpos($y, 'D') !== false){
+        $D = explode("D", $y); //get days
+
+        $y = substr($y, strpos($y, 'D') + 1);
+    }
+    else
+        $D[0] = 0;
+    
+    $y = str_replace("T", "", $y);
+    
     if (strpos($y, 'H') !== false)
     {
         $H = explode("H", $y); //get hours
@@ -546,7 +571,7 @@ function timeparsing($mediaPresentationDuration)
         $M[0] = 0;
 
     $S = explode("S", $y); // get seconds
-    $presentationduration = ($H[0] * 60 * 60) + ($M[0] * 60) + $S[0]; // calculate durations in seconds
+    $presentationduration = ($Y[0] * 365 * 24 * 60 * 60) + ($Mo[0] * 30 * 24 * 60 * 60) + ($D[0] * 24 * 60 * 60) + ($H[0] * 60 * 60) + ($M[0] * 60) + $S[0]; // calculate durations in seconds
 
     return $presentationduration;
 }

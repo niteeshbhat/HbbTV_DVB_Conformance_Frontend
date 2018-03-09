@@ -112,6 +112,11 @@ function process_mpd()
     writeMPDStatus($url_array[0]);
     
     copy(dirname(__FILE__) . "/" . "featuretable.html", $locate . '/' . "featuretable.html"); // copy features list html file to session folder
+    if($check_dvb_conformance || $check_hbbtv_conformance){
+        copy(dirname(__FILE__) . "/bitratereport.py", $locate . '/bitratereport.py'); // copy conformance tool to session folder to allow multi-session operation
+        chmod($locate . '/bitratereport.py', 0777);
+    }
+    
     //Create log file so that it is available if accessed
     $progressXML = simplexml_load_string('<root><Profile></Profile><Progress><percent>0</percent><dataProcessed>0</dataProcessed><dataDownloaded>0</dataDownloaded><CurrentAdapt>1</CurrentAdapt><CurrentRep>1</CurrentRep></Progress><completed>false</completed></root>'); // get progress bar update
     $progressXML->asXml($locate . '/progress.xml'); //progress xml location
@@ -177,8 +182,20 @@ function process_mpd()
     $dom->appendChild($dom_sxe);
     $MPD = $dom->getElementsByTagName('MPD')->item(0); // access the parent "MPD" in mpd file
     createMpdFeatureList($dom, $schematronIssuesReport);
-       
+    
+    $mpd_profiles = $MPD->getAttribute('profiles');
     if($check_hbbtv_conformance || $check_dvb_conformance){
+        if($check_dvb_conformance && strpos('urn:dvb:dash:profile:dvb-dash:2014', $mpd_profiles) === FALSE)
+            $mpd_profiles = $mpd_profiles . ',urn:dvb:dash:profile:dvb-dash:2014';
+        if($check_hbbtv_conformance && strpos('urn:hbbtv:dash:profile:isoff-live:2012', $mpd_profiles) === FALSE)
+            $mpd_profiles = $mpd_profiles . ',urn:hbbtv:dash:profile:isoff-live:2012';
+        
+        $MPD->removeAttribute('profiles');
+        $MPD->setAttribute('profiles', $mpd_profiles);
+        $dom = new DOMDocument('1.0');
+        $dom_sxe = $dom->importNode($MPD, true);
+        $dom->appendChild($dom_sxe);
+        
         $result_hbbtvDvb=HbbTV_DVB_mpdvalidator($dom, $check_hbbtv_conformance, $check_dvb_conformance);
         if($result_hbbtvDvb!=="")
             $temp_mpdres = $temp_mpdres . $result_hbbtvDvb;
@@ -973,20 +990,24 @@ function process_mpd()
                         fwrite($config_file, $pie . "\n");
                 }
 
-                fclose($config_file);
-
                 if($cmaf_val == "yes" || $check_dvb_conformance || $check_hbbtv_conformance){
                     $command = $locate . '/' . $validatemp4 . " -atomxml";
                     if($cmaf_val == "yes")
                         $command = $command . " -cmaf";
                     if($check_dvb_conformance)
                         $command = $command . " -dvb";
-                    if($check_hbbtv_conformance)
+                    if($check_hbbtv_conformance){
                         $command = $command . " -hbbtv";
+                        if(strpos($processArguments, '-isolive') === FALSE)
+                            fwrite($config_file, "-isolive\n");
+                    }
                     $command = $command . " -logconsole -configfile " . $file_loc;
                 }
                 else
                     $command = $locate . '/' . $validatemp4 . " -logconsole -configfile " . $file_loc;
+                
+                
+                fclose($config_file);
                 file_put_contents("command.txt", $command);
                 $output = [];
                 $returncode = 0; //the return code should stay 0 when there is no error!
@@ -1039,10 +1060,16 @@ function process_mpd()
                // }
                 
                 if($check_dvb_conformance || $check_hbbtv_conformance){
-                    common_validation($dom,$check_hbbtv_conformance,$check_dvb_conformance, $sizearray);
+                    common_validation($dom,$check_hbbtv_conformance,$check_dvb_conformance, $sizearray,$Period_arr[$count1]['Representation']['bandwidth'][$count2], $start);
+                    $copy_string_info=$string_info;
+                    $index = strpos($copy_string_info, '</body>');
+                    
+                    $bitrate_report_name = 'Adapt' . $count1 . 'rep' . $count2 . '.png';
+                    $copy_string_info = substr($copy_string_info, 0, $index) . "<img id=\"bitrateReport\" src=\"$bitrate_report_name\" width=\"650\" height=\"350\">" . substr($copy_string_info, $index);
+                    $temp_string = str_replace(array('$Template$'), array($repno . "log"), $copy_string_info); // this string shows a text file on HTML
                 }
-                
-                $temp_string = str_replace(array('$Template$'), array($repno . "log"), $string_info); // this string shows a text file on HTML
+                else
+                    $temp_string = str_replace(array('$Template$'), array($repno . "log"), $string_info); // this string shows a text file on HTML
 
                 file_put_contents($locate . '/' . $repno . "log.html", $temp_string); // Create html file containing log file result
                 $file_location[] = "temp" . '/' . $foldername . '/' . $repno . "log.html"; // add it to file location which is sent to client to get URL of log file on server

@@ -26,9 +26,9 @@ function HbbTV_DVB_mpdvalidator($dom, $hbbtv, $dvb) {
     DVB_HbbTV_profile_specific_media_types_report($dom, $mpdreport);
     
     ## Informational cross-profile check
-    if(!$dvb && $hbbtv){
+#    if(!$dvb && $hbbtv){
         DVB_HbbTV_cross_profile_check($dom, $mpdreport);
-    }
+#    }
     
     if($dvb){
         DVB_mpdvalidator($dom, $mpdreport);
@@ -187,33 +187,48 @@ function media_types($MPD){
 }
 
 function DVB_HbbTV_cross_profile_check($dom, $mpdreport){
-    // All the elements here for cross-profile checks exist in DVB but not in HbbTV
-    $MPD = $dom->getElementsByTagName('MPD')->item(0);
+    $profiles = $dom->getElementsByTagName('MPD')->item(0)->getAttribute('profiles');
     
-    $BaseURLs = $MPD->getElementsByTagName('BaseURL');
-    if($BaseURLs->length != 0)
-        fwrite($mpdreport, "Information on DVB-HbbTV conformance: BaseURL element is found in the MPD. This element is scoped by DVB profile that the tool is not validating against.\n");
+    $supported_profiles = array('urn:mpeg:dash:profile:isoff-on-demand:2011', 'urn:mpeg:dash:profile:isoff-live:2011', 
+                                'urn:mpeg:dash:profile:isoff-main:2011', 'http://dashif.org/guidelines/dash264', 
+                                'urn:dvb:dash:profile:dvb-dash:2014', 'urn:hbbtv:dash:profile:isoff-live:2012');
     
-    if($MPD->getAttribute('type') == 'dynamic' || $MPD->getAttribute('availabilityStartTime') != ''){
-        $UTCTimings = $MPD->getElementsByTagName('UTCTiming');
-        if($UTCTimings->length != 0)
-            fwrite($mpdreport, "Information on DVB-HbbTV conformance: UTCTiming element is found in the MPD. This element is scoped by DVB profile that the tool is not validating against.\n");
-    }
-    
-    $periods = $MPD->getElementsByTagName('Period');
-    foreach($periods as $period){
-        foreach($period->childNodes as $child){
-            if($child->nodeName == 'EventStream'){
-                fwrite($mpdreport, "Information on DVB-HbbTV conformance: EventStream element is found in the MPD. This element is scoped by DVB profile that the tool is not validating against.\n");
-                
-                foreach($child->childNodes as $ch){
-                    if($ch->nodeName == 'Event')
-                        fwrite($mpdreport, "Information on DVB-HbbTV conformance: Event element is found in the MPD. This element is scoped by DVB profile that the tool is not validating against.\n");
-                }
-            }
-        }
+    $profiles_arr = explode(',', $profiles);
+    foreach($profiles_arr as $profile){
+        if(!in_array($profile, $supported_profiles))
+            fwrite($mpdreport, "Information on DVB-HbbTV conformance: MPD element is scoped by the profile \"$profile\" that the tool is not validating against.\n");
     }
 }
+
+# // Previous MPD check (6) where the elements that are not used in MPD-level HbbTV profile validation  
+#function DVB_HbbTV_cross_profile_check($dom, $mpdreport){
+#    // All the elements here for cross-profile checks exist in DVB but not in HbbTV
+#    $MPD = $dom->getElementsByTagName('MPD')->item(0);
+#    
+#    $BaseURLs = $MPD->getElementsByTagName('BaseURL');
+#    if($BaseURLs->length != 0)
+#        fwrite($mpdreport, "Information on DVB-HbbTV conformance: BaseURL element is found in the MPD. This element is scoped by DVB profile that the tool is not validating against.\n");
+#    
+#    if($MPD->getAttribute('type') == 'dynamic' || $MPD->getAttribute('availabilityStartTime') != ''){
+#        $UTCTimings = $MPD->getElementsByTagName('UTCTiming');
+#        if($UTCTimings->length != 0)
+#            fwrite($mpdreport, "Information on DVB-HbbTV conformance: UTCTiming element is found in the MPD. This element is scoped by DVB profile that the tool is not validating against.\n");
+#    }
+#    
+#    $periods = $MPD->getElementsByTagName('Period');
+#    foreach($periods as $period){
+#        foreach($period->childNodes as $child){
+#            if($child->nodeName == 'EventStream'){
+#                fwrite($mpdreport, "Information on DVB-HbbTV conformance: EventStream element is found in the MPD. This element is scoped by DVB profile that the tool is not validating against.\n");
+#                
+#                foreach($child->childNodes as $ch){
+#                    if($ch->nodeName == 'Event')
+#                        fwrite($mpdreport, "Information on DVB-HbbTV conformance: Event element is found in the MPD. This element is scoped by DVB profile that the tool is not validating against.\n");
+#                }
+#            }
+#        }
+#    }
+#}
 
 function DVB_mpdvalidator($dom, $mpdreport){
     global $adapt_video_count, $adapt_audio_count, $main_audio_found, $period_count, $audio_bw, $video_bw, $subtitle_bw, $supported_profiles;
@@ -226,10 +241,18 @@ function DVB_mpdvalidator($dom, $mpdreport){
     
     $MPD = $dom->getElementsByTagName('MPD')->item(0);
     
+    ## Warn on low values of MPD@minimumUpdatePeriod (for now the lowest possible value is assumed to be 1 second)
+    if($MPD->getAttribute('minimumUpdatePeriod') != ''){
+        $mup = timeparsing($MPD->getAttribute('minimumUpdatePeriod'));
+        if($mup < 1)
+            fwrite($mpdreport, "Warning for DVB check: 'MPD@minimumUpdatePeriod has a lower value than 1 second.\n");
+    }
+    ##
+    
     ## Information from this part is used for Section 4.1 and 11.1 checks
     $profiles = $MPD->getAttribute('profiles');
-    if(strpos($profiles, 'urn:dvb:dash:profile:dvb-dash:2014') === FALSE)
-        fwrite($mpdreport, "###'DVB check violated: Section 4.1- The URN for the profile (MPEG Interoperability Point) SHALL be \"urn:dvb:dash:profile:dvb-dash:2014\"', specified profile could not be found.\n");
+    if(strpos($profiles, 'urn:dvb:dash:profile:dvb-dash:2014') === FALSE && strpos($profiles, 'urn:hbbtv:dash:profile:isoff-live:2012') === FALSE)
+        fwrite($mpdreport, "###'DVB check violated: Section E.2.1- The MPD SHALL indicate either or both of the following profiles: \"urn:dvb:dash:profile:dvb-dash:2014\" and \"urn:hbbtv:dash:profile:isoff-live:2012\"', specified profile could not be found.\n");
     
     $profile_exists = false;
     if(strpos($profiles, 'urn:dvb:dash:profile:dvb-dash:2014') === FALSE && (strpos($profiles, 'urn:dvb:dash:profile:dvb-dash:isoff-ext-live:2014') === FALSE || strpos($profiles, 'urn:dvb:dash:profile:dvb-dash:isoff-ext-on-demand:2014') === FALSE))
@@ -255,18 +278,30 @@ function DVB_mpdvalidator($dom, $mpdreport){
     $video_service = false;
     $type = $MPD->getAttribute('type');
     $AST = $MPD->getAttribute('availabilityStartTime');
-    foreach($MPD->childNodes as $node){
+    
+    if($type == 'dynamic' || $AST != ''){
+        $UTCTimings = $MPD->getElementsByTagName('UTCTiming');
+        $acceptedTimingURIs = array('urn:mpeg:dash:utc:ntp:2014', 
+                                    'urn:mpeg:dash:utc:http-head:2014', 
+                                    'urn:mpeg:dash:utc:http-xsdate:2014',
+                                    'urn:mpeg:dash:utc:http-iso:2014',
+                                    'urn:mpeg:dash:utc:http-ntp:2014');
+        $utc_info = '';
         
-        if($type == 'dynamic' || $AST != ''){
-            if($node->nodeName == 'UTCTiming'){
-                $acceptedTimingURIs = array('urn:mpeg:dash:utc:ntp:2014', 'urn:mpeg:dash:utc:http-head:2014', 'urn:mpeg:dash:utc:http-xsdate:2014',
-                    'urn:mpeg:dash:utc:http-iso:2014','urn:mpeg:dash:utc:http-ntp:2014');
-                if(!(in_array($node->getAttribute('schemeIdUri'), $acceptedTimingURIs))){
-                    fwrite($mpdreport, "Warning for DVB check: Section 4.7.2- 'If the MPD is dynamic or if the MPD@availabilityStartTime is present then the MPD SHOULD countain at least one UTCTiming element with the @schemeIdUri attribute set to one of the following: $acceptedTimingURIs ', could not be found in the provided MPD.\n");
-                }
+        if($UTCTimings->length == 0)
+            fwrite($mpdreport, "Warning for DVB check: Section 4.7.2- 'If the MPD is dynamic or if the MPD@availabilityStartTime is present then the MPD SHOULD countain at least one UTCTiming element with the @schemeIdUri attribute set to one of the following: $acceptedTimingURIs ', UTCTiming element could not be found in the provided MPD.\n");
+        else{
+            foreach($UTCTimings as $UTCTiming){
+                if(!(in_array($UTCTiming->getAttribute('schemeIdUri'), $acceptedTimingURIs)))
+                    $utc_info .= 'wrong ';
             }
+            
+            if($utc_info != '')
+                fwrite($mpdreport, "Warning for DVB check: Section 4.7.2- 'If the MPD is dynamic or if the MPD@availabilityStartTime is present then the MPD SHOULD countain at least one UTCTiming element with the @schemeIdUri attribute set to one of the following: $acceptedTimingURIs ', could not be found in the provided MPD.\n");
         }
-        
+    }
+    
+    foreach($MPD->childNodes as $node){
         if($node->nodeName == 'Period'){
             $period_count++;
             $adapt_video_count = 0; 
@@ -572,7 +607,8 @@ function DVB_audio_checks($adapt, $reps, $mpdreport, $i, $contentTemp_aud_found)
     $rep_role_element_found = false;
     $contentComp_role_element_found = false;
     $adapt_audioChConf_element_found = false;
-    $adapt_audioChConf_scheme = '';
+    $adapt_audioChConf_scheme = array();
+    $adapt_audioChConf_value = array();
     $adapt_mimeType = $adapt->getAttribute('mimeType');
     $adapt_audioSamplingRate = $adapt->getAttribute('audioSamplingRate');
     $adapt_specific_role_count = 0;
@@ -600,6 +636,7 @@ function DVB_audio_checks($adapt, $reps, $mpdreport, $i, $contentTemp_aud_found)
         if($ch->nodeName == 'AudioChannelConfiguration'){
             $adapt_audioChConf_element_found = true;
             $adapt_audioChConf_scheme[] = $ch->getAttribute('schemeIdUri');
+            $adapt_audioChConf_value[] = $ch->getAttribute('value');
         }
         if($contentTemp_aud_found && $ch->nodeName == 'ContentComponent'){
             if($ch->getAttribute('contentType') == 'audio'){
@@ -620,8 +657,16 @@ function DVB_audio_checks($adapt, $reps, $mpdreport, $i, $contentTemp_aud_found)
     
     ## Information from this part is for Section 6.3:Dolby and 6.4:DTS
     if(strpos($adapt_codecs, 'ec-3') !== FALSE || strpos($adapt_codecs, 'ac-4') !== FALSE){
-        if(!in_array('tag:dolby.com,2014:dash:audio_channel_configuration:2011', $adapt_audioChConf_scheme))
-            fwrite($mpdreport, "###'DVB check violated: Section 6.3- For E-AC-3 and AC-4 the AudioChannelConfiguration element SHALL use the \"tag:dolby.com,2014:dash:audio_channel_configuration:2011\" scheme URI', conformance is not satisfied in Period $period_count Adaptation Set " . ($i+1) . " AudioChannelConfiguration.\n");
+        if(!in_array('tag:dolby.com,2014:dash:audio_channel_configuration:2011', $adapt_audioChConf_scheme)){
+            if(strpos($adapt_codecs, 'ec-3') !== FALSE && !in_array('tag:dolby.com,2014:dash:audio_channel_configuration:2011', $adapt_audioChConf_scheme))
+                fwrite($mpdreport, "###'DVB check violated: Section E.2.5- For E-AC-3 the AudioChannelConfiguration element SHALL use either the \"tag:dolby.com,2014:dash:audio_channel_configuration:2011\" or the legacy \"urn:dolby:dash:audio_channel_configuration:2011\" schemeURI', conformance is not satisfied in Period $period_count Adaptation Set " . ($i+1) . " AudioChannelConfiguration.\n");
+            if(strpos($adapt_codecs, 'ac-4') !== FALSE)
+                fwrite($mpdreport, "###'DVB check violated: Section 6.3- For E-AC-3 and AC-4 the AudioChannelConfiguration element SHALL use the \"tag:dolby.com,2014:dash:audio_channel_configuration:2011\" scheme URI', conformance is not satisfied in Period $period_count Adaptation Set " . ($i+1) . " AudioChannelConfiguration.\n");
+            
+            $value = $adapt_audioChConf_value[array_search('tag:dolby.com,2014:dash:audio_channel_configuration:2011', $adapt_audioChConf_scheme)];
+            if(sizeof($value) != 4 || (sizeof($value) == 4 && ctype_xdigit($value)))
+                fwrite($mpdreport, "###'DVB check violated: Section 6.3- (For E-AC-3 and AC-4 the AudioChannelConfiguration element) the @value attribute SHALL contain four digit hexadecimal representation of the 16 bit field', found \"$value\" in Period $period_count Adaptation Set " . ($i+1) . " AudioChannelConfiguration.\n");
+        }
     }
     if(strpos($adapt_codecs, 'dtsc') !== FALSE || strpos($adapt_codecs, 'dtsh') !== FALSE || strpos($adapt_codecs, 'dtse') !== FALSE || strpos($adapt_codecs, 'dtsi') !== FALSE){
         if(!in_array('tag:dts.com,2014:dash:audio_channel_configuration:2012', $adapt_audioChConf_scheme))
@@ -631,7 +676,9 @@ function DVB_audio_checks($adapt, $reps, $mpdreport, $i, $contentTemp_aud_found)
     
     $reps_len = $reps->length;
     $rep_audioChConf_scheme = array();
+    $rep_audioChConf_value = array();
     $subrep_audioChConf_scheme = array();
+    $subrep_audioChConf_value = array();
     $dependencyIds = array();
     for($j=0; $j<$reps_len; $j++){
         $rep = $reps->item($j);
@@ -647,6 +694,7 @@ function DVB_audio_checks($adapt, $reps, $mpdreport, $i, $contentTemp_aud_found)
             if($ch->nodeName == 'AudioChannelConfiguration'){
                 $rep_audioChConf_element_found = true;
                 $rep_audioChConf_scheme[] = $ch->getAttribute('schemeIdUri');
+                $rep_audioChConf_value[] = $ch->getAttribute('value');
             }
             if($ch->nodeName == 'SubRepresentation'){
                 $ind++;
@@ -654,6 +702,7 @@ function DVB_audio_checks($adapt, $reps, $mpdreport, $i, $contentTemp_aud_found)
                 foreach($ch->childNodes as $c){
                     if($c->nodeName == 'AudioChannelConfiguration'){
                         $subrep_audioChConf_scheme[] = $c->getAttribute('schemeIdUri');
+                        $subrep_audioChConf_value[] = $ch->getAttribute('value');
                     }
                 }
                 
@@ -674,8 +723,16 @@ function DVB_audio_checks($adapt, $reps, $mpdreport, $i, $contentTemp_aud_found)
             
             ##Information from this part is for Section 6.3:Dolby and 6.4:DTS
             if(strpos($subrep_codecs, 'ec-3') !== FALSE || strpos($subrep_codecs, 'ac-4') !== FALSE){
-                if(!in_array('tag:dolby.com,2014:dash:audio_channel_configuration:2011', $subrep_audioChConf_scheme))
-                    fwrite($mpdreport, "###'DVB check violated: Section 6.3- For E-AC-3 and AC-4 the AudioChannelConfiguration element SHALL use the \"tag:dolby.com,2014:dash:audio_channel_configuration:2011\" scheme URI', conformance is not satisfied in Period $period_count Adaptation Set " . ($i+1) . " Representation " . ($j+1) . " SubRepresentation " . ($ind+1) . " AudioChannelConfiguration.\n");
+                if(!in_array('tag:dolby.com,2014:dash:audio_channel_configuration:2011', $subrep_audioChConf_scheme)){
+                    if(strpos($subrep_codecs, 'ec-3') !== FALSE && !in_array('tag:dolby.com,2014:dash:audio_channel_configuration:2011', $subrep_audioChConf_scheme))
+                        fwrite($mpdreport, "###'DVB check violated: Section E.2.5- For E-AC-3 the AudioChannelConfiguration element SHALL use either the \"tag:dolby.com,2014:dash:audio_channel_configuration:2011\" or the legacy \"urn:dolby:dash:audio_channel_configuration:2011\" schemeURI', conformance is not satisfied in Period $period_count Adaptation Set " . ($i+1) . " Representation " . ($j+1) . " SubRepresentation " . ($ind+1) . " AudioChannelConfiguration.\n");
+                    if(strpos($subrep_codecs, 'ac-4') !== FALSE)
+                        fwrite($mpdreport, "###'DVB check violated: Section 6.3- For E-AC-3 and AC-4 the AudioChannelConfiguration element SHALL use the \"tag:dolby.com,2014:dash:audio_channel_configuration:2011\" scheme URI', conformance is not satisfied in Period $period_count Adaptation Set " . ($i+1) . " Representation " . ($j+1) . " SubRepresentation " . ($ind+1) . " AudioChannelConfiguration.\n");
+                    
+                    $value = $subrep_audioChConf_value[array_search('tag:dolby.com,2014:dash:audio_channel_configuration:2011', $subrep_audioChConf_scheme)];
+                    if(sizeof($value) != 4 || (sizeof($value) == 4 && ctype_xdigit($value)))
+                        fwrite($mpdreport, "###'DVB check violated: Section 6.3- (For E-AC-3 and AC-4 the AudioChannelConfiguration element) the @value attribute SHALL contain four digit hexadecimal representation of the 16 bit field', found \"$value\" in Period $period_count Adaptation Set " . ($i+1) . " Representation " . ($j+1) . " SubRepresentation " . ($ind+1) . " AudioChannelConfiguration.\n");
+                }
             }
             if(strpos($subrep_codecs, 'dtsc') !== FALSE || strpos($subrep_codecs, 'dtsc') !== FALSE || strpos($subrep_codecs, 'dtsc') !== FALSE || strpos($subrep_codecs, 'dtsc') !== FALSE){
                 if(!in_array('tag:dts.com,2014:dash:audio_channel_configuration:2012', $subrep_audioChConf_scheme))
@@ -686,8 +743,16 @@ function DVB_audio_checks($adapt, $reps, $mpdreport, $i, $contentTemp_aud_found)
         
         ##Information from this part is for Section 6.3:Dolby and 6.4:DTS
         if(strpos($rep_codecs, 'ec-3') !== FALSE || strpos($rep_codecs, 'ac-4') !== FALSE){
-            if(!in_array('tag:dolby.com,2014:dash:audio_channel_configuration:2011', $rep_audioChConf_scheme))
-                fwrite($mpdreport, "###'DVB check violated: Section 6.3- For E-AC-3 and AC-4 the AudioChannelConfiguration element SHALL use the \"tag:dolby.com,2014:dash:audio_channel_configuration:2011\" scheme URI', conformance is not satisfied in Period $period_count Adaptation Set " . ($i+1) . " Representation " . ($j+1) . " AudioChannelConfiguration.\n");
+            if(!in_array('tag:dolby.com,2014:dash:audio_channel_configuration:2011', $rep_audioChConf_scheme)){
+                if(strpos($rep_codecs, 'ec-3') !== FALSE && !in_array('tag:dolby.com,2014:dash:audio_channel_configuration:2011', $rep_audioChConf_scheme))
+                    fwrite($mpdreport, "###'DVB check violated: Section E.2.5- For E-AC-3 the AudioChannelConfiguration element SHALL use either the \"tag:dolby.com,2014:dash:audio_channel_configuration:2011\" or the legacy \"urn:dolby:dash:audio_channel_configuration:2011\" schemeURI', conformance is not satisfied in Period $period_count Adaptation Set " . ($i+1) . " Representation " . ($j+1) . " AudioChannelConfiguration.\n");
+                if(strpos($rep_codecs, 'ac-4') !== FALSE)
+                    fwrite($mpdreport, "###'DVB check violated: Section 6.3- For E-AC-3 and AC-4 the AudioChannelConfiguration element SHALL use the \"tag:dolby.com,2014:dash:audio_channel_configuration:2011\" scheme URI', conformance is not satisfied in Period $period_count Adaptation Set " . ($i+1) . " Representation " . ($j+1) . " AudioChannelConfiguration.\n");
+                
+                $value = $rep_audioChConf_value[array_search('tag:dolby.com,2014:dash:audio_channel_configuration:2011', $rep_audioChConf_scheme)];
+                if(sizeof($value) != 4 || (sizeof($value) == 4 && ctype_xdigit($value)))
+                    fwrite($mpdreport, "###'DVB check violated: Section 6.3- (For E-AC-3 and AC-4 the AudioChannelConfiguration element) the @value attribute SHALL contain four digit hexadecimal representation of the 16 bit field', found \"$value\" in Period $period_count Adaptation Set " . ($i+1) . " Representation " . ($j+1) . " AudioChannelConfiguration.\n");
+            }
         }
         if(strpos($rep_codecs, 'dtsc') !== FALSE || strpos($rep_codecs, 'dtsh') !== FALSE || strpos($rep_codecs, 'dtse') !== FALSE || strpos($rep_codecs, 'dtsi') !== FALSE){
             if(!in_array('tag:dts.com,2014:dash:audio_channel_configuration:2012', $adapt_audioChConf_scheme))
@@ -882,6 +947,15 @@ function HbbTV_mpdvalidator($dom, $mpdreport){
        fwrite($mpdreport, "###'HbbTV check violated: The MPD must not contain an XML Document Type Definition(<!DOCTYPE>)', but found in the MPD \n");
 
     $MPD = $dom->getElementsByTagName('MPD')->item(0);
+    
+    ## Warn on low values of MPD@minimumUpdatePeriod (for now the lowest possible value is assumed to be 1 second)
+    if($MPD->getAttribute('minimumUpdatePeriod') != ''){
+        $mup = timeparsing($MPD->getAttribute('minimumUpdatePeriod'));
+        if($mup < 1)
+            fwrite($mpdreport, "Warning for HbbTV check: 'MPD@minimumUpdatePeriod has a lower value than 1 second.\n");
+    }
+    ##
+    
     // Periods within MPD
     $period_count = 0;
     foreach($MPD->childNodes as $node){
@@ -898,9 +972,9 @@ function HbbTV_mpdvalidator($dom, $mpdreport){
             //Following has error reporting code if MPD element is not part of validating profile.
             for($i=0; $i< ($adapts->length); $i++){
                 $adapt_count++;
-                $subSegAlign=$adapts->item($i)->getAttribute('subsegmentAlignment');
-                if($subSegAlign == TRUE)
-                    fwrite($mpdreport, "###'HbbTV profile violated: The MPD contains an attribute that is not part of the HbbTV profile', i.e., found 'subsegmentAlignment' as true in AdaptationSet ".($i+1)." \n");
+#                $subSegAlign=$adapts->item($i)->getAttribute('subsegmentAlignment');
+#                if($subSegAlign == TRUE)
+#                    fwrite($mpdreport, "###'HbbTV profile violated: The MPD contains an attribute that is not part of the HbbTV profile', i.e., found 'subsegmentAlignment' as true in AdaptationSet ".($i+1)." \n");
                 
                $role=$adapts->item($i)->getElementsByTagName('Role');
                if($role->length>0){
@@ -927,34 +1001,34 @@ function HbbTV_mpdvalidator($dom, $mpdreport){
                 }
 
                  //Following has error reporting code if MPD element is not part of validating profile.
-                $startWithSAP=$adapts->item($i)->getAttribute('subsegmentStartsWithSAP');
-                    if($startWithSAP == 1 || $startWithSAP ==2)
-                        fwrite($mpdreport, "###'HbbTV profile violated: The MPD contains an attribute that is not part of the HbbTV profile', i.e., found 'subsegmentStartsWithSAP' ".$startWithSAP." in AdaptationSet ".($i+1). " \n");
-                    else if ($startWithSAP==3){
-                        if(!($reps->length>1))
-                            fwrite($mpdreport, "###'HbbTV profile violated: The MPD contains an attribute that is not part of the HbbTV profile', i.e., found 'subsegmentStartsWithSAP' ".$startWithSAP." in AdaptationSet ".($i+1). " not containing more than one Representation \n");
-
-                      
-                    }
+#                $startWithSAP=$adapts->item($i)->getAttribute('subsegmentStartsWithSAP');
+#                    if($startWithSAP == 1 || $startWithSAP ==2)
+#                        fwrite($mpdreport, "###'HbbTV profile violated: The MPD contains an attribute that is not part of the HbbTV profile', i.e., found 'subsegmentStartsWithSAP' ".$startWithSAP." in AdaptationSet ".($i+1). " \n");
+#                    else if ($startWithSAP==3){
+#                        if(!($reps->length>1))
+#                            fwrite($mpdreport, "###'HbbTV profile violated: The MPD contains an attribute that is not part of the HbbTV profile', i.e., found 'subsegmentStartsWithSAP' ".$startWithSAP." in AdaptationSet ".($i+1). " not containing more than one Representation \n");
+#
+#                      
+#                    }
                 for($j=0;$j<($reps->length);$j++){
                     $rep_count++;
-                    $baseURL=$reps->item($j)->getElementsByTagName('BaseURL');
-                    if($baseURL->length>0)
-                        fwrite($mpdreport, "###'HbbTV profile violated: The MPD contains an element that is not part of the HbbTV profile', i.e., found 'BaseURL' element in Representation ".($j+1)." of AdaptationSet ".($i+1). ". \n");
-                    if ($startWithSAP==3){
-                      $currentChild=$reps->item($j);
-                        $currentId= $currentChild->getAttribute('mediaStreamStructureId');
-                        while($currentChild && $currentId!=NULL){
-                            $currentChild=nextElementSibling($currentChild);
-                            if($currentChild!==NULL){
-                                $nextId=$currentChild->getAttribute('mediaStreamStructureId');
-                                if($currentId==$nextId){
-                                    fwrite($mpdreport, "###'HbbTV profile violated: The MPD contains an attribute that is not part of the HbbTV profile', i.e., found 'subsegmentStartsWithSAP' ".$startWithSAP." in AdaptationSet ".($i+1). " with same value of mediaStreamStructureId in more than one Representation \n");
-
-                                }
-                            }
-                        }
-                     }
+#                    $baseURL=$reps->item($j)->getElementsByTagName('BaseURL');
+#                    if($baseURL->length>0)
+#                        fwrite($mpdreport, "###'HbbTV profile violated: The MPD contains an element that is not part of the HbbTV profile', i.e., found 'BaseURL' element in Representation ".($j+1)." of AdaptationSet ".($i+1). ". \n");
+#                    if ($startWithSAP==3){
+#                      $currentChild=$reps->item($j);
+#                        $currentId= $currentChild->getAttribute('mediaStreamStructureId');
+#                        while($currentChild && $currentId!=NULL){
+#                            $currentChild=nextElementSibling($currentChild);
+#                            if($currentChild!==NULL){
+#                                $nextId=$currentChild->getAttribute('mediaStreamStructureId');
+#                                if($currentId==$nextId){
+#                                    fwrite($mpdreport, "###'HbbTV profile violated: The MPD contains an attribute that is not part of the HbbTV profile', i.e., found 'subsegmentStartsWithSAP' ".$startWithSAP." in AdaptationSet ".($i+1). " with same value of mediaStreamStructureId in more than one Representation \n");
+#
+#                                }
+#                            }
+#                        }
+#                     }
 
                 }
                 if($rep_count>16)
