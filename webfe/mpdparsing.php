@@ -518,7 +518,6 @@ function processSegmentBase($basedom)
 
     if ($basedom->hasAttribute('indexRange'))
         $basearray[2] = $basedom->getAttribute('indexRange');
-
     return $basearray;
 }
 
