@@ -474,7 +474,7 @@ function nodes_equal($node_1, $node_2){
 }
 
 function common_validation($dom,$hbbtv,$dvb, $sizearray){
-    global $locate, $count1, $count2;
+    global $Periodduration, $locate, $count1, $count2, $Adapt_arr;
     
     if(!($opfile = fopen($locate."/Adapt".$count1."rep".$count2."log.txt", 'a'))){
         echo "Error opening/creating HbbTV/DVB codec validation file: "."/Adapt".$count1."rep".$count2."log.txt";
@@ -490,12 +490,20 @@ function common_validation($dom,$hbbtv,$dvb, $sizearray){
         common_validation_HbbTV($opfile, $dom, $xml_rep, $count1, $count2);
     }
      seg_timing_common($opfile,$xml_rep);
-
-    $checks = segmentToPeriodDurationCheck($xml_rep);
-    if(!$checks[0]){
-        fwrite($opfile, "###'HbbTV/DVB check violated: The accumulated duration of the segments [".$checks[1]. "seconds] in the representation does not match the period duration[".$checks[2]."seconds].\n'");
+    if ($Periodduration !== "") {
+        $checks = segmentToPeriodDurationCheck($xml_rep);
+        if(!$checks[0]){
+            fwrite($opfile, "###'HbbTV/DVB check violated: The accumulated duration of the segments [".$checks[1]. "seconds] in the representation does not match the period duration[".$checks[2]."seconds].\n'");
+        }
     }
-
+    $stats = getSegmentStats($xml_rep);
+    $meanSegmentDuration = $stats[0];
+    $varianceSegmentDuration = $stats[1];
+    $minSegmentDuration = $stats[2];
+    $maxSegmentDuration = $stats[3];
+    if (averageDurationCheck($meanSegmentDuration, $Adapt_arr)==-1) {
+        fwrite($opfile, "###'HbbTV/DVB check violated: The average segment duration is not consistent with the durations advertised by the MPD.\n'");
+    }    
 }
 
 function common_validation_DVB($opfile, $dom, $xml_rep, $adapt_count, $rep_count, $sizearray){
@@ -878,6 +886,45 @@ function segmentToPeriodDurationCheck($xml_rep) {
     return [$totalSegmentDuration==$Pd, $totalSegmentDuration, $Pd];
 }
 
+function getSegmentStats($xml_rep)
+{
+    $mdhd=$xml_rep->getElementsByTagName('mdhd')->item(0);
+    $timescale=$mdhd->getAttribute('timescale');
+    $num_moofs=$xml_rep->getElementsByTagName('moof')->length;
+    $totalSegmentDuration = 0;
+    $squaredTotalSegDuration = 0;
+    for ( $j = 0 ; $j < $num_moofs - 1 ; $j++ )
+    {
+        $trun = $xml_rep->getElementsByTagName('trun')->item($j);
+        $cummulatedSampleDuration = $trun->getAttribute('cummulatedSampleDuration');
+        $segDur = ( $cummulatedSampleDuration * 1.00 ) / $timescale;
+        if($j==0){ $minSegDur = $segDur; $maxSegDur = $segDur; }
+        if($segDur <= $minSegDur) $minSegDur = $segDur;
+        if($segDur >= $maxSegDur) $maxSegDur = $segDur;
+        $squaredTotalSegDuration += ($segDur)*($segDur);
+        $totalSegmentDuration += $segDur;
+    }
+    $meanSegmentDuration = ($totalSegmentDuration * 1.00) / ( $num_moofs - 1 );
+    $varianceSegmentDuration = (($squaredTotalSegDuration*1.00) / ($num_moofs-1)) - (($meanSegmentDuration)*($meanSegmentDuration));
+    return [$meanSegmentDuration, $varianceSegmentDuration, $minSegDur, $maxSegDur];
+}
+
+function averageDurationCheck($meanSegmentDuration, $Adapt_arr)
+{
+    global $profiles;
+    //if profiles is live, only then check, otherwise don't.
+    if (strpos($profiles, "on-demand") == false)
+    {
+        $Dur = ($Adapt_arr['Representation']['SegmentTemplate'][0]['duration'] *1.00);
+        $timescale = ($Adapt_arr['Representation']['SegmentTemplate'][0]['timescale']);
+        $segDur = $Dur / $timescale;
+        if (ceil($segDur) == ceil($meanSegmentDuration))
+            return 1;
+        else 
+            return -1;
+    }
+    return 0;
+}
 // Report on any resolutions used that are not in the tables of resoultions in 10.3 of the DVB DASH specification
 function resolutionCheck($opfile, $adapt, $rep){
     $conformant = true;
