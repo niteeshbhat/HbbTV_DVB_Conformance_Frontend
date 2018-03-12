@@ -682,6 +682,7 @@ function processmpdresults(MPDtotalResultXML)
 //        console.log("totarr=");
 //        console.log(totarr);
     var failed ='false';
+    var hbbtvDvbError = 'false';
     var hbbtvDvbWarning='false';
 
     repid =[];
@@ -739,7 +740,7 @@ function processmpdresults(MPDtotalResultXML)
         else if(totarr[0]==='error'){
             automate(y,x,"HbbTv DVB validation");
             tree.setItemImage2( x,'button_cancel.png','button_cancel.png','button_cancel.png');
-            failed='temp/'+dirid+'/mpdreport.html';//totarr[0];
+            hbbtvDvbError='temp/'+dirid+'/mpdreport.html';//totarr[0];
         }
         else{
             automate(y,x,"HbbTv DVB validation");
@@ -759,10 +760,22 @@ function processmpdresults(MPDtotalResultXML)
         urlarray.push(failed);
 //        console.log(kidsloc);
 //        console.log(urlarray[0]);
+        x++;
         lastloc++;
         clearInterval( pollingTimer);
         finishTest();
         return false;
+    }
+    if(hbbtvDvbError !== 'false')
+    {
+        automate(y,x,"mpd error log");
+        tree.setItemImage2(x,'log.jpg','log.jpg','log.jpg');
+        kidsloc.push(x);
+        urlarray.push(hbbtvDvbError);
+//        console.log(kidsloc);
+//        console.log(urlarray[0]);
+        x++;
+        lastloc++;
     }
     if(hbbtvDvbWarning==='true')
     {
