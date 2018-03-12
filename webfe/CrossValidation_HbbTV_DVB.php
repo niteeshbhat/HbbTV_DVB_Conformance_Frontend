@@ -247,6 +247,28 @@ function crossValidation_DVB_Representations($dom, $opfile, $xml_r, $xml_d, $i, 
         }
         ##
         
+        ## Section 6.4 on DTS audio frame durations
+        if(strpos($adapt_codecs, 'dtsc') !== FALSE || strpos($adapt_codecs, 'dtsh') !== FALSE || strpos($adapt_codecs, 'dtse') !== FALSE || strpos($adapt_codecs, 'dtsi') !== FALSE
+           || ($adapt_codecs == '' && (strpos($rep_codecs_r, 'dtsc') !== FALSE || strpos($rep_codecs_r, 'dtsh') !== FALSE || strpos($rep_codecs_r, 'dtse') !== FALSE || strpos($rep_codecs_r, 'dtsi') !== FALSE) 
+           && (strpos($rep_codecs_d, 'dtsc') !== FALSE || strpos($rep_codecs_d, 'dtsh') !== FALSE || strpos($rep_codecs_d, 'dtse') !== FALSE || strpos($rep_codecs_d, 'dtsi') !== FALSE))){
+            $timescale_r = (int)($xml_r->getElementsByTagName('mdhd')->item(0)->getAttribute('timescale'));
+            $timescale_d = (int)($xml_d->getElementsByTagName('mdhd')->item(0)->getAttribute('timescale'));
+            $trun_boxes_r = $xml_r->getElementsByTagName('trun');
+            $trun_boxes_d = $xml_d->getElementsByTagName('trun');
+            
+            if($trun_boxes_r->length == $trun_boxes_d->length){
+                $trun_len = $trun_boxes_r->length;
+                for($t=0; $t<$trun_len; $t++){
+                    $cummulatedSampleDuration_r = (int)($trun_boxes_r->item($t)->getAttribute('cummulatedSampleDuration'));
+                    $cummulatedSampleDuration_d = (int)($trun_boxes_d->item($t)->getAttribute('cummulatedSampleDuration'));
+                    
+                    if($cummulatedSampleDuration_r/$timescale_r != $cummulatedSampleDuration_d/$timescale_d)
+                        fwrite($opfile, "###'DVB check violated: Section 6.4- the audio frame duration SHALL reamin constant for all streams within a given Adaptation Set', not common in Segment \"$t\" in Adaptation Set " . ($i+1) . ": Representation " . ($r+1) . " and Representation " . ($d+1) . ".\n");
+                }
+            }
+        }
+        ##
+        
         ## Adaptation Set check for consistent representations: Highlight 5.1 audio and 2.0 Audio in the same adaptation set
         $soun_r = $xml_r->getElementsByTagName('soun_sampledescription')->item(0);
         $conf_r = $soun_r->getElementsByTagName('DecoderSpecificInfo')->item(0);
