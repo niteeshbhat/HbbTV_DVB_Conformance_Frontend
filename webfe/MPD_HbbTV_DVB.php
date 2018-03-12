@@ -1070,7 +1070,7 @@ function HbbTV_VideoRepChecks($adapt, $adapt_num,$period_num,$mpdreport)
     $frameRate=$adapt->getAttribute('frameRate');
     $scanType=$adapt->getAttribute('scanType');
     $codecs=$adapt->getAttribute('codecs');
-    if($codecs!=NULL && strpos($codes, 'avc')===false)
+    if($codecs!=NULL && strpos($codecs, 'avc')===false)
         fwrite($mpdreport, "###'HbbTV check violated: The video content referenced by MPD shall only be encoded using video codecs defined in 7.3.1 (AVC)', but ".$codecs." found in Adaptation Set ".$adapt_num." in Period ".$period_num." \n");
 
     
