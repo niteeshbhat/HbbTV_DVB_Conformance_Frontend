@@ -1312,7 +1312,7 @@ function bitrate_report($opfile, $dom, $xml_rep, $adapt_count, $rep_count, $size
     else{
         for($j=0;$j<$num_moofs;$j++){
             if($sidx_index>sizeof($subsegment_signaling)-1)
-                $rep_count=1;// This for case 2 of case 2.
+                $ref_count=1;// This for case 2 of case 2.
             else
                 $ref_count = $subsegment_signaling[$sidx_index];
 
