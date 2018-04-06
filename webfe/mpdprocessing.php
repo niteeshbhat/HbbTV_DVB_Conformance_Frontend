@@ -1097,8 +1097,14 @@ function process_mpd()
                 }
                 if($check_dvb_conformance || $check_hbbtv_conformance){
                     if (strpos($search, "###") === false){
-                        $ResultXML->Period[0]->Adaptation[$tempcount1]->Representation[$count2 - 1] = "noerror";
-                        $file_location[] = "noerror";
+                        if(strpos($search, "Warning") === false && strpos($search, "WARNING") === false){
+                            $ResultXML->Period[0]->Adaptation[$tempcount1]->Representation[$count2 - 1] = "noerror";
+                            $file_location[] = "noerror";
+                        }
+                        else{
+                            $ResultXML->Period[0]->Adaptation[$tempcount1]->Representation[$count2 - 1] = "warning";
+                            $file_location[] = "warning";
+                        }
                     }
                     else{
                         $ResultXML->Period[0]->Adaptation[$tempcount1]->Representation[$count2 - 1] = "error";
