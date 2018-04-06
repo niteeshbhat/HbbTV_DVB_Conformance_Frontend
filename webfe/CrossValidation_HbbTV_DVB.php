@@ -1089,9 +1089,11 @@ function seg_timing_common($opfile,$xml_rep, $dom, $pstart)
             $compTime = $xml_trun->item($j)->getAttribute('earliestCompositionTime');
             
             $segmentTime = ($decodeTime + $compTime - $mediaTime)/$timescale;
-            if(empty($subsegment_signaling) && $j < sizeof($mpd_timing)){
-                if(abs(($segmentTime - $mpd_timing[$j])/$mpd_timing[$j]) > 0.00001)
-                    fprintf($opfile, "###'HbbTV/DVB check violated: Start time \"$segmentTime\" within the segment " . ($j+1) . " is not consistent with the timing indicated by the MPD \"$mpd_timing[$j]\".\n");
+            if(empty($subsegment_signaling)){
+                if($j < sizeof($mpd_timing)){
+                    if(abs(($segmentTime - $mpd_timing[$j])/$mpd_timing[$j]) > 0.00001)
+                        fprintf($opfile, "###'HbbTV/DVB check violated: Start time \"$segmentTime\" within the segment " . ($j+1) . " is not consistent with the timing indicated by the MPD \"$mpd_timing[$j]\".\n");
+                }
             }
             else{
                 $ref_count = 1;
@@ -1165,11 +1167,11 @@ function mdp_timing_info($dom, $pstart){
     
     $segtimeline = array();
     if($period->getElementsByTagName('SegmentTimeline')->length != 0){
-        if($period->getElementsByTagName('SegmentTimeline')->item(0)->parentNode->nodeName == 'Period')
+        if($period->getElementsByTagName('SegmentTimeline')->item(0)->parentNode->parentNode->nodeName == 'Period')
             $segtimeline[] = $period->getElementsByTagName('SegmentTimeline')->item(0);
     }
     if($adapt->getElementsByTagName('SegmentTimeline')->length != 0){
-        if($adapt->getElementsByTagName('SegmentTimeline')->item(0)->parentNode->nodeName == 'AdaptationSet')
+        if($adapt->getElementsByTagName('SegmentTimeline')->item(0)->parentNode->parentNode->nodeName == 'AdaptationSet')
             $segtimeline[] = $adapt->getElementsByTagName('SegmentTimeline')->item(0);
     }
     if($rep->getElementsByTagName('SegmentTimeline')->length != 0)
