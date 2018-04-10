@@ -403,14 +403,14 @@ function DVB_mpdvalidator($dom, $mpdreport){
                 
                 DVB_content_protection($adapt, $reps, $mpdreport, $i, $cenc);
             }
+            
+            if($video_service){
+                StreamBandwidthCheck($mpdreport);
+            }
         }
         
         if($period_count > 64)
             fwrite($mpdreport, "###'DVB check violated: Section 4.5- The MPD has a maximum of 64 periods after xlink resolution', found $period_count.\n");
-    }
-    
-    if($video_service){
-        StreamBandwidthCheck($mpdreport);
     }
     
     if($adapt_audio_count > 1 && $main_audio_found == false)
@@ -437,6 +437,10 @@ function StreamBandwidthCheck($mpdreport){
             }
         }
     }
+    
+    $video_bw = array();
+    $audio_bw = array();
+    $subtitle_bw = array();
 }
 
 function DVB_event_checks($possible_event, $mpdreport){
