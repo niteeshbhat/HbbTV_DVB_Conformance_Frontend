@@ -11,9 +11,9 @@ $adapt_video_count = 0;
 $adapt_audio_count = 0;
 $main_audio_found = false;
 $main_video_found = false;
-$video_bw = 0;
-$audio_bw = 0;
-$subtitle_bw = 0;
+$video_bw = array();
+$audio_bw = array();
+$subtitle_bw = array();
 
 function HbbTV_DVB_mpdvalidator($dom, $hbbtv, $dvb) {
     global $locate, $string_info;
@@ -379,7 +379,7 @@ function DVB_mpdvalidator($dom, $mpdreport){
                     }
                 }
                 
-                if($adapt->getAttribute('contentType') == 'video' || $contentTemp_vid_found || $video_found || strpos($adapt->getAttribute('contentType'), 'video') !== FALSE){
+                if($adapt->getAttribute('contentType') == 'video' || $contentTemp_vid_found || $video_found || strpos($adapt->getAttribute('mimeType'), 'video') !== FALSE){
                     $video_service = true;
                     DVB_video_checks($adapt, $reps, $mpdreport, $i, $contentTemp_vid_found);
                     
@@ -387,7 +387,7 @@ function DVB_mpdvalidator($dom, $mpdreport){
                         DVB_audio_checks($adapt, $reps, $mpdreport, $i, $contentTemp_aud_found);
                     }
                 }
-                elseif($adapt->getAttribute('contentType') == 'audio' || $contentTemp_aud_found || $audio_found || strpos($adapt->getAttribute('contentType'), 'audio') !== FALSE){
+                elseif($adapt->getAttribute('contentType') == 'audio' || $contentTemp_aud_found || $audio_found || strpos($adapt->getAttribute('mimeType'), 'audio') !== FALSE){
                     DVB_audio_checks($adapt, $reps, $mpdreport, $i, $contentTemp_aud_found);
                     
                     if($contentTemp_vid_found){
@@ -409,13 +409,34 @@ function DVB_mpdvalidator($dom, $mpdreport){
             fwrite($mpdreport, "###'DVB check violated: Section 4.5- The MPD has a maximum of 64 periods after xlink resolution', found $period_count.\n");
     }
     
-    if($video_service && $audio_bw > ($audio_bw+$video_bw+$subtitle_bw)*0.2){
-        fwrite($mpdreport, "Warning for DVB check: Section 11.3.0- 'If the service being delivered is a video service, then audio SHOULD be 20% or less of the total stream bandwidth', could not be found in Period $period_count.\n");
+    if($video_service){
+        StreamBandwidthCheck($mpdreport);
     }
     
     if($adapt_audio_count > 1 && $main_audio_found == false)
         fwrite($mpdreport, "###'DVB check violated: Section 6.1.2- If there is more than one audio Adaptation Set in a DASH Presentation then at least one of them SHALL be tagged with an @value set to \"main\"', could not be found in Period $period_count.\n");
     
+}
+
+function StreamBandwidthCheck($mpdreport){
+    global $video_bw, $audio_bw, $subtitle_bw;
+    
+    for($v=0; $v<sizeof($video_bw); $v++){
+        for($a=0; $a<sizeof($audio_bw); $a++){
+            if(!empty($subtitle_bw)){
+                for($s=0; $s<sizeof($subtitle_bw); $s++){
+                    $total_bw = $video_bw[$v] + $subtitle_bw[$s] + $audio_bw[$a];
+                    if($audio_bw[$a] > 0.2*$total_bw)
+                        fwrite($mpdreport, "Warning for DVB check: Section 11.3.0- 'If the service being delivered is a video service, then audio SHOULD be 20% or less of the total stream bandwidth', exceeding stream found with bandwidth properties: video " . $video_bw[$v] . ", audio " . $audio_bw[$a] . ", subtitle " . $subtitle_bw[$s] . "\n");
+                }
+            }
+            else{
+                $total_bw = $video_bw[$v] + $audio_bw[$a];
+                if($audio_bw[$a] > 0.2*$total_bw)
+                    fwrite($mpdreport, "Warning for DVB check: Section 11.3.0- 'If the service being delivered is a video service, then audio SHOULD be 20% or less of the total stream bandwidth', exceeding stream found with bandwidth properties: video " . $video_bw[$v] . ", audio " . $audio_bw[$a] . "\n");
+            }
+        }
+    }
 }
 
 function DVB_event_checks($possible_event, $mpdreport){
@@ -515,7 +536,7 @@ function DVB_video_checks($adapt, $reps, $mpdreport, $i, $contentTemp_vid_found)
             ##Information from this part is for Section 11.3.0: audio stream bandwidth percentage
             if($contentTemp_vid_found){
                 if(in_array($subrep->getAttribute('contentComponent'), $ids)){
-                    $video_bw += ($rep->getAttribute('bandwidth') != '') ? (float)($rep->getAttribute('bandwidth')) : (float)($ch->getAttribute('bandwidth'));
+                    $video_bw[] = ($rep->getAttribute('bandwidth') != '') ? (float)($rep->getAttribute('bandwidth')) : (float)($ch->getAttribute('bandwidth'));
                 }
             }
             ##
@@ -523,7 +544,7 @@ function DVB_video_checks($adapt, $reps, $mpdreport, $i, $contentTemp_vid_found)
         
         #Information from this part is for Section 11.3.0: audio stream bandwidth percentage
         if(!$contentTemp_vid_found){
-            $video_bw += (float)($rep->getAttribute('bandwidth'));
+            $video_bw[] = (float)($rep->getAttribute('bandwidth'));
         }
         ##
     }
@@ -531,7 +552,7 @@ function DVB_video_checks($adapt, $reps, $mpdreport, $i, $contentTemp_vid_found)
     ## Information from this part is used for Section 5.1 AVC codecs
     if((strpos($adapt_codecs, 'avc') !== FALSE)){
         $codec_parts = array();
-        $codecs = explode(',', $$adapt_codecs);
+        $codecs = explode(',', $adapt_codecs);
         foreach($codecs as $codec){
             if(strpos($codec, 'avc') !== FALSE){
                 $codec_parts = explode('.', $codec);
@@ -567,11 +588,11 @@ function DVB_video_checks($adapt, $reps, $mpdreport, $i, $contentTemp_vid_found)
     
     ## Information from this part is used for Section 4.4 check
     if($adapt->getAttribute('contentType') == 'video'){
-        if($adapt->getAttribute('maxWidth') == '' || (array_unique($reps_width) === 1 && $adapt_width_present == false))
+        if($adapt->getAttribute('maxWidth') == '' && (array_unique($reps_width) === 1 && $adapt_width_present == false))
             fwrite($mpdreport, "Warning for DVB check: Section 4.4- 'For any Adaptation Sets with @contentType=\"video\" @maxWidth attribute (or @width if all Representations have the same width) SHOULD be present', could not be found in Period $period_count Adaptation Set " . ($i+1) . ".\n");
-        if($adapt->getAttribute('maxHeight') == '' || (array_unique($reps_height) === 1 && $adapt_height_present == false))
+        if($adapt->getAttribute('maxHeight') == '' && (array_unique($reps_height) === 1 && $adapt_height_present == false))
             fwrite($mpdreport, "Warning for DVB check: Section 4.4- 'For any Adaptation Sets with @contentType=\"video\" @maxHeight attribute (or @height if all Representations have the same height) SHOULD be present', could not be found in Period $period_count Adaptation Set " . ($i+1) . ".\n");
-        if($adapt->getAttribute('maxFrameRate') == '' || (array_unique($reps_frameRate) === 1 && $adapt_frameRate_present == false))
+        if($adapt->getAttribute('maxFrameRate') == '' && (array_unique($reps_frameRate) === 1 && $adapt_frameRate_present == false))
             fwrite($mpdreport, "Warning for DVB check: Section 4.4- 'For any Adaptation Sets with @contentType=\"video\" @maxFrameRate attribute (or @frameRate if all Representations have the same frameRate) SHOULD be present', could not be found in Period $period_count Adaptation Set " . ($i+1) . ".\n");
         if($adapt->getAttribute('par') == '')
             fwrite($mpdreport, "Warning for DVB check: Section 4.4- 'For any Adaptation Sets with @contentType=\"video\" @par attribute SHOULD be present', could not be found in Period $period_count Adaptation Set " . ($i+1) . ".\n");
@@ -709,17 +730,11 @@ function DVB_audio_checks($adapt, $reps, $mpdreport, $i, $contentTemp_aud_found)
                 ##Information from this part is for Section 11.3.0: audio stream bandwidth percentage
                 if($contentTemp_aud_found){
                     if(in_array($ch->getAttribute('contentComponent'), $ids)){
-                        $audio_bw += ($rep->getAttribute('bandwidth') != '') ? (float)($rep->getAttribute('bandwidth')) : (float)($ch->getAttribute('bandwidth'));
+                        $audio_bw[] = ($rep->getAttribute('bandwidth') != '') ? (float)($rep->getAttribute('bandwidth')) : (float)($ch->getAttribute('bandwidth'));
                     }
                 }
                 ##
             }
-            
-            ##Information from this part is for Section 11.3.0: audio stream bandwidth percentage 
-            if(!$contentTemp_aud_found){
-                $audio_bw += (float)($rep->getAttribute('bandwidth'));
-            }
-            ##
             
             ##Information from this part is for Section 6.3:Dolby and 6.4:DTS
             if(strpos($subrep_codecs, 'ec-3') !== FALSE || strpos($subrep_codecs, 'ac-4') !== FALSE){
@@ -740,6 +755,12 @@ function DVB_audio_checks($adapt, $reps, $mpdreport, $i, $contentTemp_aud_found)
             }
             ##
         }
+        
+        ##Information from this part is for Section 11.3.0: audio stream bandwidth percentage 
+        if(!$contentTemp_aud_found){
+            $audio_bw[] = (float)($rep->getAttribute('bandwidth'));
+        }
+        ##
         
         ##Information from this part is for Section 6.3:Dolby and 6.4:DTS
         if(strpos($rep_codecs, 'ec-3') !== FALSE || strpos($rep_codecs, 'ac-4') !== FALSE){
@@ -832,7 +853,7 @@ function DVB_subtitle_checks($adapt, $reps, $mpdreport, $i){
             
                 ##Information from this part is for Section 11.3.0: audio stream bandwidth percentage
                 if(in_array($ch->getAttribute('contentComponent'), $ids)){
-                    $subtitle_bw += ($rep->getAttribute('bandwidth') != '') ? (float)($rep->getAttribute('bandwidth')) : (float)($ch->getAttribute('bandwidth'));
+                    $subtitle_bw[] = ($rep->getAttribute('bandwidth') != '') ? (float)($rep->getAttribute('bandwidth')) : (float)($ch->getAttribute('bandwidth'));
                 }
                 ##
             }
@@ -852,7 +873,7 @@ function DVB_subtitle_checks($adapt, $reps, $mpdreport, $i){
             
             ##Information from this part is for Section 11.3.0: audio stream bandwidth percentage 
             if(! $contentComp){
-                $subtitle_bw += (float)($rep->getAttribute('bandwidth'));
+                $subtitle_bw[] = (float)($rep->getAttribute('bandwidth'));
             }
             ##
         }
