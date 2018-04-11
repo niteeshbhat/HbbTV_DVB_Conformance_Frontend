@@ -496,7 +496,7 @@ function nodes_equal($node_1, $node_2){
 }
 
 function common_validation($dom,$hbbtv,$dvb, $sizearray,$bandwidth, $pstart){
-    global $Periodduration, $locate, $count1, $count2, $Adapt_arr;
+    global $presentationduration, $locate, $count1, $count2, $Adapt_arr;
 
     if(!($opfile = fopen($locate."/Adapt".$count1."rep".$count2."log.txt", 'a'))){
         echo "Error opening/creating HbbTV/DVB codec validation file: "."/Adapt".$count1."rep".$count2."log.txt";
@@ -517,7 +517,7 @@ function common_validation($dom,$hbbtv,$dvb, $sizearray,$bandwidth, $pstart){
      bitrate_report($opfile, $dom, $xml_rep, $count1, $count2, $sizearray,$bandwidth);
 
 
-    if ($Periodduration !== "") {
+    if ($presentationduration !== "") {
         $checks = segmentToPeriodDurationCheck($xml_rep);
         if(!$checks[0]){
             fwrite($opfile, "###'HbbTV/DVB check violated: The accumulated duration of the segments [".$checks[1]. "seconds] in the representation does not match the period duration[".$checks[2]."seconds].\n'");
@@ -921,8 +921,7 @@ function common_validation_HbbTV($opfile, $dom, $xml_rep, $adapt_count, $rep_cou
 }
 
 function segmentToPeriodDurationCheck($xml_rep) {
-    global $Periodduration;
-    $Pd = timeparsing($Periodduration);
+    global $presentationduration;
     $mdhd=$xml_rep->getElementsByTagName('mdhd')->item(0);
     $timescale=$mdhd->getAttribute('timescale');
     $num_moofs=$xml_rep->getElementsByTagName('moof')->length;
@@ -935,7 +934,7 @@ function segmentToPeriodDurationCheck($xml_rep) {
         $totalSegmentDuration += $segDur;
     }
     
-    return [$totalSegmentDuration==$Pd, $totalSegmentDuration, $Pd];
+    return [$totalSegmentDuration==$presentationduration, $totalSegmentDuration, $presentationduration];
 }
 
 function getSegmentStats($xml_rep)
@@ -1120,7 +1119,7 @@ function seg_timing_common($opfile,$xml_rep, $dom, $pstart)
 }
 
 function mdp_timing_info($dom, $pstart){
-    global $count1, $count2;
+    global $count1, $count2, $presentationduration;
     
     $mpd_timing = array();
     $MPD = $dom->getElementsByTagName('MPD')->item(0);
@@ -1178,7 +1177,7 @@ function mdp_timing_info($dom, $pstart){
         $segtimeline[] = $rep->getElementsByTagName('SegmentTimeline')->item(0);
     
     // Calculate segment timing information
-    $mediapresdur = timeparsing($MPD->getAttribute('mediaPresentationDuration'));
+    #$mediapresdur = timeparsing($MPD->getAttribute('mediaPresentationDuration'));
     
     if(!empty($segbase)){
         foreach($segbase as $segb)
@@ -1245,7 +1244,7 @@ function mdp_timing_info($dom, $pstart){
                         }
                     }
                     else{
-                        $segment_cnt = ceil($mediapresdur/$segmentDuration);
+                        $segment_cnt = ceil($presentationduration/$segmentDuration);
                         
                         for($i=0; $i<$segment_cnt; $i++){
                             $mpd_timing[] = $pres_start + $i*$segmentDuration;
@@ -1265,7 +1264,7 @@ function mdp_timing_info($dom, $pstart){
             }
             else{
                 $segmentDuration = $duration/$timescale;
-                $segment_cnt = $mediapresdur/$segmentDuration;
+                $segment_cnt = $presentationduration/$segmentDuration;
                 
                 for($i=0; $i<$segment_cnt; $i++){
                     $mpd_timing[] = $pres_start + $i*$segmentDuration;

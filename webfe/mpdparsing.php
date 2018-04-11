@@ -17,6 +17,57 @@
 /**
   This group of functions are responsible for parsing the nodes and attributes within MPD in order to find URLs of all segments
  * */
+function periodDurationInfo($dom){
+    $MPD = $dom->getElementsByTagName('MPD')->item(0);
+    $periods = $MPD->getElementsByTagName('Period');
+    $mediapresentationduration = timeparsing($MPD->getAttribute('mediaPresentationDuration'));
+    
+    $starts = array();
+    $durations = array();
+    for($i=0; $i<$periods->length; $i++){
+        $period = $periods[$i];
+        
+        $start = $period->getAttribute('start');
+        $duration = $period->getAttribute('duration');
+        if($start == ''){
+            if($i > 0){
+                if($durations[$i-1] != '')
+                    $start = (float)($starts[$i-1] + $durations[$i-1]);
+                else{
+                    if($MPD->getAttribute('type') == 'dynamic'){
+                        //early available period
+                    }
+                }
+            }
+            else{
+                if($MPD->getAttribute('type') == 'static')
+                    $start = 0;
+                elseif($MPD->getAttribute('type') == 'dynamic'){
+                    //early available period
+                }
+            }
+        }
+        else
+            $start = timeparsing($start);
+        
+        if($duration == ''){
+            if($i != $periods->length-1){
+                $duration = $start - $starts[$i-1];
+            }
+            else{
+                $duration = $mediapresentationduration - $start;
+            }
+        }
+        else
+            $duration = timeparsing($duration);
+        
+        $starts[] = $start;
+        $durations[] = $duration;
+    }
+    
+    return $durations;
+}
+
 function processPeriod($period, &$dir)
 {
     global $Periodduration, $Adapt_arr, $Period_arr, $period_baseurl, $perioddepth, $Adapt_urlbase, $profiles, $Timeoffset, $id;
