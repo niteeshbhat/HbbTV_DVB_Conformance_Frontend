@@ -17,7 +17,7 @@
 function process_mpd()
 {
     global $Adapt_arr, $Period_arr, $repno, $repnolist, $period_url, $locate, $string_info
-    , $count1, $count2, $perioddepth, $adaptsetdepth, $period_baseurl, $foldername, $type, $minBufferTime, $profiles, $MPD, $session_id, $progressXML; //Global variables to be used within the main function
+    , $presentationduration, $count1, $count2, $perioddepth, $adaptsetdepth, $period_baseurl, $foldername, $type, $minBufferTime, $profiles, $MPD, $session_id, $progressXML; //Global variables to be used within the main function
     //  $path_parts = pathinfo($mpdurl); 
     $Baseurl = false; //define if Baseurl is used or no
     $setsegflag = false;
@@ -246,6 +246,7 @@ function process_mpd()
     $progressXML->Profile = $profiles;
     $progressXML->asXml(trim($locate . '/progress.xml'));
 
+    $periodDurations = periodDurationInfo($dom);
     $periodCount = 0;
     foreach ($dom->documentElement->childNodes as $node)
     { // search for all nodes within mpd
@@ -254,6 +255,7 @@ function process_mpd()
             if ($periodCount === 0)
             { //only process the first Period
                 $periodNode = $node;
+                $presentationduration = $periodDurations[0];
             }
             $periodCount++;
         }
