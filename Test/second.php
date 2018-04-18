@@ -3,10 +3,12 @@
 /* 
 
  */
+include 'TestReportSheet.php';
 
 //$opener=$_REQUEST['handle'];
 $length = $_REQUEST['length'];
 $path = $_REQUEST['path'];
+$mpdURL = $_REQUEST['mpdURL'];
  // To get initial list of folders inside temp.
 if (is_dir($path)) {
     $foldernames = scandir($path, 0);
@@ -75,7 +77,11 @@ while(1)
             $xml=simplexml_load_file($path.'/'.$Newfolder.'/progress.xml');
             if($xml->completed=="true")
             { 
+                //Write all errors to a spreadsheet before moving to new location.
+               //CreateTestReport($mpdURL, $path.'/'.$Newfolder);
+                //
                 rename($path.'/'.$Newfolder, $newPath.'/'.$FoldName );
+
                 break;
             }
         //}

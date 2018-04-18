@@ -19,7 +19,7 @@
     
     function newtab(mpdfile)
     {
-        var testWin = window.open("../webfe/conformancetest.php?mpdurl="+mpdfile,"test");
+        var testWin = window.open("../webfe/conformancetest.php?dvb=true&mpdurl="+mpdfile,"test");
         testWin.blur();
         return testWin;
     } 
@@ -117,7 +117,7 @@
                     //To check progress of Conformance Test and paste results into TestResults folder and References folder accordingly.             
                     $.post(
                         "second.php",
-                        {length:vectors.length, path:'../webfe/temp'}
+                        {length:vectors.length, path:'../webfe/temp', mpdURL:vectors[i-1]}
                     ).done(function(response){
                         var folder=response;
                         console.log(folder);
@@ -161,7 +161,7 @@
                             //To check progress of Conformance Test and paste results into TestResults folder and References folder accordingly.             
                             $.post(
                                 "second.php",
-                                {length:vectors.length, path:'../webfe/temp'}
+                                {length:vectors.length, path:'../webfe/temp', mpdURL:vectors[i-1]}
                             ).done(function(response){
                                 var folder=response;
                                 console.log(folder);
