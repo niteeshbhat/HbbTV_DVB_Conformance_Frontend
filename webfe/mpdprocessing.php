@@ -119,7 +119,8 @@ function process_mpd()
     
     //Create log file so that it is available if accessed
     $progressXML = simplexml_load_string('<root><Profile></Profile><Progress><percent>0</percent><dataProcessed>0</dataProcessed><dataDownloaded>0</dataDownloaded><CurrentAdapt>1</CurrentAdapt><CurrentRep>1</CurrentRep></Progress><completed>false</completed></root>'); // get progress bar update
-    $progressXML->asXml($locate . '/progress.xml'); //progress xml location
+    
+    //progress xml location
     //libxml_use_internal_logors(true);
     $MPD_O = simplexml_load_file($GLOBALS["url"]); // load mpd from url 
 
@@ -143,12 +144,14 @@ function process_mpd()
         echo $progressXML->asXML();
         exit;
     }
+      
+    //xlink_reconstruct_MPD($dom_sxe);
     
     if($check_dvb_conformance){
         $mpdreport = fopen($locate . '/mpdreport.txt', 'a+b');
         $dom_doc = new DOMDocument('1.0');
         $dom_node = $dom_doc->importNode($dom_sxe, true);
-        $dom_doc->appendChild($dom_node);
+        $dom_doc->appendChild($dom_node);      
         $mpd_string = $dom_doc->saveXML();
         $mpd_bytes = strlen($mpd_string);
         if($mpd_bytes > 1024*256){

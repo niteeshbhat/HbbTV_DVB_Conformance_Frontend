@@ -233,6 +233,24 @@ function DVB_HbbTV_cross_profile_check($dom, $mpdreport){
 function DVB_mpdvalidator($dom, $mpdreport){
     global $adapt_video_count, $adapt_audio_count, $main_audio_found, $period_count, $audio_bw, $video_bw, $subtitle_bw, $supported_profiles;
     
+    global $onRequest_array, $xlink_not_valid_array;
+    
+    if(!empty($onRequest_array))
+    {
+        $onRequest_k_v  = implode(', ', array_map(
+        function ($v, $k) { return sprintf(" %s with index (starting from 0) '%s'", $v, $k); },
+        $onRequest_array,array_keys($onRequest_array)));
+        fwrite($mpdreport, "###'DVB check violated, MPD SHALL NOT have xlink:actuate set to onRequest', found in".$onRequest_k_v."\n"); 
+    } 
+    
+    if(!empty($xlink_not_valid_array))
+    {
+        $xlink_not_valid_k_v  = implode(', ', array_map(
+        function ($v, $k) { return sprintf(" %s with index (starting from 0) '%s'", $v, $k); },
+        $xlink_not_valid_array,array_keys($xlink_not_valid_array)));
+        fwrite($mpdreport, "###'DVB check violated, MPD invalid xlink:href', found in:".$xlink_not_valid_k_v."\n"); 
+    }
+    
     $mpd_string = $dom->saveXML();
     $mpd_bytes = strlen($mpd_string);
     if($mpd_bytes > 256*1024){
@@ -306,7 +324,7 @@ function DVB_mpdvalidator($dom, $mpdreport){
             $period_count++;
             $adapt_video_count = 0; 
             $main_video_found = false;
-            
+                                      
             foreach ($node->childNodes as $child){
                 if($child->nodeName == 'SegmentList')
                     fwrite($mpdreport, "###'DVB check violated: Section 4.2.2- The Period.SegmentList SHALL not be present', but found in Period $period_count.\n");
@@ -935,6 +953,24 @@ function DVB_content_protection($adapt, $reps, $mpdreport, $i, $cenc){
 
 function HbbTV_mpdvalidator($dom, $mpdreport){
     
+    global $onRequest_array, $xlink_not_valid_array;
+    
+    if(!empty($onRequest_array))
+    {
+        $onRequest_k_v  = implode(', ', array_map(
+        function ($v, $k) { return sprintf(" %s with index (starting from 0) '%s'", $v, $k); },
+        $onRequest_array,array_keys($onRequest_array)));
+        fwrite($mpdreport, "###'HbbTV check violated, MPD SHALL NOT have xlink:actuate set to onRequest', found in ".$onRequest_k_v."\n"); 
+    }
+    
+    if(!empty($xlink_not_valid_array))
+    {
+        $xlink_not_valid_k_v  = implode(', ', array_map(
+        function ($v, $k) { return sprintf(" %s with index (starting from 0) '%s'", $v, $k); },
+        $xlink_not_valid_array,array_keys($xlink_not_valid_array)));
+        fwrite($mpdreport, "###'HbbTV check violated, MPD invalid xlink:href', found in :".$xlink_not_valid_k_v."\n"); 
+    }
+    
     $mpd_string = $dom->saveXML();
     $mpd_bytes = strlen($mpd_string);
     if($mpd_bytes > 100*1024){
@@ -1163,3 +1199,99 @@ function HbbTV_AudioChannelCheck($channelConfig,$codecs,$rep_num, $adapt_num,$pe
 
     }
 }
+
+
+function xlink_reconstruct_MPD($dom_MPD)
+{
+    global $reconstructed_MPD, $stop, $locate;
+    global $onRequest_array, $xlink_not_valid_array;
+    $onRequest_array = array(); //array to specify the period where the invalidation was found
+    $xlink_not_valid_array = array();
+    $stop = 0;
+    $new_dom = new DOMDocument('1.0');
+    $new_dom_node = $new_dom->importNode($dom_MPD, true);
+    $new_dom->appendChild($new_dom_node);
+    
+    xlink_reconstruct_MPD_recursive($new_dom);
+    //check the final MPD
+    $reconstructed_MPD_st = $reconstructed_MPD->saveXML();
+    $temp_file= fopen($locate ."/content_checker.txt", "w");
+    fwrite($temp_file, $reconstructed_MPD_st);
+    fclose($temp_file);  
+}  
+
+    function xlink_reconstruct_MPD_recursive($dom_MPD) //give $dom_sxe as argument when calling function 
+    { 
+        //global $locate;
+        global $onRequest_array, $xlink_not_valid_array;
+        global $reconstructed_MPD, $stop; //we need the stop value to prohibit the recursion from modifing the MPD with the stack instructions after it has be reconstructed 
+        $reconstructed_MPD = new DOMDocument('1.0');
+        $reconstructed_MPD->preserveWhiteSpace = false;
+        $reconstructed_MPD->formatOutput = true;
+        $MPD = $dom_MPD->getElementsByTagName('MPD')->item(0);
+        $reconstructed_node = $reconstructed_MPD->importNode($MPD, true);
+        $reconstructed_MPD->appendChild($reconstructed_node);
+
+        $element_name = array(); 
+        foreach ($dom_MPD->getElementsByTagName('*') as $node)
+        { // search for all nodes within mpd   
+            $node_name = $node->nodeName;
+            $node_id = $node->getAttribute('id');
+            $element_name[] = $node_name;
+            $xlink=$node->getAttribute('xlink:href');
+            if (($xlink != "") && ($stop === 0)) //stop needed to stop the recursion from making further modifications after MPD is reconstructed fully
+            {
+                $name_repetition = array_count_values($element_name);
+                $index_for_modifications = $name_repetition[$node_name] - 1; //this will be the index for replacing and inserting the xlink nodes
+                    
+                $actuate_mode = $node->getAttribute('xlink:actuate');
+                
+                if($actuate_mode === 'onRequest')// check if actuate mode is onRequest
+                {
+                    $onRequest_array[$index_for_modifications] = $node_name;
+                }
+              
+                //if you have a valid url then get the content even if it is onRequest
+                $xlink_url = get_headers($xlink);
+                if(!strpos($xlink_url[0], "200")) 
+                {
+                    $xlink_not_valid_array[$index_for_modifications] = $node_name;
+                    $reconstructed_MPD->getElementsByTagName($node_name)->item($index_for_modifications)->parentNode->removeChild($reconstructed_MPD->getElementsByTagName($node_name)->item($index_for_modifications)); 
+                }
+                else 
+                {
+                    //get contents and turn them in xml format
+                    $xlink_content = file_get_contents($xlink);
+                    $xlink_content = '<elements xmlns="urn:mpeg:dash:schema:mpd:2011" xmlns:xlink="http://www.w3.org/1999/xlink">'."\n".$xlink_content;
+                    $xlink_content = $xlink_content."\n"."</elements>";
+                    $xlink_content = simplexml_load_string($xlink_content);
+                    $dom_xlink = dom_import_simplexml($xlink_content);
+                    
+                    $dom = new DOMDocument('1.0');
+                    $dom_xlink = $dom->importNode($dom_xlink, true);
+                    $dom->appendChild($dom_xlink);
+                    $first_element_checker = 0; //the first element will be replaced with an existing one while the other will be just inserted after that
+                    foreach ($dom->documentElement->childNodes as $dom_node) 
+                    {
+                        if ($dom_node->nodeName === $node_name)
+                        {
+                            $xlink = $dom_node->getAttribute('xlink:href');
+                            //first period is replaced with the one with the same index and others are just inserted after the first one
+                            $first_element_checker ++;
+                            $dom_node1 = $reconstructed_MPD->importNode($dom_node, true); //necessary to use replacechild or removechild
+                            if($first_element_checker === 1)
+                            {
+                                $reconstructed_MPD->getElementsByTagName($node_name)->item($index_for_modifications)->parentNode->replaceChild($dom_node1, $reconstructed_MPD->getElementsByTagName($node_name)->item($index_for_modifications));
+                            }
+                            else
+                            {
+                                $reconstructed_MPD->getElementsByTagName($node_name)->item($index_for_modifications)->parentNode->insertBefore($dom_node1, $reconstructed_MPD->getElementsByTagName($node_name)->item($index_for_modifications)->nextSibling);  
+                            }
+                        }      
+                    }
+                    xlink_reconstruct_MPD_recursive($reconstructed_MPD);
+                }
+            }       
+        }         
+        $stop = 1; // now don't do any more modifications to the MPD  
+    }
