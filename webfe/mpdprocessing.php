@@ -713,7 +713,7 @@ function process_mpd()
             {  // check all info files if they contain Error 
                 if (file_exists($locate . '/Adapt' . $i . '_infofile.txt'))
                 {
-                    $searchadapt = file_get_contents($locate . '/Adapt' . $i . '_infofile.txt');
+                    $searchadapt = file_get_contents($locate . '/Adapt' . $i . '_CrossInfofile.txt');
                     if (strpos($searchadapt, "Error") == false)
                     {
                         $ResultXML->Period[0]->Adaptation[$i]->addChild('CrossRepresentation', 'noerror');
@@ -722,7 +722,7 @@ function process_mpd()
                     else
                     {
                         $ResultXML->Period[0]->Adaptation[$i]->addChild('CrossRepresentation', 'error');
-                        $file_error[] = "temp" . '/' . $foldername . '/' . 'Adapt' . $i . '_infofile.html'; // add error file location to array
+                        $file_error[] = "temp" . '/' . $foldername . '/' . 'Adapt' . $i . '_CrossInfofile.html'; // add error file location to array
                     }
                 }
                 else

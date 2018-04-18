@@ -47,20 +47,41 @@
     }
     else
         $cmaf = "";
+    
+    if(isset($_REQUEST['dvb']))
+    {
+        $dvb = $_REQUEST['dvb'];     // To get url from POST request.
+    }
+    else
+        $dvb = "false";
+    
+    if(isset($_REQUEST['hbbtv']))
+    {
+        $hbbtv = $_REQUEST['hbbtv'];     // To get url from POST request.
+    }
+    else
+        $hbbtv = "false";
 ?>
 
 <script type="text/javascript">
 
     var url = "";
-
+    var dvb,hbbtv;
     window.onload = function()
     {
         url = "<?php echo $url; ?>";
         if(url !== "")
         {
             document.getElementById("urlinput").value=url;
+            dvb="<?php echo $dvb; ?>";
+            hbbtv= "<?php echo $hbbtv; ?>";
+            if(dvb== "true")
+                document.getElementById("dvbprofile").checked = dvb;
+            if(hbbtv=="true")
+                document.getElementById("hbbtvprofile").checked = hbbtv;   
             submit();
         }
+     
     }
 
     function fixImage(id){
@@ -907,7 +928,7 @@ function progress()  //Progress of Segments' Conformance
                     automate(adaptid[i-1],lastloc,"log");
                     tree.setItemImage2( lastloc,'log.jpg','log.jpg','log.jpg');
                     kidsloc.push(lastloc);
-                    urlarray.push("temp/"+dirid+"/"+ "Adapt"+(i-1)+ "_infofile.html");
+                    urlarray.push("temp/"+dirid+"/"+ "Adapt"+(i-1)+ "_CrossInfofile.html");
                     lastloc++;
                 }
             }

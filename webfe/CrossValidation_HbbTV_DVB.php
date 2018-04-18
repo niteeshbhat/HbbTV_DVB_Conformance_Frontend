@@ -523,14 +523,14 @@ function common_validation($dom,$hbbtv,$dvb, $sizearray,$bandwidth, $pstart){
             fwrite($opfile, "###'HbbTV/DVB check violated: The accumulated duration of the segments [".$checks[1]. "seconds] in the representation does not match the period duration[".$checks[2]."seconds].\n'");
         }
     }
-    $stats = getSegmentStats($xml_rep);
+    /*$stats = getSegmentStats($xml_rep);
     $meanSegmentDuration = $stats[0];
     $varianceSegmentDuration = $stats[1];
     $minSegmentDuration = $stats[2];
     $maxSegmentDuration = $stats[3];
     if (averageDurationCheck($meanSegmentDuration, $Adapt_arr)==-1) {
         fwrite($opfile, "###'HbbTV/DVB check violated: The average segment duration is not consistent with the durations advertised by the MPD.\n'");
-    }  
+    }*/  
 
 }
 
