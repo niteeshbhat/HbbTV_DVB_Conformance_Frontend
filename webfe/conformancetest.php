@@ -1026,20 +1026,22 @@ function progress()  //Progress of Segments' Conformance
 
         if(RepXML == "noerror")
             tree.setItemImage2( repid[counting],'right.jpg','right.jpg','right.jpg');
+        else if(RepXML == "warning")
+            tree.setItemImage2( repid[counting],'log.jpg','log.jpg','log.jpg');
         else
         {
             tree.setItemImage2( repid[counting],'button_cancel.png','button_cancel.png','button_cancel.png');
-
+        }
 //            console.log("errors");
 
             automate(repid[counting],lastloc,"log");
-            tree.setItemImage2( lastloc,'log.jpg','log.jpg','log.jpg');
+            tree.setItemImage2( lastloc,'csh_winstyle/iconText.gif','csh_winstyle/iconText.gif','csh_winstyle/iconText.gif');
 
             kidsloc.push(lastloc);
             urlarray.push("temp/"+dirid+"/"+ "Adapt"+(adaptationid-1)+"rep"+(representationid-2) + "log.html");
 
             lastloc++;  
-        }
+        
 
         counting++;
 

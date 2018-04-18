@@ -496,7 +496,7 @@ function nodes_equal($node_1, $node_2){
 }
 
 function common_validation($dom,$hbbtv,$dvb, $sizearray,$bandwidth, $pstart){
-    global $Periodduration, $locate, $count1, $count2, $Adapt_arr;
+    global $presentationduration, $locate, $count1, $count2, $Adapt_arr;
 
     if(!($opfile = fopen($locate."/Adapt".$count1."rep".$count2."log.txt", 'a'))){
         echo "Error opening/creating HbbTV/DVB codec validation file: "."/Adapt".$count1."rep".$count2."log.txt";
@@ -517,7 +517,7 @@ function common_validation($dom,$hbbtv,$dvb, $sizearray,$bandwidth, $pstart){
      bitrate_report($opfile, $dom, $xml_rep, $count1, $count2, $sizearray,$bandwidth);
 
 
-    if ($Periodduration !== "") {
+    if ($presentationduration !== "") {
         $checks = segmentToPeriodDurationCheck($xml_rep);
         if(!$checks[0]){
             fwrite($opfile, "###'HbbTV/DVB check violated: The accumulated duration of the segments [".$checks[1]. "seconds] in the representation does not match the period duration[".$checks[2]."seconds].\n'");
@@ -921,8 +921,7 @@ function common_validation_HbbTV($opfile, $dom, $xml_rep, $adapt_count, $rep_cou
 }
 
 function segmentToPeriodDurationCheck($xml_rep) {
-    global $Periodduration;
-    $Pd = timeparsing($Periodduration);
+    global $presentationduration;
     $mdhd=$xml_rep->getElementsByTagName('mdhd')->item(0);
     $timescale=$mdhd->getAttribute('timescale');
     $num_moofs=$xml_rep->getElementsByTagName('moof')->length;
@@ -935,7 +934,7 @@ function segmentToPeriodDurationCheck($xml_rep) {
         $totalSegmentDuration += $segDur;
     }
     
-    return [$totalSegmentDuration==$Pd, $totalSegmentDuration, $Pd];
+    return [$totalSegmentDuration==$presentationduration, $totalSegmentDuration, $presentationduration];
 }
 
 function getSegmentStats($xml_rep)
@@ -1089,9 +1088,11 @@ function seg_timing_common($opfile,$xml_rep, $dom, $pstart)
             $compTime = $xml_trun->item($j)->getAttribute('earliestCompositionTime');
             
             $segmentTime = ($decodeTime + $compTime - $mediaTime)/$timescale;
-            if(empty($subsegment_signaling) && $j < sizeof($mpd_timing)){
-                if(abs(($segmentTime - $mpd_timing[$j])/$mpd_timing[$j]) > 0.00001)
-                    fprintf($opfile, "###'HbbTV/DVB check violated: Start time \"$segmentTime\" within the segment " . ($j+1) . " is not consistent with the timing indicated by the MPD \"$mpd_timing[$j]\".\n");
+            if(empty($subsegment_signaling)){
+                if($j < sizeof($mpd_timing)){
+                    if(abs(($segmentTime - $mpd_timing[$j])/$mpd_timing[$j]) > 0.00001)
+                        fprintf($opfile, "###'HbbTV/DVB check violated: Start time \"$segmentTime\" within the segment " . ($j+1) . " is not consistent with the timing indicated by the MPD \"$mpd_timing[$j]\".\n");
+                }
             }
             else{
                 $ref_count = 1;
@@ -1118,7 +1119,7 @@ function seg_timing_common($opfile,$xml_rep, $dom, $pstart)
 }
 
 function mdp_timing_info($dom, $pstart){
-    global $count1, $count2;
+    global $count1, $count2, $presentationduration;
     
     $mpd_timing = array();
     $MPD = $dom->getElementsByTagName('MPD')->item(0);
@@ -1165,18 +1166,18 @@ function mdp_timing_info($dom, $pstart){
     
     $segtimeline = array();
     if($period->getElementsByTagName('SegmentTimeline')->length != 0){
-        if($period->getElementsByTagName('SegmentTimeline')->item(0)->parentNode->nodeName == 'Period')
+        if($period->getElementsByTagName('SegmentTimeline')->item(0)->parentNode->parentNode->nodeName == 'Period')
             $segtimeline[] = $period->getElementsByTagName('SegmentTimeline')->item(0);
     }
     if($adapt->getElementsByTagName('SegmentTimeline')->length != 0){
-        if($adapt->getElementsByTagName('SegmentTimeline')->item(0)->parentNode->nodeName == 'AdaptationSet')
+        if($adapt->getElementsByTagName('SegmentTimeline')->item(0)->parentNode->parentNode->nodeName == 'AdaptationSet')
             $segtimeline[] = $adapt->getElementsByTagName('SegmentTimeline')->item(0);
     }
     if($rep->getElementsByTagName('SegmentTimeline')->length != 0)
         $segtimeline[] = $rep->getElementsByTagName('SegmentTimeline')->item(0);
     
     // Calculate segment timing information
-    $mediapresdur = timeparsing($MPD->getAttribute('mediaPresentationDuration'));
+    #$mediapresdur = timeparsing($MPD->getAttribute('mediaPresentationDuration'));
     
     if(!empty($segbase)){
         foreach($segbase as $segb)
@@ -1243,7 +1244,7 @@ function mdp_timing_info($dom, $pstart){
                         }
                     }
                     else{
-                        $segment_cnt = ceil($mediapresdur/$segmentDuration);
+                        $segment_cnt = ceil($presentationduration/$segmentDuration);
                         
                         for($i=0; $i<$segment_cnt; $i++){
                             $mpd_timing[] = $pres_start + $i*$segmentDuration;
@@ -1263,7 +1264,7 @@ function mdp_timing_info($dom, $pstart){
             }
             else{
                 $segmentDuration = $duration/$timescale;
-                $segment_cnt = $mediapresdur/$segmentDuration;
+                $segment_cnt = $presentationduration/$segmentDuration;
                 
                 for($i=0; $i<$segment_cnt; $i++){
                     $mpd_timing[] = $pres_start + $i*$segmentDuration;
@@ -1312,7 +1313,7 @@ function bitrate_report($opfile, $dom, $xml_rep, $adapt_count, $rep_count, $size
     else{
         for($j=0;$j<$num_moofs;$j++){
             if($sidx_index>sizeof($subsegment_signaling)-1)
-                $rep_count=1;// This for case 2 of case 2.
+                $ref_count=1;// This for case 2 of case 2.
             else
                 $ref_count = $subsegment_signaling[$sidx_index];
 
