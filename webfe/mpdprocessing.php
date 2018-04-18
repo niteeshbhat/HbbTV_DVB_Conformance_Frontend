@@ -119,8 +119,7 @@ function process_mpd()
     
     //Create log file so that it is available if accessed
     $progressXML = simplexml_load_string('<root><Profile></Profile><Progress><percent>0</percent><dataProcessed>0</dataProcessed><dataDownloaded>0</dataDownloaded><CurrentAdapt>1</CurrentAdapt><CurrentRep>1</CurrentRep></Progress><completed>false</completed></root>'); // get progress bar update
-    
-    //progress xml location
+    $progressXML->asXml($locate . '/progress.xml'); //progress xml location
     //libxml_use_internal_logors(true);
     $MPD_O = simplexml_load_file($GLOBALS["url"]); // load mpd from url 
 
