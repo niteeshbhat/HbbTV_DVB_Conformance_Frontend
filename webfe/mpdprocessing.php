@@ -143,12 +143,14 @@ function process_mpd()
         echo $progressXML->asXML();
         exit;
     }
+      
+    //xlink_reconstruct_MPD($dom_sxe);
     
     if($check_dvb_conformance){
         $mpdreport = fopen($locate . '/mpdreport.txt', 'a+b');
         $dom_doc = new DOMDocument('1.0');
         $dom_node = $dom_doc->importNode($dom_sxe, true);
-        $dom_doc->appendChild($dom_node);
+        $dom_doc->appendChild($dom_node);      
         $mpd_string = $dom_doc->saveXML();
         $mpd_bytes = strlen($mpd_string);
         if($mpd_bytes > 1024*256){
