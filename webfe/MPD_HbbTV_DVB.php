@@ -886,7 +886,7 @@ function DVB_subtitle_checks($adapt, $reps, $mpdreport, $i){
             if(strpos($adapt_codecs, 'stpp') !== FALSE || strpos($rep_codecs, 'stpp') !== FALSE || in_array('stpp', $subrep_codecs) !== FALSE){
                 $subtitle = true;
                 
-                if($adapt_type != 'text' && !in_array('text', $contentComp_type))
+                if(($adapt_type != '' && $adapt_type != 'text') && !in_array('text', $contentComp_type))
                     fwrite($mpdreport, "###'DVB check violated: Section 7.1.1- The @contetnType attribute indicated for subtitles SHALL be \"text\"', found as ". $adapt->getAttribute('contentType') . " in Period $period_count Adaptation Set " . ($i+1) . " Representation " . ($j+1) . ".\n");
                 
                 if($adapt->getAttribute('lang') == '')
