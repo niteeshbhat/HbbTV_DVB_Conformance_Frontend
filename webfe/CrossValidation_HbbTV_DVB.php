@@ -824,9 +824,11 @@ function common_validation_HbbTV($opfile, $dom, $xml_rep, $adapt_count, $rep_cou
     $hdlr_type = $xml_rep->getElementsByTagName('hdlr')->item(0)->getAttribute('handler_type');
     $sdType = $xml_rep->getElementsByTagName("$hdlr_type".'_sampledescription')->item(0)->getAttribute('sdType');
     
+    if($hdlr_type=='vide' || $hdlr_type=='soun'){
     if(strpos($sdType, 'avc') === FALSE && 
        strpos($sdType, 'mp4a') === FALSE && strpos($sdType, 'ec-3') === FALSE)
         fwrite($opfile, "###'HbbTV check violated: codec in Segment is not supported by the specification', found $sdType.\n");
+    }
     
     if(strpos($sdType, 'avc') !== FALSE){
         $width = $xml_rep->getElementsByTagName("$hdlr_type".'_sampledescription')->item(0)->getAttribute('width');
