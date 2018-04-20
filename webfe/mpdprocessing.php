@@ -964,14 +964,19 @@ function process_mpd()
                         $processArguments = $processArguments . " -framerate " . $Period_arr[$count1]['frameRate'];
                     
                     $codec_arr = explode('.', $codecs);
-                    if((strpos($codecs, 'hev')!==FALSE || strpos($codecs, 'hvc')!==FALSE) && count($codec_arr)==4) {
-                        $processArguments = $processArguments . " -codecprofile " . $codec_arr[1];
-                        $processArguments = $processArguments . " -codectier " . substr($codec_arr[3], 0, 1);
-                        $processArguments = $processArguments . " -codeclevel " . substr($codec_arr[3], 1);
+                    if((strpos($codecs, 'hev')!==FALSE || strpos($codecs, 'hvc')!==FALSE)) {
+                        if(!empty($codec_arr[1]))
+                            $processArguments = $processArguments . " -codecprofile " . $codec_arr[1];
+                        if(!empty($codec_arr[3]))
+                            $processArguments = $processArguments . " -codectier " . substr($codec_arr[3], 0, 1);
+                        if(!empty($codec_arr[3]) && strlen($codec_arr[3]) > 1)
+                            $processArguments = $processArguments . " -codeclevel " . substr($codec_arr[3], 1);
                     }
                     if(strpos($codecs, 'avc')!==FALSE){
-                        $processArguments = $processArguments . " -codecprofile " . (string)hexdec(substr($codec_arr[1], 0, 2));
-                        $processArguments = $processArguments . " -codeclevel " . (string)hexdec(substr($codec_arr[1], -2));
+                        if(!empty($codec_arr[1]) && strlen($codec_arr[1]) > 1)
+                            $processArguments = $processArguments . " -codecprofile " . (string)hexdec(substr($codec_arr[1], 0, 2));
+                        if(!empty($codec_arr[1]) && strlen($codec_arr[1]) == 6)
+                            $processArguments = $processArguments . " -codeclevel " . (string)hexdec(substr($codec_arr[1], -2));
                     }
                 }
                 
