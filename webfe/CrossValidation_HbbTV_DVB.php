@@ -35,11 +35,13 @@ function common_crossValidation($dom,$hbbtv,$dvb)
             for($d=$r+1; $d<$filecount; $d++){
                 $xml_d = xmlFileLoad($files[$d]);
                 
-                if($hbbtv){
-                    crossValidation_HbbTV_Representations($dom, $opfile, $xml_r, $xml_d, $adapt_count, $r, $d);
-                }
-                if($dvb){
-                    crossValidation_DVB_Representations($dom, $opfile, $xml_r, $xml_d, $adapt_count, $r, $d);
+                if($xml_r != 0 && $xml_d != 0){
+                    if($hbbtv){
+                        crossValidation_HbbTV_Representations($dom, $opfile, $xml_r, $xml_d, $adapt_count, $r, $d);
+                    }
+                    if($dvb){
+                        crossValidation_DVB_Representations($dom, $opfile, $xml_r, $xml_d, $adapt_count, $r, $d);
+                    }
                 }
             }
         }
@@ -504,23 +506,23 @@ function common_validation($dom,$hbbtv,$dvb, $sizearray,$bandwidth, $pstart){
     }
     
     $xml_rep = xmlFileLoad($locate.'/Adapt'.$count1.'/Adapt'.$count1.'rep'.$count2.'.xml');
+    if($xml_rep != 0){
+        if($dvb){
+            common_validation_DVB($opfile, $dom, $xml_rep, $count1, $count2, $sizearray);
+        }
+        if($hbbtv){
+            common_validation_HbbTV($opfile, $dom, $xml_rep, $count1, $count2);
+        } 
+        seg_timing_common($opfile, $xml_rep, $dom, $pstart);
+        
+        //seg_bitrate_common($opfile,$xml_rep);
+        bitrate_report($opfile, $dom, $xml_rep, $count1, $count2, $sizearray,$bandwidth);
 
-    if($dvb){
-        common_validation_DVB($opfile, $dom, $xml_rep, $count1, $count2, $sizearray);
-    }
-    if($hbbtv){
-        common_validation_HbbTV($opfile, $dom, $xml_rep, $count1, $count2);
-    } 
-    seg_timing_common($opfile, $xml_rep, $dom, $pstart);
-
-     //seg_bitrate_common($opfile,$xml_rep);
-     bitrate_report($opfile, $dom, $xml_rep, $count1, $count2, $sizearray,$bandwidth);
-
-
-    if ($presentationduration !== "") {
-        $checks = segmentToPeriodDurationCheck($xml_rep);
-        if(!$checks[0]){
-            fwrite($opfile, "###'HbbTV/DVB check violated: The accumulated duration of the segments [".$checks[1]. "seconds] in the representation does not match the period duration[".$checks[2]."seconds].\n'");
+        if ($presentationduration !== "") {
+            $checks = segmentToPeriodDurationCheck($xml_rep);
+            if(!$checks[0]){
+                fwrite($opfile, "###'HbbTV/DVB check violated: The accumulated duration of the segments [".$checks[1]. "seconds] in the representation does not match the period duration[".$checks[2]."seconds].\n'");
+            }
         }
     }
     /*$stats = getSegmentStats($xml_rep);
@@ -1031,10 +1033,11 @@ function init_seg_commonCheck($files,$opfile)
     for($i=0;$i<$rep_count;$i++)
     {
         $xml = xmlFileLoad($files[$i]);
-        $avcC_count=$xml->getElementsByTagName('avcC')->length;
-        fwrite($opfile, ", ".$avcC_count." 'avcC' in Representation ".($i+1)." \n");
+        if($xml != 0){
+            $avcC_count=$xml->getElementsByTagName('avcC')->length;
+            fwrite($opfile, ", ".$avcC_count." 'avcC' in Representation ".($i+1)." \n");
+        }
     }
-
 }
 
 function seg_timing_common($opfile,$xml_rep, $dom, $pstart)
