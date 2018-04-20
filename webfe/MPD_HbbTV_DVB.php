@@ -785,7 +785,7 @@ function DVB_audio_checks($adapt, $reps, $mpdreport, $i, $contentTemp_aud_found)
                 }
                 if((strpos($adapt_codecs, 'dtsc') !== FALSE || strpos($adapt_codecs, 'dtsh') !== FALSE || strpos($adapt_codecs, 'dtse') !== FALSE || strpos($adapt_codecs, 'dtsi') !== FALSE) ||
                    (strpos($rep_codecs, 'dtsc') !== FALSE || strpos($rep_codecs, 'dtsh') !== FALSE || strpos($rep_codecs, 'dtse') !== FALSE || strpos($rep_codecs, 'dtsi') !== FALSE) ||
-                   (strpos($subrep_codecs, 'dtsc') !== FALSE || strpos($subrep_codecs, 'dtsc') !== FALSE || strpos($subrep_codecs, 'dtsc') !== FALSE || strpos($subrep_codecs, 'dtsc') !== FALSE)){
+                   (strpos($subrep_codecs, 'dtsc') !== FALSE || strpos($subrep_codecs, 'dtsh') !== FALSE || strpos($subrep_codecs, 'dtse') !== FALSE || strpos($subrep_codecs, 'dtsi') !== FALSE)){
                     if(!empty($subrep_audioChConf_scheme) && !in_array('tag:dts.com,2014:dash:audio_channel_configuration:2012', $subrep_audioChConf_scheme))
                         fwrite($mpdreport, "###'DVB check violated: Section 6.4- For all DTS audio formats AudioChannelConfiguration element SHALL use the \"tag:dts.com,2014:dash:audio_channel_configuration:2012\" for the @schemeIdUri attribute', conformance is not satisfied in Period $period_count Adaptation Set " . ($i+1) . " Representation " . ($j+1) . " SubRepresentation " . ($ind+1) . " AudioChannelConfiguration.\n");
                 }
