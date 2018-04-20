@@ -359,7 +359,7 @@ function crossValidation_DVB_Representations($dom, $opfile, $xml_r, $xml_d, $i, 
                     }
                 }
                 else{
-                    $content_comps = $adapt->getEelementsByTagName('ContentComponent');
+                    $content_comps = $adapt->getElementsByTagName('ContentComponent');
                     foreach($content_comps as $content_comp){
                         $pars[] = $content_comp->getAttribute('par');
                     }
