@@ -431,9 +431,242 @@ function DVB_mpdvalidator($dom, $mpdreport){
             fwrite($mpdreport, "###'DVB check violated: Section 4.5- The MPD has a maximum of 64 periods after xlink resolution', found $period_count.\n");
     }
     
+    DVB_associated_adaptation_sets_check($dom, $mpdreport);
+    
     if($adapt_audio_count > 1 && $main_audio_found == false)
         fwrite($mpdreport, "###'DVB check violated: Section 6.1.2- If there is more than one audio Adaptation Set in a DASH Presentation then at least one of them SHALL be tagged with an @value set to \"main\"', could not be found in Period $period_count.\n");
     
+}
+
+function DVB_associated_adaptation_sets_check($dom, $mpdreport){
+    $MPD = $dom->getElementsByTagName('MPD')->item(0);
+    $periods = $MPD->getElementsByTagName('Period');
+    $period_cnt = $periods->length;
+    
+    for($i=0; $i<$period_cnt; $i++){
+        $period1 = $periods->item($i);
+        $assets1 = $period1->getElementsByTagName('AssetIdentifier');
+        
+        if($assets1->length != 0){
+            for($j=$i+1; $j<$period_cnt; $j++){
+                $period2 = $periods->item($j);
+                $assets2 = $period2->getElementsByTagName('AssetIdentifier');
+                
+                if($assets2->length != 0){
+                    $assetCheck = checkAssetIdentifiers($assets1, $assets2);
+                    if($assetCheck === TRUE){
+                        checkAdaptationSetsIds($period1->getElementsByTagName('AdaptationSet'), $period2->getElementsByTagName('AdaptationSet'), $i, $j, $mpdreport);
+                    }
+                }
+            }
+        }
+    }
+}
+
+function checkAssetIdentifiers($assets1, $assets2){
+    $return = FALSE;
+    $len1 = $assets1->length;
+    $len2 = $assets2->length;
+    
+    for($i=0; $i<$len1; $i++){
+        $asset1 = $assets1->item($i);
+        
+        for($j=0; $j<$len2; $j++){
+            $asset2 = $assets2->item($j);
+            
+            if(nodes_equal($asset1, $asset2)){
+                return TRUE;
+            }
+        }
+    }
+    
+    return $return;
+}
+
+function checkAdaptationSetsIds($adapts1, $adapts2, $periodId1, $periodId2, $mpdreport){
+    $len1 = $adapts1->length;
+    $len2 = $adapts2->length;
+    
+    for($i=0; $i<$len1; $i++){
+        $adapt1 = $adapts1->item($i);
+        $id1 = $adapt1->getAttribute('id');
+        
+        for($j=0; $j<$len2; $j++){
+            $adapt2 = $adapts2->item($j);
+            $id2 = $adapt2->getAttribute('id');
+            
+            if($id1 != '' && $id2 != '' && $id1 == $id2){
+                # Section 10.5.2.2 - Check the DVB requirements for Associated Adaptation Sets
+                // @lang
+                $lang1 = $adapt1->getAttribute('lang');
+                $lang2 = $adapt2->getAttribute('lang');
+                if($lang1 != '' && $lang2 != '' && $lang1 != $lang2)
+                    fwrite($mpdreport, "###'DVB check violated: Section 10.5.2.2- If Adaptation Sets in two different Periods are associated, then the language as decribed by the @lang attribute SHALL be identical for the two Adaptation Sets', not identical for Adaptation Set " . ($i+1) . " in Period " . ($periodId1+1) . " and Adaptation Set " . ($j+1) . " in Period " . ($periodId2+1) . ".\n");
+                
+                // @contentType
+                $contentType1 = $adapt1->getAttribute('contentType');
+                $contentType2 = $adapt2->getAttribute('contentType');
+                if($contentType1 != '' && $contentType2 != '' && $contentType1 != $contentType2)
+                    fwrite($mpdreport, "###'DVB check violated: Section 10.5.2.2- If Adaptation Sets in two different Periods are associated, then the media content component type decribed by the @contentType attribute SHALL be identical for the two Adaptation Sets', not identical for Adaptation Set " . ($i+1) . " in Period " . ($periodId1+1) . " and Adaptation Set " . ($j+1) . " in Period " . ($periodId2+1) . ".\n");
+                
+                // @par
+                $par1 = $adapt1->getAttribute('par');
+                $par2 = $adapt2->getAttribute('par');
+                if($par1 != '' && $par2 != '' && $par1 != $par2)
+                    fwrite($mpdreport, "###'DVB check violated: Section 10.5.2.2- If Adaptation Sets in two different Periods are associated, then the picture aspect ratio decribed by the @par attribute SHALL be identical for the two Adaptation Sets', not identical for Adaptation Set " . ($i+1) . " in Period " . ($periodId1+1) . " and Adaptation Set " . ($j+1) . " in Period " . ($periodId2+1) . ".\n");
+                
+                // Role
+                $roles1 = $adapt1->getElementsByTagName('Role');
+                $roles2 = $adapt2->getElementsByTagName('Role');
+                $roles1_cnt = $roles1->length;
+                $roles2_cnt = $roles2->length;
+                if($roles1_cnt != $roles2_cnt)
+                    fwrite($mpdreport, "###'DVB check violated: Section 10.5.2.2- If Adaptation Sets in two different Periods are associated, then any role properties as decribed by the Role elements SHALL be identical for the two Adaptation Sets', not identical number of Role elements found for Adaptation Set " . ($i+1) . " in Period " . ($periodId1+1) . " and Adaptation Set " . ($j+1) . " in Period " . ($periodId2+1) . ".\n");
+                else{
+                    for($r=0; $r<$roles1_cnt; $r++){
+                        if(!nodes_equal($roles1->item($r), $roles2->item($r)))
+                            fwrite($mpdreport, "###'DVB check violated: Section 10.5.2.2- If Adaptation Sets in two different Periods are associated, then any role properties as decribed by the Role element SHALL be identical for the two Adaptation Sets', not identical for Adaptation Set " . ($i+1) . " in Period " . ($periodId1+1) . " and Adaptation Set " . ($j+1) . " in Period " . ($periodId2+1) . ".\n");
+                    }
+                }
+                
+                // Accessibility
+                $accessibility1 = $adapt1->getElementsByTagName('Accessibility');
+                $accessibility2 = $adapt2->getElementsByTagName('Accessibility');
+                $accessibility1_cnt = $accessibility1->length;
+                $accessibility2_cnt = $accessibility2->length;
+                if($accessibility1_cnt != $accessibility2_cnt)
+                    fwrite($mpdreport, "###'DVB check violated: Section 10.5.2.2- If Adaptation Sets in two different Periods are associated, then any accessibility properties as decribed by the Role elements SHALL be identical for the two Adaptation Sets', not identical number of Role elements found for Adaptation Set " . ($i+1) . " in Period " . ($periodId1+1) . " and Adaptation Set " . ($j+1) . " in Period " . ($periodId2+1) . ".\n");
+                else{
+                    for($a=0; $a<$accessibility1_cnt; $a++){
+                        if(!nodes_equal($accessibility1->item($a), $accessibility2->item($a)))
+                            fwrite($mpdreport, "###'DVB check violated: Section 10.5.2.2- If Adaptation Sets in two different Periods are associated, then any accessibility properties as decribed by the Role element SHALL be identical for the two Adaptation Sets', not identical for Adaptation Set " . ($i+1) . " in Period " . ($periodId1+1) . " and Adaptation Set " . ($j+1) . " in Period " . ($periodId2+1) . ".\n");
+                    }
+                }
+                
+                // Viewpoint
+                $viewpoint1 = $adapt1->getElementsByTagName('Viewpoint');
+                $viewpoint2 = $adapt2->getElementsByTagName('Viewpoint');
+                $viewpoint1_cnt = $viewpoint1->length;
+                $viewpoint2_cnt = $viewpoint2->length;
+                if($viewpoint1_cnt != $viewpoint2_cnt)
+                    fwrite($mpdreport, "###'DVB check violated: Section 10.5.2.2- If Adaptation Sets in two different Periods are associated, then any viewpoint properties as decribed by the Role elements SHALL be identical for the two Adaptation Sets', not identical number of Role elements found for Adaptation Set " . ($i+1) . " in Period " . ($periodId1+1) . " and Adaptation Set " . ($j+1) . " in Period " . ($periodId2+1) . ".\n");
+                else{
+                    for($v=0; $v<$viewpoint1_cnt; $v++){
+                        if(!nodes_equal($viewpoint1->item($v), $viewpoint2->item($v)))
+                            fwrite($mpdreport, "###'DVB check violated: Section 10.5.2.2- If Adaptation Sets in two different Periods are associated, then any viewpoint properties as decribed by the Role element SHALL be identical for the two Adaptation Sets', not identical for Adaptation Set " . ($i+1) . " in Period " . ($periodId1+1) . " and Adaptation Set " . ($j+1) . " in Period " . ($periodId2+1) . ".\n");
+                    }
+                }
+                
+                // Table 3 for Audio Adaptation Sets
+                $mimeType1 = $adapt1->getAttribute('mimeType');
+                $mimeType2 = $adapt2->getAttribute('mimeType');
+                $isaudio = ((strpos($mimeType1, 'audio') !== FALSE) | $contentType1 == 'audio') & ((strpos($mimeType2, 'audio') !== FALSE) | $contentType2 == 'audio');
+                if($mimeType1 == '' || $mimeType2 == ''){
+                    $reps1 = $adapt1->getElementsByTagName('Representation');
+                    $reps2 = $adapt1->getElementsByTagName('Representation');
+                    if($reps1->length == $reps2->length){
+                        for($r=0; $r<$reps1->length; $r++){
+                            $rep1 = $reps1->item($r);
+                            $rep2 = $reps2->item($r);
+                            $isaudio |= ((strpos($rep1->getAttribute('mimeType'), 'audio') !== FALSE) & (strpos($rep2->getAttribute('mimeType'), 'audio') !== FALSE));
+                        }
+                    }
+                }
+                
+                if($isaudio){
+                    // Adaptation Set level
+                    $mimeTypeExists = 0;
+                    $codecsExits = 0;
+                    $audioSamplingRateExists = 0;
+                    $audioChannelConfigurationExits = 0;
+                    
+                    // @mimeType
+                    if($mimeType1 != '' && $mimeType2 != '' && $mimeType1 != $mimeType2){
+                        $mimeTypeExists = 1;
+                        fwrite($mpdreport, "###'DVB check violated: Section 10.5.2.2- If Adaptation Sets in two different Periods are associated, then for audio Adaptation Sets all values and presence of all attributes and elements listed in Table 3 SHALL be identical for the two Adaptation Sets', @mimeType is not identical for Adaptation Set " . ($i+1) . " in Period " . ($periodId1+1) . " and Adaptation Set " . ($j+1) . " in Period " . ($periodId2+1) . ".\n");
+                    }
+                    
+                    // @codecs
+                    $codecs1 = $adapt1->getAttribute('codecs');
+                    $codecs2 = $adapt2->getAttribute('codecs');
+                    if($codecs1 != '' && $codecs2 != '' && $codecs1 != $codecs2){
+                        $codecsExits = 1;
+                        fwrite($mpdreport, "###'DVB check violated: Section 10.5.2.2- If Adaptation Sets in two different Periods are associated, then for audio Adaptation Sets all values and presence of all attributes and elements listed in Table 3 SHALL be identical for the two Adaptation Sets', @codecs is not identical for Adaptation Set " . ($i+1) . " in Period " . ($periodId1+1) . " and Adaptation Set " . ($j+1) . " in Period " . ($periodId2+1) . ".\n");
+                    }
+                    
+                    // @audioSamplingRate
+                    $audioSamplingRate1 = $adapt1->getAttribute('audioSamplingRate');
+                    $audioSamplingRate2 = $adapt2->getAttribute('audioSamplingRate');
+                    if($audioSamplingRate1 != '' && $audioSamplingRate2 != '' && $audioSamplingRate1 != $audioSamplingRate2){
+                        $audioSamplingRateExists = 1;
+                        fwrite($mpdreport, "###'DVB check violated: Section 10.5.2.2- If Adaptation Sets in two different Periods are associated, then for audio Adaptation Sets all values and presence of all attributes and elements listed in Table 3 SHALL be identical for the two Adaptation Sets', @audioSamplingRate is not identical for Adaptation Set " . ($i+1) . " in Period " . ($periodId1+1) . " and Adaptation Set " . ($j+1) . " in Period " . ($periodId2+1) . ".\n");
+                    }
+                    
+                    // AudioChannelConfiguration
+                    $audioChannelConfiguration1 = $adapt1->getElementsByTagName('AudioChannelConfiguration');
+                    $audioChannelConfiguration2 = $adapt2->getElementsByTagName('AudioChannelConfiguration');
+                    $audioChannelConfiguration1_cnt = $audioChannelConfiguration1->length;
+                    $audioChannelConfiguration2_cnt = $audioChannelConfiguration2->length;
+                    if($audioChannelConfiguration1_cnt != $audioChannelConfiguration2_cnt)
+                        fwrite($mpdreport, "###'DVB check violated: Section 10.5.2.2- If Adaptation Sets in two different Periods are associated, then for audio Adaptation Sets all values and presence of all attributes and elements listed in Table 3 SHALL be identical for the two Adaptation Sets', not identical number of AudioChannelConfiguration elements found for Adaptation Set " . ($i+1) . " in Period " . ($periodId1+1) . " and Adaptation Set " . ($j+1) . " in Period " . ($periodId2+1) . ".\n");
+                    else{
+                        for($a=0; $a<$audioChannelConfiguration1_cnt; $a++){
+                            $audioChannelConfigurationExits = 1;
+                            if(!nodes_equal($audioChannelConfiguration1->item($a), $audioChannelConfiguration2->item($a)))
+                                fwrite($mpdreport, "###'DVB check violated: Section 10.5.2.2- If Adaptation Sets in two different Periods are associated, then for audio Adaptation Sets all values and presence of all attributes and elements listed in Table 3 SHALL be identical for the two Adaptation Sets', AudioChannelConfiguration is not identical for Adaptation Set " . ($i+1) . " in Period " . ($periodId1+1) . " and Adaptation Set " . ($j+1) . " in Period " . ($periodId2+1) . ".\n");
+                        }
+                    }
+                    
+                    // Representation Set level
+                    $allExitst = $mimeTypeExists & $codecsExits & $audioSamplingRateExists & $audioChannelConfigurationExits;
+                    if(!$allExitst){
+                        if($reps1->length != $reps2->length)
+                            fwrite($mpdreport, "###'DVB check violated: Section 10.5.2.2- If Adaptation Sets in two different Periods are associated, then for audio Adaptation Sets all values and presence of all attributes and elements listed in Table 3 SHALL be identical for the two Adaptation Sets', not identical number of AudioChannelConfiguration elements found for Adaptation Set " . ($i+1) . " in Period " . ($periodId1+1) . " and Adaptation Set " . ($j+1) . " in Period " . ($periodId2+1) . ".\n");
+                        else{
+                            for($r=0; $r<$reps1->length; $r++){
+                                $rep1 = $reps1->item($r);
+                                $rep2 = $reps2->item($r);
+                                
+                                // @mimeType
+                                $mimeType1 = $rep1->getAttribute('mimeType');
+                                $mimeType2 = $rep2->getAttribute('mimeType');
+                                if(!$mimeTypeExists && $mimeType1 != '' && $mimeType2 != '' && $mimeType1 != $mimeType2)
+                                    fwrite($mpdreport, "###'DVB check violated: Section 10.5.2.2- If Adaptation Sets in two different Periods are associated, then for audio Adaptation Sets all values and presence of all attributes and elements listed in Table 3 SHALL be identical for the two Adaptation Sets', @mimeType is not identical for Representation " . ($r+1) . " Adaptation Set " . ($i+1) . " in Period " . ($periodId1+1) . " and Representation " . ($r+1) . " Adaptation Set " . ($j+1) . " in Period " . ($periodId2+1) . ".\n");
+                                
+                                // @codecs
+                                $codecs1 = $rep1->getAttribute('codecs');
+                                $codecs2 = $rep2->getAttribute('codecs');
+                                if(!$codecsExits && $codecs1 != '' && $codecs2 != '' && $codecs1 != $codecs2)
+                                    fwrite($mpdreport, "###'DVB check violated: Section 10.5.2.2- If Adaptation Sets in two different Periods are associated, then for audio Adaptation Sets all values and presence of all attributes and elements listed in Table 3 SHALL be identical for the two Adaptation Sets', @codecs is not identical for Representation " . ($r+1) . " Adaptation Set " . ($i+1) . " in Period " . ($periodId1+1) . " and Representation " . ($r+1) . " Adaptation Set " . ($j+1) . " in Period " . ($periodId2+1) . ".\n");
+                                
+                                // @audioSamplingRate
+                                $audioSamplingRate1 = $rep1->getAttribute('audioSamplingRate');
+                                $audioSamplingRate2 = $rep2->getAttribute('audioSamplingRate');
+                                if(!$audioSamplingRateExists && $audioSamplingRate1 != '' && $audioSamplingRate2 != '' && $audioSamplingRate1 != $audioSamplingRate2)
+                                    fwrite($mpdreport, "###'DVB check violated: Section 10.5.2.2- If Adaptation Sets in two different Periods are associated, then for audio Adaptation Sets all values and presence of all attributes and elements listed in Table 3 SHALL be identical for the two Adaptation Sets', @audioSamplingRate is not identical for Representation " . ($r+1) . " Adaptation Set " . ($i+1) . " in Period " . ($periodId1+1) . " and Representation " . ($r+1) . " Adaptation Set " . ($j+1) . " in Period " . ($periodId2+1) . ".\n");
+                                
+                                // AudioChannelConfiguration
+                                $audioChannelConfiguration1 = $rep1->getElementsByTagName('AudioChannelConfiguration');
+                                $audioChannelConfiguration2 = $rep2->getElementsByTagName('AudioChannelConfiguration');
+                                $audioChannelConfiguration1_cnt = $audioChannelConfiguration1->length;
+                                $audioChannelConfiguration2_cnt = $audioChannelConfiguration2->length;
+                                if(!$audioChannelConfigurationExits){
+                                    if($audioChannelConfiguration1_cnt != $audioChannelConfiguration2_cnt)
+                                        fwrite($mpdreport, "###'DVB check violated: Section 10.5.2.2- If Adaptation Sets in two different Periods are associated, then for audio Adaptation Sets all values and presence of all attributes and elements listed in Table 3 SHALL be identical for the two Adaptation Sets', not identical number of AudioChannelConfiguration elements found for Representation " . ($r+1) . " Adaptation Set " . ($i+1) . " in Period " . ($periodId1+1) . " and Representation " . ($r+1) . " Adaptation Set " . ($j+1) . " in Period " . ($periodId2+1) . ".\n");
+                                    else{
+                                        for($a=0; $a<$audioChannelConfiguration1_cnt; $a++){
+                                            if(!nodes_equal($audioChannelConfiguration1->item($a), $audioChannelConfiguration2->item($a)))
+                                                fwrite($mpdreport, "###'DVB check violated: Section 10.5.2.2- If Adaptation Sets in two different Periods are associated, then for audio Adaptation Sets all values and presence of all attributes and elements listed in Table 3 SHALL be identical for the two Adaptation Sets', AudioChannelConfiguration is not identical for Representation " . ($r+1) . " Adaptation Set " . ($i+1) . " in Period " . ($periodId1+1) . " and Representation " . ($r+1) . " Adaptation Set " . ($j+1) . " in Period " . ($periodId2+1) . ".\n");
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 function StreamBandwidthCheck($mpdreport){
