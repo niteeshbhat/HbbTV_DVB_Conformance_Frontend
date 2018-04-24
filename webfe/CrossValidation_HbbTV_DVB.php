@@ -13,7 +13,7 @@ function CrossValidation_HbbTV_DVB($dom,$hbbtv,$dvb)
 
 function common_crossValidation($dom,$hbbtv,$dvb)
 {
-    global $locate, $Period_arr;
+    global $locate, $Period_arr, $string_info;
     
     for($adapt_count=0; $adapt_count<sizeof($Period_arr); $adapt_count++){
         $loc = $locate . '/Adapt' . $adapt_count.'/';
@@ -47,12 +47,17 @@ function common_crossValidation($dom,$hbbtv,$dvb)
         }
         init_seg_commonCheck($files,$opfile);
         
+        if($dvb)
+            DVB_period_continuous_adaptation_sets_check($dom, $opfile);
+        
         if(file_exists($loc)){
        
         }
-
+        
         fprintf($opfile, "\n-----Conformance checks completed----- ");
         fclose($opfile);
+        $temp_string = str_replace (array('$Template$'),array("Adapt".$adapt_count."_compInfo"),$string_info);
+        file_put_contents($locate.'/'."Adapt".$adapt_count."_compInfo.html",$temp_string);
     }
 }
 
@@ -1345,4 +1350,117 @@ function bitrate_report($opfile, $dom, $xml_rep, $adapt_count, $rep_count, $size
 
     //exec($command,$output);
     
+}
+
+function DVB_period_continuous_adaptation_sets_check($dom, $opfile){
+    global $locate, $associativity;
+    $MPD = $dom->getElementsByTagName('MPD')->item(0);
+    $periods = $MPD->getElementsByTagName('Period');
+    $period_cnt = $periods->length;
+    
+    for($i=0; $i<$period_cnt; $i++){
+        for($j=$i+1; $j<$period_cnt; $j++){
+            $period1 = $periods->item($i);
+            $adapts1 = $period1->getElementsByTagName('AdaptationSet');
+            $period2 = $periods->item($j);
+            $adapts2 = $period2->getElementsByTagName('AdaptationSet');
+            
+            for($a1=0; $a1<$adapts1->length; $a1++){
+                for($a2=0; $a2<$adapts2->length; $a2++){
+                    $adapt1 = $adapts1->item($a1);
+                    $adapt2 = $adapts2->item($a2);
+                    
+                    $adapt1_id = $adapt1->getAttribute('id');
+                    $adapt2_id = $adapt2->getAttribute('id');
+                    if($adapt1_id == $adapt2_id){
+                        $supps2 = $adapt2->getElementsByTagName('SupplementalProperty');
+                        foreach($supps2 as $supp2){
+                            if($supp2->getAttribute('schemeIdUri') == 'urn:dvb:dash:period_continuity:2014' && in_array($period1->getAttribute('id'), explode(',', $supp2->getAttribute('value')))){
+                                ## Period continuous adapation sets are signalled. 
+                                ## Start checking for conformity according to Section 10.5.2.3
+                                
+                                // Check associativity
+                                $string_to_search = "$i $a1 $j $a2";
+                                if(!in_array($string_to_search, $associativity))
+                                    fwrite($opfile, "###'DVB check violated: Section 10.5.2.2- If Adaptation Sets in two different Periods are period continuous, then Adaptation Sets with the value of their @id attribute set to AID in the first and subsequent Periods SHALL be associated as defined in clause 10.5.2.3', not associated Adaptation Set " . ($a1+1) . " in Period " . ($i+1) . " and Adaptation Set " . ($a2+1) . " in Period " . ($j+1) . ".\n");
+                                
+                                // EPT1 comparisons within the Adaptation Sets
+                                if($i == 0){
+                                    $reps1 = $adapt1->getElementsByTagName('Representation');
+                                    $EPT1 = array();
+                                    for($r1=0; $r1<$reps1->length; $r1++){
+                                        $xml_rep = xmlFileLoad($locate.'/Adapt'.$a1.'/Adapt'.$a1.'rep'.$r1.'.xml');
+                                        if($xml_rep != 0)
+                                            $EPT1[] = segment_timing_info($dom, $xml_rep);
+                                    }
+                                    for($r1=0; $r1<$reps1->length; $r1++){
+                                        for($r1_1=$r1+1; $r1_1<$reps1->length; $r1_1++){
+                                            if($EPT1[$r1] !== $EPT1[$r1_1])
+                                                fwrite($opfile, "###'DVB check violated: Section 10.5.2.2- If Adaptation Sets in two different Periods are period continuous, then all the Representations in the Adaptation Set in the first Period SHALL share the same value EPT1 for the earliest presentation time', not identical for Representation " . ($r1+1) . " and Representation " . ($r1_1+1) . " in Adaptation Set " . ($a1+1) . " in Period " . ($i+1) . ".\n");
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+function segment_timing_info($dom, $xml_rep){
+    $type = $dom->getElementsByTagName('MPD')->item(0)->getAttribute('type');
+    $xml_num_moofs=$xml_rep->getElementsByTagName('moof')->length;
+    $xml_trun=$xml_rep->getElementsByTagName('trun');
+    $xml_tfdt=$xml_rep->getElementsByTagName('tfdt');
+    
+    $sidx_boxes = $xml_rep->getElementsByTagName('sidx');
+    $subsegment_signaling = array();
+    if($sidx_boxes->length != 0){
+        foreach($sidx_boxes as $sidx_box){
+            $subsegment_signaling[] = (int)($sidx_box->getAttribute('referenceCount'));
+        }
+    }
+    
+    $xml_elst = $xml_rep->getElementsByTagName('elst');
+    if($xml_elst->length == 0){
+        $mediaTime = 0;
+    }
+    else{
+        $mediaTime = (int)($xml_elst->item(0)->getElementsByTagName('elstEntry')->item(0)->getAttribute('mediaTime'));
+    }
+    
+    $timescale=$xml_rep->getElementsByTagName('mdhd')->item(0)->getAttribute('timescale');
+    $sidx_index = 0;
+    $cum_subsegDur=0;
+    $EPT = array();
+    if($type != 'dynamic'){
+        for($j=0;$j<$xml_num_moofs;$j++){
+            $decodeTime = $xml_tfdt->item($j)->getAttribute('baseMediaDecodeTime');
+            $compTime = $xml_trun->item($j)->getAttribute('earliestCompositionTime');
+            
+            $startTime = ($decodeTime + $compTime - $mediaTime)/$timescale;
+            if(empty($subsegment_signaling)){
+                $EPT[] = $startTime;
+            }
+            else{
+                $ref_count = 1;
+                if($sidx_index < sizeof($subsegment_signaling))
+                    $ref_count = $subsegment_signaling[$sidx_index];
+                
+                if($cum_subsegDur == 0)
+                    $EPT[] = $startTime;
+                
+                $cum_subsegDur += (($xml_trun->item($j)->getAttribute('cummulatedSampleDuration'))/$timescale);
+                $subsegment_signaling[$sidx_index] = $ref_count - 1;
+                if($subsegment_signaling[$sidx_index] == 0){
+                    $sidx_index++;
+                    $cum_subsegDur = 0;
+                }
+            }
+        }
+    }
+    
+    return $EPT;
 }

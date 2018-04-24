@@ -934,6 +934,47 @@ function progress()  //Progress of Segments' Conformance
             }
         }
         
+        if($("#dvbprofile").is(':checked') || $("#hbbtvprofile").is(':checked')){
+            if(ComparedRepresentations.length!=0 && adaptationid>totarr[0]){
+                for(var i =1; i<=ComparedRepresentations.length;i++)
+                {
+                    if(ComparedRepresentations[i-1].textContent=="noerror"){
+                        tree.setItemImage2(adaptid[i-1],'right.jpg','right.jpg','right.jpg');
+                        automate(adaptid[i-1],lastloc,"DVB-HbbTV Compared representations validation success");
+                        
+                        tree.setItemImage2(lastloc,'right.jpg','right.jpg','right.jpg');
+                        lastloc++;
+                    }
+                    else if(ComparedRepresentations[i-1].textContent=="warning"){
+                        tree.setItemImage2(adaptid[i-1],'right.jpg','right.jpg','right.jpg');
+                        automate(adaptid[i-1],lastloc,"DVB-HbbTV Compared representations validation warning");
+                        
+                        tree.setItemImage2(lastloc,'log.jpg','log.jpg','log.jpg');
+                        lastloc++;
+                        
+                        automate(adaptid[i-1],lastloc,"log");
+                        tree.setItemImage2( lastloc,'log.jpg','log.jpg','log.jpg');
+                        kidsloc.push(lastloc);
+                        urlarray.push("temp/"+dirid+"/"+ "Adapt"+(i-1)+ "_compInfo.html");
+                        lastloc++;
+                    }
+                    else{
+                        tree.setItemImage2(adaptid[i-1],'button_cancel.png','button_cancel.png','button_cancel.png');
+                        automate(adaptid[i-1],lastloc,"DVB-HbbTV Compared representations validation error");
+                        
+                        tree.setItemImage2(lastloc,'button_cancel.png','button_cancel.png','button_cancel.png');
+                        lastloc++;
+                        
+                        automate(adaptid[i-1],lastloc,"log");
+                        tree.setItemImage2( lastloc,'log.jpg','log.jpg','log.jpg');
+                        kidsloc.push(lastloc);
+                        urlarray.push("temp/"+dirid+"/"+ "Adapt"+(i-1)+ "_compInfo.html");
+                        lastloc++;
+                    }
+                }
+            }
+        }
+        
         if(cmaf == "yes")
         {
             if(ComparedRepresentations.length !=0 && adaptationid>totarr[0]){
