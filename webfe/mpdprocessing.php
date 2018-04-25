@@ -248,7 +248,7 @@ function process_mpd()
     $progressXML->Profile = $profiles;
     $progressXML->asXml(trim($locate . '/progress.xml'));
 
-    $periodDurations = periodDurationInfo($dom);
+    $periodDurations = periodDurationInfo($dom)[1];
     $periodCount = 0;
     foreach ($dom->documentElement->childNodes as $node)
     { // search for all nodes within mpd
