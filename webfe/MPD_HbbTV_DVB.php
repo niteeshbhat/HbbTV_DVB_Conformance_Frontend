@@ -33,6 +33,7 @@ function HbbTV_DVB_mpdvalidator($dom, $hbbtv, $dvb) {
     
     if($dvb){
         DVB_mpdvalidator($dom, $mpdreport);
+        DVB_mpd_anchor_check($dom, $mpdreport);
     }
     
     if($hbbtv){
@@ -1633,3 +1634,204 @@ function xlink_reconstruct_MPD($dom_MPD)
         }         
         $stop = 1; // now don't do any more modifications to the MPD  
     }
+
+function DVB_mpd_anchor_check($dom, $mpdreport){
+    $allowed_keys = array('t', 'period', 'track', 'group');
+    
+    $anchors = explode('#', json_decode($_POST['urlcode'])[0]);
+    if(sizeof($anchors) > 1){
+        $MPD = $dom->getElementsByTagName('MPD')->item(0);
+        $periods = $MPD->getElementsByTagName('Period');
+        $period_ids = array();
+        foreach($periods as $period){
+            $adapts = $period->getElementsByTagName('AdaptationSet');
+            $adapt_ids_groups = array();
+            foreach($adapts as $adapt)
+                $adapt_ids_groups[] = $adapt->getAttribute('id') . ',' . $adapt->getAttribute('group');
+            
+            $period_ids[] = array($period->getAttribute('id') => $adapt_ids_groups);
+        }
+        
+        $period_exists = false;
+        $t_exists = false;
+        $posix_exits = false;
+        $anchors = $anchors[1];
+        $anchor_parts = explode('&', $anchors);
+        foreach($anchor_parts as $anchor){
+            $key = substr($anchor, 0, strpos($anchor, '='));
+            $value = substr($anchor, strpos($anchor, '=')+1);
+            if(!in_array($key, $allowed_keys))
+                fwrite($mpdreport, "Information on DVB conformance: Provided MPD anchor key \"$key\" is not one of the keys listed in Table C.1 in clause C.4 in ISO/IEC 23009-1.\n");
+            
+            if($key == 'period'){
+                $period_exists = true;
+                $str_info = '';
+                foreach($period_ids as $period_id){
+                    if(array_key_exists($value, $period_id))
+                        $str_info .= 'yes ';
+                    else
+                        $str_info .= 'no ';
+                }
+                
+                if(strpos($str_info, 'yes') === FALSE)
+                    fwrite($mpdreport, "Information on DVB conformance: Provided MPD anchor uses the key \"period\" but its value does not correspond to any of the period @id attributes.\n");
+            }
+            elseif($key == 'track' || $key == 'group'){
+                $str_info_1 = '';
+                $str_info_2 = '';
+                foreach($period_ids as $period_id){
+                    foreach($period_id as $adapt_id_group){
+                        foreach($adapt_id_group as $adapt_id_group_temp){
+                            $id_group = explode(',', $adapt_id_group_temp);
+                            
+                            if($key == 'track'){
+                                if(strpos($id_group[0], $value) !== FALSE)
+                                    $str_info_1 .= 'yes ';
+                                else
+                                    $str_info_1 .= 'no ';
+                            }
+                            elseif($key == 'group'){
+                                if(strpos($id_group[1], $value) !== FALSE)
+                                    $str_info_2 .= 'yes ';
+                                else
+                                    $str_info_2 .= 'no ';
+                            }
+                        }
+                    }
+                }
+                if($key == 'track' && strpos($str_info_1, 'yes') === FALSE)
+                    fwrite($mpdreport, "Information on DVB conformance: Provided MPD anchor uses the key \"track\" but its value does not correspond to any of the attribute @id attributes.\n");
+                
+                if($key == 'group' && strpos($str_info_2, 'yes') === FALSE)
+                    fwrite($mpdreport, "Information on DVB conformance: Provided MPD anchor uses the key \"group\" but its value does not correspond to any of the attribute @group attributes.\n");
+            }
+            elseif($key == 't'){
+                $t_exists = true;
+                if(strpos($value, 'posix') !== FALSE){
+                    $posix_exits = true;
+                    if($MPD->getAttribute('availabilityStartTime') == '')
+                        fwrite($mpdreport, "Information on DVB conformance: Provided MPD anchor uses the key \"t\" with prefix \"posix\" while MPD@availabilityStartTime does not exist.\n");
+                    
+                    $time_range = explode(',', substr($value, strpos($value, 'posix')+6));
+                    $t = compute_timerange($time_range);
+                }
+                else{
+                    if(strpos($value, 'npt') !== FALSE){
+                        $time_range = explode(',', substr($value, strpos($value, 'npt')+4));
+                        $t = compute_timerange($time_range);
+                    }
+                    else{
+                        $time_range = explode(',', $value);
+                        $t = compute_timerange($time_range);
+                    }
+                }
+            }
+        }
+        
+        if($period_exists && $t_exists)
+            fwrite($mpdreport, "Information on DVB conformance: Provided MPD anchor uses the key \"t\" while the key \"period\" is also used.\n");
+        
+        if($t_exists){
+            $periodDurations = periodDurationInfo($dom);
+            $p_starts = $periodDurations[0];
+            $p_durations = $periodDurations[1];
+            $coverage = false;
+            
+            if(!$posix_exits){      
+                if($t[0] >= $p_starts[0]){
+                    if(!($t[1] == PHP_INT_MAX)){
+                        if($t[1] <= $p_starts[sizeof($p_durations)-1] + $p_durations[sizeof($p_durations)-1])
+                            $coverage = true;
+                    }
+                    else
+                        $coverage = true;
+                }
+            }
+            else{
+                $AST = strtotime ($MPD->getAttribute('availabilityStartTime'));
+                if($t[0] - $AST >= $p_starts[0]){
+                    if(!($t[1] == PHP_INT_MAX)){
+                        if($t[1] - $AST <= $p_starts[sizeof($p_durations)-1] + $p_durations[sizeof($p_durations)-1])
+                            $coverage = true;
+                    }
+                    else
+                        $coverage = true;
+                }
+            }
+            
+            if(!$coverage)
+                fwrite($mpdreport, "Information on DVB conformance: Provided MPD anchor uses the key \"t\" which refers to a time that is not available according to the times in the MPD.\n");
+        }
+    }
+}
+
+function compute_timerange($time_range){
+    $first = 1;
+    foreach($time_range as $timestamp){
+        $t = 0;
+        
+        if($timestamp == ''){
+            if(!$first)
+                $t = PHP_INT_MAX;
+        }
+        elseif($timestamp == 'now'){
+            $t = time();
+        }
+        elseif(strpos($timestamp, ':') !== FALSE){
+            $vals = explode(':', $timestamp);
+            
+            if(sizeof($vals) > 3){
+                fwrite($mpdreport, "Information on DVB conformance: Provided MPD anchor uses the key \"t\" with W3C Media Fragment format with \"npt\" but allowed formats are one of {npt-ss, npt-mmss, npt-hhmmss}.\n");
+            }
+            
+            for($v=sizeof($vals)-1,$p=0; $v>0; $v--,$p++){
+                $val = $vals[$v];
+                
+                if(strpos($val, '.')){
+                    $val_vals = explode('.', $val);
+                    $t += ($val_vals[0]*pow(60, $p) + ($val_vals[1]/10)*pow(60,$p));
+                    
+                    if(!((((string) (int) $val_vals[0] === $val_vals[0]) || (( '0' . (string) (int) $val_vals[0]) === $val_vals[0])) && ($val_vals[0] <= PHP_INT_MAX) && ($val_vals[0] >= ~PHP_INT_MAX)) || !((((string) (int) $val_vals[1] === $val_vals[1]) || (( '0' . (string) (int) $val_vals[1]) === $val_vals[1])) && ($val_vals[1] <= PHP_INT_MAX) && ($val_vals[1] >= ~PHP_INT_MAX)))
+                        fwrite($mpdreport, "Information on DVB conformance: Provided MPD anchor uses the key \"t\" where the provided time range is not integer.\n");
+                    if($p > 0)
+                        fwrite($mpdreport, "Information on DVB conformance: Provided MPD anchor uses the key \"t\" with W3C Media Fragment format with \"npt\" but fraction notation is used for minutes and/or hours.\n");
+                    if((sizeof($vals) < 3 || $v != sizeof($vals)-1) && ($val_vals[0] < 0 || $val_vals[0] > 59))
+                        fwrite($mpdreport, "Information on DVB conformance: Provided MPD anchor uses the key \"t\" with W3C Media Fragment format with \"npt\" but the range for minutes and/or seconds is not in the range of [0,59].\n");
+                }
+                else{
+                    $t += ($val*pow(60, $p));
+                    
+                    if((sizeof($vals) < 3 || $v != sizeof($vals)-1) && ($val < 0 || $val > 59))
+                        fwrite($mpdreport, "Information on DVB conformance: Provided MPD anchor uses the key \"t\" with W3C Media Fragment format with \"npt\" but the range for minutes and/or seconds is not in the range of [0,59].\n");
+                }
+            }
+        }
+        elseif(strpos($timestamp, '.') !== FALSE){ // Fractional time
+            $vals = explode('.', $timestamp);
+            $t += $vals[0] + $vals[1]/10;
+            
+            if(!((((string) (int) $vals[0] === $vals[0]) || (( '0' . (string) (int) $vals[0]) === $vals[0])) && ($vals[0] <= PHP_INT_MAX) && ($vals[0] >= ~PHP_INT_MAX)) || !((((string) (int) $vals[1] === $vals[1]) || (( '0' . (string) (int) $vals[1]) === $vals[1])) && ($vals[1] <= PHP_INT_MAX) && ($vals[1] >= ~PHP_INT_MAX)))
+                fwrite($mpdreport, "Information on DVB conformance: Provided MPD anchor uses the key \"t\" where the provided time range is not integer.\n");
+        }
+        else{
+            $t += $timestamp;
+            if(!(((string) (int) $timestamp === $timestamp) && ($timestamp <= PHP_INT_MAX) && ($timestamp >= ~PHP_INT_MAX)))
+                fwrite($mpdreport, "Information on DVB conformance: Provided MPD anchor uses the key \"t\" where the provided time range is not integer.\n");
+        }
+        
+        if($first){
+            $first = 0;
+            $t_start = $t;
+        }
+        else
+            $t_end = $t;
+    }
+    
+    if(sizeof($time_range) == 1)
+        $t_end = PHP_INT_MAX;
+    
+    if($t_start > $t_end)
+        fwrite($mpdreport, "Information on DVB conformance: Provided MPD anchor uses the key \"t\" but the start time is larger that the end time.\n");
+    
+    return [$t_start, $t_end];
+}
