@@ -251,7 +251,7 @@ function process_mpd()
     $progressXML->Profile = $profiles;
     $progressXML->asXml(trim($locate . '/progress.xml'));
 
-    $periodDurations = periodDurationInfo($dom);
+    $periodDurations = periodDurationInfo($dom)[1];
     $periodCount = 0;
     foreach ($dom->documentElement->childNodes as $node)
     { // search for all nodes within mpd
@@ -747,6 +747,23 @@ function process_mpd()
                     else{
                         $ResultXML->Period[0]->Adaptation[$i]->addChild('ComparedRepresentations', 'error');
                         $file_error[] = $locate.'/Adapt'.$i.'_compInfo.html'; // add error file location to array
+                    }
+                    $ResultXML->Period[0]->Adaptation[$i]->ComparedRepresentations->addAttribute('url', str_replace($_SERVER['DOCUMENT_ROOT'], 'http://' . $_SERVER['SERVER_NAME'], $locate.'/Adapt'.$i.'_compInfo.txt'));
+                }
+                
+                if(($check_dvb_conformance || $check_hbbtv_conformance) && file_exists($locate . '/Adapt' . $i . '_compInfo.txt')){
+                    $searchfiles = file_get_contents($locate . '/Adapt' . $i . '_compInfo.txt');
+                    if(strpos($searchfiles, "DVB check violated") !== FALSE || strpos($searchfiles, "HbbTV check violated") !== FALSE){
+                        $ResultXML->Period[0]->Adaptation[$i]->addChild('ComparedRepresentations', 'error');
+                        $file_error[] = $locate.'/Adapt'.$i.'_compInfo.html'; // add error file location to array
+                    }
+                    elseif(strpos($searchfiles, "Warning") !== FALSE){
+                        $ResultXML->Period[0]->Adaptation[$i]->addChild('ComparedRepresentations', 'warning');
+                        $file_error[] = $locate.'/Adapt'.$i.'_compInfo.html'; // add error file location to array
+                    }
+                    else{
+                        $ResultXML->Period[0]->Adaptation[$i]->addChild('ComparedRepresentations', 'noerror');
+                        $file_error[] = "noerror"; // no error found in text file
                     }
                     $ResultXML->Period[0]->Adaptation[$i]->ComparedRepresentations->addAttribute('url', str_replace($_SERVER['DOCUMENT_ROOT'], 'http://' . $_SERVER['SERVER_NAME'], $locate.'/Adapt'.$i.'_compInfo.txt'));
                 }

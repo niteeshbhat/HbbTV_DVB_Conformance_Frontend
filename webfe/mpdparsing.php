@@ -65,7 +65,7 @@ function periodDurationInfo($dom){
         $durations[] = $duration;
     }
     
-    return $durations;
+    return [$starts, $durations];
 }
 
 function processPeriod($period, &$dir)

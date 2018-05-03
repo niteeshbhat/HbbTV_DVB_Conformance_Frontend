@@ -13,7 +13,7 @@ function CrossValidation_HbbTV_DVB($dom,$hbbtv,$dvb)
 
 function common_crossValidation($dom,$hbbtv,$dvb)
 {
-    global $locate, $Period_arr, $test_dom;
+    global $locate, $Period_arr, $string_info, $cp_dom;
     content_protection_report($cp_dom);
     for($adapt_count=0; $adapt_count<sizeof($Period_arr); $adapt_count++){
         $loc = $locate . '/Adapt' . $adapt_count.'/';
@@ -35,15 +35,20 @@ function common_crossValidation($dom,$hbbtv,$dvb)
             for($d=$r+1; $d<$filecount; $d++){
                 $xml_d = xmlFileLoad($files[$d]);
                 
-                if($hbbtv){
-                    crossValidation_HbbTV_Representations($dom, $opfile, $xml_r, $xml_d, $adapt_count, $r, $d);
-                }
-                if($dvb){
-                    crossValidation_DVB_Representations($dom, $opfile, $xml_r, $xml_d, $adapt_count, $r, $d);
+                if($xml_r != 0 && $xml_d != 0){
+                    if($hbbtv){
+                        crossValidation_HbbTV_Representations($dom, $opfile, $xml_r, $xml_d, $adapt_count, $r, $d);
+                    }
+                    if($dvb){
+                        crossValidation_DVB_Representations($dom, $opfile, $xml_r, $xml_d, $adapt_count, $r, $d);
+                    }
                 }
             }
         }
         init_seg_commonCheck($files,$opfile);
+        
+        if($dvb)
+            DVB_period_continuous_adaptation_sets_check($dom, $opfile);
         
         if(file_exists($loc)){
        
@@ -51,6 +56,8 @@ function common_crossValidation($dom,$hbbtv,$dvb)
         
         fprintf($opfile, "\n-----Conformance checks completed----- ");
         fclose($opfile);
+        $temp_string = str_replace (array('$Template$'),array("Adapt".$adapt_count."_compInfo"),$string_info);
+        file_put_contents($locate.'/'."Adapt".$adapt_count."_compInfo.html",$temp_string);
     }
 }
 
@@ -248,9 +255,9 @@ function crossValidation_DVB_Representations($dom, $opfile, $xml_r, $xml_d, $i, 
         ##
         
         ## Section 6.4 on DTS audio frame durations
-        if(strpos($adapt_codecs, 'dtsc') !== FALSE || strpos($adapt_codecs, 'dtsh') !== FALSE || strpos($adapt_codecs, 'dtse') !== FALSE || strpos($adapt_codecs, 'dtsi') !== FALSE
-           || ($adapt_codecs == '' && (strpos($rep_codecs_r, 'dtsc') !== FALSE || strpos($rep_codecs_r, 'dtsh') !== FALSE || strpos($rep_codecs_r, 'dtse') !== FALSE || strpos($rep_codecs_r, 'dtsi') !== FALSE) 
-           && (strpos($rep_codecs_d, 'dtsc') !== FALSE || strpos($rep_codecs_d, 'dtsh') !== FALSE || strpos($rep_codecs_d, 'dtse') !== FALSE || strpos($rep_codecs_d, 'dtsi') !== FALSE))){
+        if(strpos($adapt_codecs, 'dtsc') !== FALSE || strpos($adapt_codecs, 'dtsh') !== FALSE || strpos($adapt_codecs, 'dtse') !== FALSE || strpos($adapt_codecs, 'dtsl') !== FALSE
+           || ($adapt_codecs == '' && (strpos($rep_codecs_r, 'dtsc') !== FALSE || strpos($rep_codecs_r, 'dtsh') !== FALSE || strpos($rep_codecs_r, 'dtse') !== FALSE || strpos($rep_codecs_r, 'dtsl') !== FALSE) 
+           && (strpos($rep_codecs_d, 'dtsc') !== FALSE || strpos($rep_codecs_d, 'dtsh') !== FALSE || strpos($rep_codecs_d, 'dtse') !== FALSE || strpos($rep_codecs_d, 'dtsl') !== FALSE))){
             $timescale_r = (int)($xml_r->getElementsByTagName('mdhd')->item(0)->getAttribute('timescale'));
             $timescale_d = (int)($xml_d->getElementsByTagName('mdhd')->item(0)->getAttribute('timescale'));
             $trun_boxes_r = $xml_r->getElementsByTagName('trun');
@@ -306,15 +313,15 @@ function crossValidation_DVB_Representations($dom, $opfile, $xml_r, $xml_d, $i, 
         $att_r = $rep_r->attributes;
         $att_d = $rep_d->attributes;
         if($att_r->length != $att_d->length)
-            fwrite($opfile, "Information on DVB conformance: Section 10.4- 'Players SHALL support seamless swicthing between audio Representations which only differ in bit rate', different attributes found in Adaptation Set " . ($i+1) . ": Representation " . ($r+1) . " and Representation " . ($d+1) . ".\n");
+            fwrite($opfile, "Information on DVB conformance: Section 10.4- 'Players SHALL support seamless swicthing between video Representations', different number of attributes found in Adaptation Set " . ($i+1) . ": Representation " . ($r+1) . " and Representation " . ($d+1) . ".\n");
         else{
             for($a=0; $a<$att_r->length; $a++){
                 if($att_r->item($i)->name != $att_d->item($i)->name)
-                    fwrite($opfile, "Information on DVB conformance: Section 10.4- 'Players SHALL support seamless swicthing between audio Representations which only differ in bit rate', different attributes found in Adaptation Set " . ($i+1) . ": Representation " . ($r+1) . " and Representation " . ($d+1) . ".\n");
+                    fwrite($opfile, "Information on DVB conformance: Section 10.4- 'Players SHALL support seamless swicthing between video Representations', different order of attributes found in Adaptation Set " . ($i+1) . ": Representation " . ($r+1) . " and Representation " . ($d+1) . ".\n");
                 else{
                     if($att_r->item($a)->name != 'bandwidth' && $att_r->item($a)->name != 'id' && $att_r->item($a)->name != 'frameRate' && $att_r->item($a)->name != 'width' && $att_r->item($a)->name != 'height' && $att_r->item($a)->name != 'codecs'){
                         if($att_r->item($a)->value != $att_d->item($a)->value)
-                            fwrite($opfile, "Information on DVB conformance: Section 10.4- 'Players SHALL support seamless swicthing between audio Representations which only differ in bit rate', different attribute values found in Adaptation Set " . ($i+1) . ": Representation " . ($r+1) . " and Representation " . ($d+1) . ".\n");
+                            fwrite($opfile, "Information on DVB conformance: Section 10.4- 'Players SHALL support seamless swicthing between video Representations which differ only in frame rate, bit rate, profile and/or level, and resolution', different attribute values found in Adaptation Set " . ($i+1) . ": Representation " . ($r+1) . " and Representation " . ($d+1) . ".\n");
                     }
                 }
             }
@@ -329,15 +336,15 @@ function crossValidation_DVB_Representations($dom, $opfile, $xml_r, $xml_d, $i, 
             $fr_d = $rep_d->getAttribute('frameRate');
             if($fr_r != '' && $fr_d != ''){
                 if((in_array($fr_r, $possible_fr1) && !in_array($fr_d, $possible_fr1)) || (!in_array($fr_r, $possible_fr1) && in_array($fr_d, $possible_fr1)))
-                    fwrite($opfile, "Information on DVB conformance: Section 10.4- 'Players SHALL support seamless swicthing between audio Representations which only differ in bit rate', different attribute values found in Adaptation Set " . ($i+1) . ": Representation " . ($r+1) . " and Representation " . ($d+1) . ".\n");
+                    fwrite($opfile, "Information on DVB conformance: Section 10.4- 'Players SHALL support seamless swicthing between video Representations which can differ in framerate, providing the frame rate is within on of the specified families', different attribute values found in Adaptation Set " . ($i+1) . ": Representation " . ($r+1) . " and Representation " . ($d+1) . ".\n");
                 if((in_array($fr_r, $possible_fr2) && !in_array($fr_d, $possible_fr2)) || (!in_array($fr_r, $possible_fr2) && in_array($fr_d, $possible_fr2)))
-                    fwrite($opfile, "Information on DVB conformance: Section 10.4- 'Players SHALL support seamless swicthing between audio Representations which only differ in bit rate', different attribute values found in Adaptation Set " . ($i+1) . ": Representation " . ($r+1) . " and Representation " . ($d+1) . ".\n");
+                    fwrite($opfile, "Information on DVB conformance: Section 10.4- 'Players SHALL support seamless swicthing between video Representations which can differ in framerate, providing the frame rate is within on of the specified families', different attribute values found in Adaptation Set " . ($i+1) . ": Representation " . ($r+1) . " and Representation " . ($d+1) . ".\n");
                 if((in_array($fr_r, $possible_fr3) && !in_array($fr_d, $possible_fr3)) || (!in_array($fr_r, $possible_fr3) && in_array($fr_d, $possible_fr3)))
-                    fwrite($opfile, "Information on DVB conformance: Section 10.4- 'Players SHALL support seamless swicthing between audio Representations which only differ in bit rate', different attribute values found in Adaptation Set " . ($i+1) . ": Representation " . ($r+1) . " and Representation " . ($d+1) . ".\n");
+                    fwrite($opfile, "Information on DVB conformance: Section 10.4- 'Players SHALL support seamless swicthing between video Representations which can differ in framerate, providing the frame rate is within on of the specified families', different attribute values found in Adaptation Set " . ($i+1) . ": Representation " . ($r+1) . " and Representation " . ($d+1) . ".\n");
                 if((in_array($fr_r, $possible_fr4) && !in_array($fr_d, $possible_fr4)) || (!in_array($fr_r, $possible_fr4) && in_array($fr_d, $possible_fr4)))
-                    fwrite($opfile, "Information on DVB conformance: Section 10.4- 'Players SHALL support seamless swicthing between audio Representations which only differ in bit rate', different attribute values found in Adaptation Set " . ($i+1) . ": Representation " . ($r+1) . " and Representation " . ($d+1) . ".\n");
+                    fwrite($opfile, "Information on DVB conformance: Section 10.4- 'Players SHALL support seamless swicthing between video Representations which can differ in framerate, providing the frame rate is within on of the specified families', different attribute values found in Adaptation Set " . ($i+1) . ": Representation " . ($r+1) . " and Representation " . ($d+1) . ".\n");
                 if((in_array($fr_r, $possible_fr5) && !in_array($fr_d, $possible_fr5)) || (!in_array($fr_r, $possible_fr5) && in_array($fr_d, $possible_fr5)))
-                    fwrite($opfile, "Information on DVB conformance: Section 10.4- 'Players SHALL support seamless swicthing between audio Representations which only differ in bit rate', different attribute values found in Adaptation Set " . ($i+1) . ": Representation " . ($r+1) . " and Representation " . ($d+1) . ".\n");
+                    fwrite($opfile, "Information on DVB conformance: Section 10.4- 'Players SHALL support seamless swicthing between video Representations which can differ in framerate, providing the frame rate is within on of the specified families', different attribute values found in Adaptation Set " . ($i+1) . ": Representation " . ($r+1) . " and Representation " . ($d+1) . ".\n");
             }
             
             // Resolution
@@ -355,7 +362,7 @@ function crossValidation_DVB_Representations($dom, $opfile, $xml_r, $xml_d, $i, 
                         $par_r = $width_r/$height_r;
                         $par_d = $width_d/$height_d;
                         if($par_r != $par_d || $par_r != $par_ratio || $par_d != $par_ratio)
-                            fwrite($opfile, "Information on DVB conformance: Section 10.4- 'Players SHALL support seamless swicthing between audio Representations which only differ in bit rate', different attribute values found in Adaptation Set " . ($i+1) . ": Representation " . ($r+1) . " and Representation " . ($d+1) . ".\n");
+                            fwrite($opfile, "Information on DVB conformance: Section 10.4- 'Players SHALL support seamless swicthing between video Representations which can differ in resolution, maintaining the same picture aspect ratio', different attribute values found in Adaptation Set " . ($i+1) . ": Representation " . ($r+1) . " and Representation " . ($d+1) . ".\n");
                     }
                 }
                 else{
@@ -365,7 +372,7 @@ function crossValidation_DVB_Representations($dom, $opfile, $xml_r, $xml_d, $i, 
                     }
                     
                     if(array_unique($pars) != 1 || array_unique($pars) == 1 && in_array('', $pars))
-                        fwrite($opfile, "Information on DVB conformance: Section 10.4- 'Players SHALL support seamless swicthing between audio Representations which only differ in bit rate', different attribute values found in Adaptation Set " . ($i+1) . ": Representation " . ($r+1) . " and Representation " . ($d+1) . ".\n");
+                        fwrite($opfile, "Information on DVB conformance: Section 10.4- 'Players SHALL support seamless swicthing between video Representations which can differ in resolution, maintaining the same picture aspect ratio', different attribute values found in Adaptation Set " . ($i+1) . ": Representation " . ($r+1) . " and Representation " . ($d+1) . ".\n");
                     
                     elseif(array_unique($pars) == 1 && !in_array('', $pars)){
                         if($width_r != $width_d || $height_r != $height_d){
@@ -376,7 +383,7 @@ function crossValidation_DVB_Representations($dom, $opfile, $xml_r, $xml_d, $i, 
                             $par_r = $width_r/$height_r;
                             $par_d = $width_d/$height_d;
                             if($par_r != $par_d || $par_r != $par_ratio || $par_d != $par_ratio)
-                                fwrite($opfile, "Information on DVB conformance: Section 10.4- 'Players SHALL support seamless swicthing between audio Representations which only differ in bit rate', different attribute values found in Adaptation Set " . ($i+1) . ": Representation " . ($r+1) . " and Representation " . ($d+1) . ".\n");
+                                fwrite($opfile, "Information on DVB conformance: Section 10.4- 'Players SHALL support seamless swicthing between video Representations which can differ in resolution, maintaining the same picture aspect ratio', different attribute values found in Adaptation Set " . ($i+1) . ": Representation " . ($r+1) . " and Representation " . ($d+1) . ".\n");
                         }
                     }
                 }
@@ -504,23 +511,23 @@ function common_validation($dom,$hbbtv,$dvb, $sizearray,$bandwidth, $pstart){
     }
     
     $xml_rep = xmlFileLoad($locate.'/Adapt'.$count1.'/Adapt'.$count1.'rep'.$count2.'.xml');
+    if($xml_rep != 0){
+        if($dvb){
+            common_validation_DVB($opfile, $dom, $xml_rep, $count1, $count2, $sizearray);
+        }
+        if($hbbtv){
+            common_validation_HbbTV($opfile, $dom, $xml_rep, $count1, $count2);
+        } 
+        seg_timing_common($opfile, $xml_rep, $dom, $pstart);
+        
+        //seg_bitrate_common($opfile,$xml_rep);
+        bitrate_report($opfile, $dom, $xml_rep, $count1, $count2, $sizearray,$bandwidth);
 
-    if($dvb){
-        common_validation_DVB($opfile, $dom, $xml_rep, $count1, $count2, $sizearray);
-    }
-    if($hbbtv){
-        common_validation_HbbTV($opfile, $dom, $xml_rep, $count1, $count2);
-    } 
-    seg_timing_common($opfile, $xml_rep, $dom, $pstart);
-
-     //seg_bitrate_common($opfile,$xml_rep);
-     bitrate_report($opfile, $dom, $xml_rep, $count1, $count2, $sizearray,$bandwidth);
-
-
-    if ($presentationduration !== "") {
-        $checks = segmentToPeriodDurationCheck($xml_rep);
-        if(!$checks[0]){
-            fwrite($opfile, "###'HbbTV/DVB check violated: The accumulated duration of the segments [".$checks[1]. "seconds] in the representation does not match the period duration[".$checks[2]."seconds].\n'");
+        if ($presentationduration !== "") {
+            $checks = segmentToPeriodDurationCheck($xml_rep);
+            if(!$checks[0]){
+                fwrite($opfile, "###'HbbTV/DVB check violated: The accumulated duration of the segments [".$checks[1]. "seconds] in the representation does not match the period duration[".$checks[2]."seconds].\n'");
+            }
         }
     }
     /*$stats = getSegmentStats($xml_rep);
@@ -560,7 +567,7 @@ function common_validation_DVB($opfile, $dom, $xml_rep, $adapt_count, $rep_count
         foreach($codecs_arr as $codec){
             if(strpos($codec, 'avc') === FALSE && strpos($codec, 'hev1') === FALSE && strpos($codec, 'hvc1') === FALSE && 
                 strpos($codec, 'mp4a') === FALSE && strpos($codec, 'ec-3') === FALSE && strpos($codec, 'ac-4') === FALSE &&
-                strpos($codec, 'dtsc') === FALSE && strpos($codec, 'dtsh') === FALSE && strpos($codec, 'dtse') === FALSE && strpos($codec, 'dtsi') === FALSE &&
+                strpos($codec, 'dtsc') === FALSE && strpos($codec, 'dtsh') === FALSE && strpos($codec, 'dtse') === FALSE && strpos($codec, 'dtsl') === FALSE &&
                 strpos($codec, 'stpp') === FALSE){
                 
                 $str_info .= "$codec "; 
@@ -577,7 +584,7 @@ function common_validation_DVB($opfile, $dom, $xml_rep, $adapt_count, $rep_count
     
     if(strpos($sdType, 'avc') === FALSE && strpos($sdType, 'hev1') === FALSE && strpos($sdType, 'hvc1') === FALSE && 
        strpos($sdType, 'mp4a') === FALSE && strpos($sdType, 'ec-3') === FALSE && strpos($sdType, 'ac-4') === FALSE &&
-       strpos($sdType, 'dtsc') === FALSE && strpos($sdType, 'dtsh') === FALSE && strpos($sdType, 'dtse') === FALSE && strpos($sdType, 'dtsi') === FALSE &&
+       strpos($sdType, 'dtsc') === FALSE && strpos($sdType, 'dtsh') === FALSE && strpos($sdType, 'dtse') === FALSE && strpos($sdType, 'dtsl') === FALSE &&
        strpos($sdType, 'stpp') === FALSE)
         fwrite($opfile, "###'DVB check violated: codec in the Segment is not supported by the specification', found $sdType.\n");
     
@@ -822,9 +829,11 @@ function common_validation_HbbTV($opfile, $dom, $xml_rep, $adapt_count, $rep_cou
     $hdlr_type = $xml_rep->getElementsByTagName('hdlr')->item(0)->getAttribute('handler_type');
     $sdType = $xml_rep->getElementsByTagName("$hdlr_type".'_sampledescription')->item(0)->getAttribute('sdType');
     
+    if($hdlr_type=='vide' || $hdlr_type=='soun'){
     if(strpos($sdType, 'avc') === FALSE && 
        strpos($sdType, 'mp4a') === FALSE && strpos($sdType, 'ec-3') === FALSE)
         fwrite($opfile, "###'HbbTV check violated: codec in Segment is not supported by the specification', found $sdType.\n");
+    }
     
     if(strpos($sdType, 'avc') !== FALSE){
         $width = $xml_rep->getElementsByTagName("$hdlr_type".'_sampledescription')->item(0)->getAttribute('width');
@@ -1031,10 +1040,11 @@ function init_seg_commonCheck($files,$opfile)
     for($i=0;$i<$rep_count;$i++)
     {
         $xml = xmlFileLoad($files[$i]);
-        $avcC_count=$xml->getElementsByTagName('avcC')->length;
-        fwrite($opfile, ", ".$avcC_count." 'avcC' in Representation ".($i+1)." \n");
+        if($xml != 0){
+            $avcC_count=$xml->getElementsByTagName('avcC')->length;
+            fwrite($opfile, ", ".$avcC_count." 'avcC' in Representation ".($i+1)." \n");
+        }
     }
-
 }
 
 function seg_timing_common($opfile,$xml_rep, $dom, $pstart)
@@ -1565,3 +1575,117 @@ function content_protection_report($dom_MPD)
         $Adapt_index ++; //move to check the next adapt set
     }    
 }
+
+function DVB_period_continuous_adaptation_sets_check($dom, $opfile){
+    global $locate, $associativity;
+    $MPD = $dom->getElementsByTagName('MPD')->item(0);
+    $periods = $MPD->getElementsByTagName('Period');
+    $period_cnt = $periods->length;
+    
+    for($i=0; $i<$period_cnt; $i++){
+        for($j=$i+1; $j<$period_cnt; $j++){
+            $period1 = $periods->item($i);
+            $adapts1 = $period1->getElementsByTagName('AdaptationSet');
+            $period2 = $periods->item($j);
+            $adapts2 = $period2->getElementsByTagName('AdaptationSet');
+            
+            for($a1=0; $a1<$adapts1->length; $a1++){
+                for($a2=0; $a2<$adapts2->length; $a2++){
+                    $adapt1 = $adapts1->item($a1);
+                    $adapt2 = $adapts2->item($a2);
+                    
+                    $adapt1_id = $adapt1->getAttribute('id');
+                    $adapt2_id = $adapt2->getAttribute('id');
+                    if($adapt1_id == $adapt2_id){
+                        $supps2 = $adapt2->getElementsByTagName('SupplementalProperty');
+                        foreach($supps2 as $supp2){
+                            if($supp2->getAttribute('schemeIdUri') == 'urn:dvb:dash:period_continuity:2014' && in_array($period1->getAttribute('id'), explode(',', $supp2->getAttribute('value')))){
+                                ## Period continuous adapation sets are signalled. 
+                                ## Start checking for conformity according to Section 10.5.2.3
+                                
+                                // Check associativity
+                                $string_to_search = "$i $a1 $j $a2";
+                                if(!in_array($string_to_search, $associativity))
+                                    fwrite($opfile, "###'DVB check violated: Section 10.5.2.2- If Adaptation Sets in two different Periods are period continuous, then Adaptation Sets with the value of their @id attribute set to AID in the first and subsequent Periods SHALL be associated as defined in clause 10.5.2.3', not associated Adaptation Set " . ($a1+1) . " in Period " . ($i+1) . " and Adaptation Set " . ($a2+1) . " in Period " . ($j+1) . ".\n");
+                                
+                                // EPT1 comparisons within the Adaptation Sets
+                                if($i == 0){
+                                    $reps1 = $adapt1->getElementsByTagName('Representation');
+                                    $EPT1 = array();
+                                    for($r1=0; $r1<$reps1->length; $r1++){
+                                        $xml_rep = xmlFileLoad($locate.'/Adapt'.$a1.'/Adapt'.$a1.'rep'.$r1.'.xml');
+                                        if($xml_rep != 0)
+                                            $EPT1[] = segment_timing_info($dom, $xml_rep);
+                                    }
+                                    for($r1=0; $r1<$reps1->length; $r1++){
+                                        for($r1_1=$r1+1; $r1_1<$reps1->length; $r1_1++){
+                                            if($EPT1[$r1] !== $EPT1[$r1_1])
+                                                fwrite($opfile, "###'DVB check violated: Section 10.5.2.2- If Adaptation Sets in two different Periods are period continuous, then all the Representations in the Adaptation Set in the first Period SHALL share the same value EPT1 for the earliest presentation time', not identical for Representation " . ($r1+1) . " and Representation " . ($r1_1+1) . " in Adaptation Set " . ($a1+1) . " in Period " . ($i+1) . ".\n");
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+function segment_timing_info($dom, $xml_rep){
+    $type = $dom->getElementsByTagName('MPD')->item(0)->getAttribute('type');
+    $xml_num_moofs=$xml_rep->getElementsByTagName('moof')->length;
+    $xml_trun=$xml_rep->getElementsByTagName('trun');
+    $xml_tfdt=$xml_rep->getElementsByTagName('tfdt');
+    
+    $sidx_boxes = $xml_rep->getElementsByTagName('sidx');
+    $subsegment_signaling = array();
+    if($sidx_boxes->length != 0){
+        foreach($sidx_boxes as $sidx_box){
+            $subsegment_signaling[] = (int)($sidx_box->getAttribute('referenceCount'));
+        }
+    }
+    
+    $xml_elst = $xml_rep->getElementsByTagName('elst');
+    if($xml_elst->length == 0){
+        $mediaTime = 0;
+    }
+    else{
+        $mediaTime = (int)($xml_elst->item(0)->getElementsByTagName('elstEntry')->item(0)->getAttribute('mediaTime'));
+    }
+    
+    $timescale=$xml_rep->getElementsByTagName('mdhd')->item(0)->getAttribute('timescale');
+    $sidx_index = 0;
+    $cum_subsegDur=0;
+    $EPT = array();
+    if($type != 'dynamic'){
+        for($j=0;$j<$xml_num_moofs;$j++){
+            $decodeTime = $xml_tfdt->item($j)->getAttribute('baseMediaDecodeTime');
+            $compTime = $xml_trun->item($j)->getAttribute('earliestCompositionTime');
+            
+            $startTime = ($decodeTime + $compTime - $mediaTime)/$timescale;
+            if(empty($subsegment_signaling)){
+                $EPT[] = $startTime;
+            }
+            else{
+                $ref_count = 1;
+                if($sidx_index < sizeof($subsegment_signaling))
+                    $ref_count = $subsegment_signaling[$sidx_index];
+                
+                if($cum_subsegDur == 0)
+                    $EPT[] = $startTime;
+                
+                $cum_subsegDur += (($xml_trun->item($j)->getAttribute('cummulatedSampleDuration'))/$timescale);
+                $subsegment_signaling[$sidx_index] = $ref_count - 1;
+                if($subsegment_signaling[$sidx_index] == 0){
+                    $sidx_index++;
+                    $cum_subsegDur = 0;
+                }
+            }
+        }
+    }
+    
+    return $EPT;
+}
+

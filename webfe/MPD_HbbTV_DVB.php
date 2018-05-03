@@ -14,6 +14,7 @@ $main_video_found = false;
 $video_bw = array();
 $audio_bw = array();
 $subtitle_bw = array();
+$associativity = array();
 
 function HbbTV_DVB_mpdvalidator($dom, $hbbtv, $dvb) {
     global $locate, $string_info;
@@ -32,6 +33,7 @@ function HbbTV_DVB_mpdvalidator($dom, $hbbtv, $dvb) {
     
     if($dvb){
         DVB_mpdvalidator($dom, $mpdreport);
+        DVB_mpd_anchor_check($dom, $mpdreport);
     }
     
     if($hbbtv){
@@ -289,6 +291,33 @@ function DVB_mpdvalidator($dom, $mpdreport){
     }
     ##
     
+    ## Verifying the DVB Metric reporting mechanism according to Section 10.12.3
+    $metrics = $MPD->getElementsByTagName('Metrics');
+    if($metrics->length != 0){
+        foreach($metrics as $metric){
+            $reportings = $metric->getElementsByTagName('Reporting');
+            if($reportings->length != 0){
+                foreach($reportings as $reporting){
+                    if($reporting->getAttribute('schemeIdUri') == 'urn:dvb:dash:reporting:2014' && $reporting->getAttribute('value') == 1){
+                        if($reporting->getAttribute('reportingUrl') == '')
+                            fwrite($mpdreport, "Information on DVB conformance: Section 10.12.3 - Where DVB Metric reporting mechanism is indicated in a Reporting descriptor, it SHALL have the @reportingUrl attribute.\n");
+                        else{
+                            if(!isAbsoluteURL($reporting->getAttribute('reportingUrl')))
+                                fwrite($mpdreport, "Information on DVB conformance: Section 10.12.3 - value of the @reportingUrl attribute in the Reporting descriptor needs to be and absolute HTTP or HTTPS URL.\n");
+                        }
+                        
+                        if($reporting->getAttribute('probability') != ''){
+                            $probability = $reporting->getAttribute('probability');
+                            if(!(((string) (int) $probability === $probability) && ($probability <= 1000) && ($probability >= 0)))
+                                fwrite($mpdreport, "Information on DVB conformance: Section 10.12.3 - value of the @probability attribute in the Reporting descriptor needs to be a positive integer between 0 and 1000.\n");
+                        }
+                    }
+                }
+            }
+        }
+    }
+    ##
+    
     $cenc = $MPD->getAttribute('xmlns:cenc');
     
     // Periods within MPD
@@ -431,9 +460,288 @@ function DVB_mpdvalidator($dom, $mpdreport){
             fwrite($mpdreport, "###'DVB check violated: Section 4.5- The MPD has a maximum of 64 periods after xlink resolution', found $period_count.\n");
     }
     
+    DVB_associated_adaptation_sets_check($dom, $mpdreport);
+    
     if($adapt_audio_count > 1 && $main_audio_found == false)
         fwrite($mpdreport, "###'DVB check violated: Section 6.1.2- If there is more than one audio Adaptation Set in a DASH Presentation then at least one of them SHALL be tagged with an @value set to \"main\"', could not be found in Period $period_count.\n");
     
+}
+
+function DVB_associated_adaptation_sets_check($dom, $mpdreport){
+    $MPD = $dom->getElementsByTagName('MPD')->item(0);
+    $periods = $MPD->getElementsByTagName('Period');
+    $period_cnt = $periods->length;
+    
+    for($i=0; $i<$period_cnt; $i++){
+        $period1 = $periods->item($i);
+        $assets1 = $period1->getElementsByTagName('AssetIdentifier');
+        
+        if($assets1->length != 0){
+            for($j=$i+1; $j<$period_cnt; $j++){
+                $period2 = $periods->item($j);
+                $assets2 = $period2->getElementsByTagName('AssetIdentifier');
+                
+                if($assets2->length != 0){
+                    $assetCheck = checkAssetIdentifiers($assets1, $assets2);
+                    if($assetCheck === TRUE){
+                        checkAdaptationSetsIds($period1->getElementsByTagName('AdaptationSet'), $period2->getElementsByTagName('AdaptationSet'), $i, $j, $mpdreport);
+                    }
+                }
+            }
+        }
+    }
+}
+
+function checkAssetIdentifiers($assets1, $assets2){
+    $return = FALSE;
+    $len1 = $assets1->length;
+    $len2 = $assets2->length;
+    
+    for($i=0; $i<$len1; $i++){
+        $asset1 = $assets1->item($i);
+        
+        for($j=0; $j<$len2; $j++){
+            $asset2 = $assets2->item($j);
+            
+            if(nodes_equal($asset1, $asset2)){
+                return TRUE;
+            }
+        }
+    }
+    
+    return $return;
+}
+
+function checkAdaptationSetsIds($adapts1, $adapts2, $periodId1, $periodId2, $mpdreport){
+    global $associativity;
+    $len1 = $adapts1->length;
+    $len2 = $adapts2->length;
+    $associativity_local = array();
+    
+    for($i=0; $i<$len1; $i++){
+        $adapt1 = $adapts1->item($i);
+        $id1 = $adapt1->getAttribute('id');
+        
+        for($j=0; $j<$len2; $j++){
+            $adapt2 = $adapts2->item($j);
+            $id2 = $adapt2->getAttribute('id');
+            
+            $is_associative = true;
+            if($id1 != '' && $id2 != '' && $id1 == $id2){
+                # Section 10.5.2.2 - Check the DVB requirements for Associated Adaptation Sets
+                // @lang
+                $lang1 = $adapt1->getAttribute('lang');
+                $lang2 = $adapt2->getAttribute('lang');
+                if($lang1 != '' && $lang2 != '' && $lang1 != $lang2){
+                    fwrite($mpdreport, "###'DVB check violated: Section 10.5.2.2- If Adaptation Sets in two different Periods are associated, then the language as decribed by the @lang attribute SHALL be identical for the two Adaptation Sets', not identical for Adaptation Set " . ($i+1) . " in Period " . ($periodId1+1) . " and Adaptation Set " . ($j+1) . " in Period " . ($periodId2+1) . ".\n");
+                    $is_associative = false;
+                }
+                
+                // @contentType
+                $contentType1 = $adapt1->getAttribute('contentType');
+                $contentType2 = $adapt2->getAttribute('contentType');
+                if($contentType1 != '' && $contentType2 != '' && $contentType1 != $contentType2){
+                    fwrite($mpdreport, "###'DVB check violated: Section 10.5.2.2- If Adaptation Sets in two different Periods are associated, then the media content component type decribed by the @contentType attribute SHALL be identical for the two Adaptation Sets', not identical for Adaptation Set " . ($i+1) . " in Period " . ($periodId1+1) . " and Adaptation Set " . ($j+1) . " in Period " . ($periodId2+1) . ".\n");
+                    $is_associative = false;
+                }
+                
+                // @par
+                $par1 = $adapt1->getAttribute('par');
+                $par2 = $adapt2->getAttribute('par');
+                if($par1 != '' && $par2 != '' && $par1 != $par2){
+                    fwrite($mpdreport, "###'DVB check violated: Section 10.5.2.2- If Adaptation Sets in two different Periods are associated, then the picture aspect ratio decribed by the @par attribute SHALL be identical for the two Adaptation Sets', not identical for Adaptation Set " . ($i+1) . " in Period " . ($periodId1+1) . " and Adaptation Set " . ($j+1) . " in Period " . ($periodId2+1) . ".\n");
+                    $is_associative = false;
+                }
+                
+                // Role
+                $roles1 = $adapt1->getElementsByTagName('Role');
+                $roles2 = $adapt2->getElementsByTagName('Role');
+                $roles1_cnt = $roles1->length;
+                $roles2_cnt = $roles2->length;
+                if($roles1_cnt != $roles2_cnt){
+                    fwrite($mpdreport, "###'DVB check violated: Section 10.5.2.2- If Adaptation Sets in two different Periods are associated, then any role properties as decribed by the Role elements SHALL be identical for the two Adaptation Sets', not identical number of Role elements found for Adaptation Set " . ($i+1) . " in Period " . ($periodId1+1) . " and Adaptation Set " . ($j+1) . " in Period " . ($periodId2+1) . ".\n");
+                    $is_associative = false;
+                }
+                else{
+                    for($r=0; $r<$roles1_cnt; $r++){
+                        if(!nodes_equal($roles1->item($r), $roles2->item($r))){
+                            fwrite($mpdreport, "###'DVB check violated: Section 10.5.2.2- If Adaptation Sets in two different Periods are associated, then any role properties as decribed by the Role element SHALL be identical for the two Adaptation Sets', not identical for Adaptation Set " . ($i+1) . " in Period " . ($periodId1+1) . " and Adaptation Set " . ($j+1) . " in Period " . ($periodId2+1) . ".\n");
+                            $is_associative = false;
+                        }
+                    }
+                }
+                
+                // Accessibility
+                $accessibility1 = $adapt1->getElementsByTagName('Accessibility');
+                $accessibility2 = $adapt2->getElementsByTagName('Accessibility');
+                $accessibility1_cnt = $accessibility1->length;
+                $accessibility2_cnt = $accessibility2->length;
+                if($accessibility1_cnt != $accessibility2_cnt){
+                    fwrite($mpdreport, "###'DVB check violated: Section 10.5.2.2- If Adaptation Sets in two different Periods are associated, then any accessibility properties as decribed by the Role elements SHALL be identical for the two Adaptation Sets', not identical number of Role elements found for Adaptation Set " . ($i+1) . " in Period " . ($periodId1+1) . " and Adaptation Set " . ($j+1) . " in Period " . ($periodId2+1) . ".\n");
+                    $is_associative = false;
+                }
+                else{
+                    for($a=0; $a<$accessibility1_cnt; $a++){
+                        if(!nodes_equal($accessibility1->item($a), $accessibility2->item($a))){
+                            fwrite($mpdreport, "###'DVB check violated: Section 10.5.2.2- If Adaptation Sets in two different Periods are associated, then any accessibility properties as decribed by the Role element SHALL be identical for the two Adaptation Sets', not identical for Adaptation Set " . ($i+1) . " in Period " . ($periodId1+1) . " and Adaptation Set " . ($j+1) . " in Period " . ($periodId2+1) . ".\n");
+                            $is_associative = false;
+                        }
+                    }
+                }
+                
+                // Viewpoint
+                $viewpoint1 = $adapt1->getElementsByTagName('Viewpoint');
+                $viewpoint2 = $adapt2->getElementsByTagName('Viewpoint');
+                $viewpoint1_cnt = $viewpoint1->length;
+                $viewpoint2_cnt = $viewpoint2->length;
+                if($viewpoint1_cnt != $viewpoint2_cnt){
+                    fwrite($mpdreport, "###'DVB check violated: Section 10.5.2.2- If Adaptation Sets in two different Periods are associated, then any viewpoint properties as decribed by the Role elements SHALL be identical for the two Adaptation Sets', not identical number of Role elements found for Adaptation Set " . ($i+1) . " in Period " . ($periodId1+1) . " and Adaptation Set " . ($j+1) . " in Period " . ($periodId2+1) . ".\n");
+                    $is_associative = false;
+                }
+                else{
+                    for($v=0; $v<$viewpoint1_cnt; $v++){
+                        if(!nodes_equal($viewpoint1->item($v), $viewpoint2->item($v))){
+                            fwrite($mpdreport, "###'DVB check violated: Section 10.5.2.2- If Adaptation Sets in two different Periods are associated, then any viewpoint properties as decribed by the Role element SHALL be identical for the two Adaptation Sets', not identical for Adaptation Set " . ($i+1) . " in Period " . ($periodId1+1) . " and Adaptation Set " . ($j+1) . " in Period " . ($periodId2+1) . ".\n");
+                            $is_associative = false;
+                        }
+                    }
+                }
+                
+                // Table 3 for Audio Adaptation Sets
+                $mimeType1 = $adapt1->getAttribute('mimeType');
+                $mimeType2 = $adapt2->getAttribute('mimeType');
+                $isaudio = ((strpos($mimeType1, 'audio') !== FALSE) | $contentType1 == 'audio') & ((strpos($mimeType2, 'audio') !== FALSE) | $contentType2 == 'audio');
+                if($mimeType1 == '' || $mimeType2 == ''){
+                    $reps1 = $adapt1->getElementsByTagName('Representation');
+                    $reps2 = $adapt1->getElementsByTagName('Representation');
+                    if($reps1->length == $reps2->length){
+                        for($r=0; $r<$reps1->length; $r++){
+                            $rep1 = $reps1->item($r);
+                            $rep2 = $reps2->item($r);
+                            $isaudio |= ((strpos($rep1->getAttribute('mimeType'), 'audio') !== FALSE) & (strpos($rep2->getAttribute('mimeType'), 'audio') !== FALSE));
+                        }
+                    }
+                }
+                
+                if($isaudio){
+                    // Adaptation Set level
+                    $mimeTypeExists = 0;
+                    $codecsExits = 0;
+                    $audioSamplingRateExists = 0;
+                    $audioChannelConfigurationExits = 0;
+                    
+                    // @mimeType
+                    if($mimeType1 != '' && $mimeType2 != '' && $mimeType1 != $mimeType2){
+                        $mimeTypeExists = 1;
+                        fwrite($mpdreport, "###'DVB check violated: Section 10.5.2.2- If Adaptation Sets in two different Periods are associated, then for audio Adaptation Sets all values and presence of all attributes and elements listed in Table 3 SHALL be identical for the two Adaptation Sets', @mimeType is not identical for Adaptation Set " . ($i+1) . " in Period " . ($periodId1+1) . " and Adaptation Set " . ($j+1) . " in Period " . ($periodId2+1) . ".\n");
+                        $is_associative = false;
+                    }
+                    
+                    // @codecs
+                    $codecs1 = $adapt1->getAttribute('codecs');
+                    $codecs2 = $adapt2->getAttribute('codecs');
+                    if($codecs1 != '' && $codecs2 != '' && $codecs1 != $codecs2){
+                        $codecsExits = 1;
+                        fwrite($mpdreport, "###'DVB check violated: Section 10.5.2.2- If Adaptation Sets in two different Periods are associated, then for audio Adaptation Sets all values and presence of all attributes and elements listed in Table 3 SHALL be identical for the two Adaptation Sets', @codecs is not identical for Adaptation Set " . ($i+1) . " in Period " . ($periodId1+1) . " and Adaptation Set " . ($j+1) . " in Period " . ($periodId2+1) . ".\n");
+                        $is_associative = false;
+                    }
+                    
+                    // @audioSamplingRate
+                    $audioSamplingRate1 = $adapt1->getAttribute('audioSamplingRate');
+                    $audioSamplingRate2 = $adapt2->getAttribute('audioSamplingRate');
+                    if($audioSamplingRate1 != '' && $audioSamplingRate2 != '' && $audioSamplingRate1 != $audioSamplingRate2){
+                        $audioSamplingRateExists = 1;
+                        fwrite($mpdreport, "###'DVB check violated: Section 10.5.2.2- If Adaptation Sets in two different Periods are associated, then for audio Adaptation Sets all values and presence of all attributes and elements listed in Table 3 SHALL be identical for the two Adaptation Sets', @audioSamplingRate is not identical for Adaptation Set " . ($i+1) . " in Period " . ($periodId1+1) . " and Adaptation Set " . ($j+1) . " in Period " . ($periodId2+1) . ".\n");
+                        $is_associative = false;
+                    }
+                    
+                    // AudioChannelConfiguration
+                    $audioChannelConfiguration1 = $adapt1->getElementsByTagName('AudioChannelConfiguration');
+                    $audioChannelConfiguration2 = $adapt2->getElementsByTagName('AudioChannelConfiguration');
+                    $audioChannelConfiguration1_cnt = $audioChannelConfiguration1->length;
+                    $audioChannelConfiguration2_cnt = $audioChannelConfiguration2->length;
+                    if($audioChannelConfiguration1_cnt != $audioChannelConfiguration2_cnt){
+                        fwrite($mpdreport, "###'DVB check violated: Section 10.5.2.2- If Adaptation Sets in two different Periods are associated, then for audio Adaptation Sets all values and presence of all attributes and elements listed in Table 3 SHALL be identical for the two Adaptation Sets', not identical number of AudioChannelConfiguration elements found for Adaptation Set " . ($i+1) . " in Period " . ($periodId1+1) . " and Adaptation Set " . ($j+1) . " in Period " . ($periodId2+1) . ".\n");
+                        $is_associative = false;
+                    }
+                    else{
+                        for($a=0; $a<$audioChannelConfiguration1_cnt; $a++){
+                            $audioChannelConfigurationExits = 1;
+                            if(!nodes_equal($audioChannelConfiguration1->item($a), $audioChannelConfiguration2->item($a))){
+                                fwrite($mpdreport, "###'DVB check violated: Section 10.5.2.2- If Adaptation Sets in two different Periods are associated, then for audio Adaptation Sets all values and presence of all attributes and elements listed in Table 3 SHALL be identical for the two Adaptation Sets', AudioChannelConfiguration is not identical for Adaptation Set " . ($i+1) . " in Period " . ($periodId1+1) . " and Adaptation Set " . ($j+1) . " in Period " . ($periodId2+1) . ".\n");
+                                $is_associative = false;
+                            }
+                        }
+                    }
+                    
+                    // Representation Set level
+                    $allExitst = $mimeTypeExists & $codecsExits & $audioSamplingRateExists & $audioChannelConfigurationExits;
+                    if(!$allExitst){
+                        if($reps1->length != $reps2->length){
+                            fwrite($mpdreport, "###'DVB check violated: Section 10.5.2.2- If Adaptation Sets in two different Periods are associated, then for audio Adaptation Sets all values and presence of all attributes and elements listed in Table 3 SHALL be identical for the two Adaptation Sets', not identical number of AudioChannelConfiguration elements found for Adaptation Set " . ($i+1) . " in Period " . ($periodId1+1) . " and Adaptation Set " . ($j+1) . " in Period " . ($periodId2+1) . ".\n");
+                            $is_associative = false;
+                        }
+                        else{
+                            for($r=0; $r<$reps1->length; $r++){
+                                $rep1 = $reps1->item($r);
+                                $rep2 = $reps2->item($r);
+                                
+                                // @mimeType
+                                $mimeType1 = $rep1->getAttribute('mimeType');
+                                $mimeType2 = $rep2->getAttribute('mimeType');
+                                if(!$mimeTypeExists && $mimeType1 != '' && $mimeType2 != '' && $mimeType1 != $mimeType2){
+                                    fwrite($mpdreport, "###'DVB check violated: Section 10.5.2.2- If Adaptation Sets in two different Periods are associated, then for audio Adaptation Sets all values and presence of all attributes and elements listed in Table 3 SHALL be identical for the two Adaptation Sets', @mimeType is not identical for Representation " . ($r+1) . " Adaptation Set " . ($i+1) . " in Period " . ($periodId1+1) . " and Representation " . ($r+1) . " Adaptation Set " . ($j+1) . " in Period " . ($periodId2+1) . ".\n");
+                                    $is_associative = false;
+                                }
+                                
+                                // @codecs
+                                $codecs1 = $rep1->getAttribute('codecs');
+                                $codecs2 = $rep2->getAttribute('codecs');
+                                if(!$codecsExits && $codecs1 != '' && $codecs2 != '' && $codecs1 != $codecs2){
+                                    fwrite($mpdreport, "###'DVB check violated: Section 10.5.2.2- If Adaptation Sets in two different Periods are associated, then for audio Adaptation Sets all values and presence of all attributes and elements listed in Table 3 SHALL be identical for the two Adaptation Sets', @codecs is not identical for Representation " . ($r+1) . " Adaptation Set " . ($i+1) . " in Period " . ($periodId1+1) . " and Representation " . ($r+1) . " Adaptation Set " . ($j+1) . " in Period " . ($periodId2+1) . ".\n");
+                                    $is_associative = false;
+                                }
+                                
+                                // @audioSamplingRate
+                                $audioSamplingRate1 = $rep1->getAttribute('audioSamplingRate');
+                                $audioSamplingRate2 = $rep2->getAttribute('audioSamplingRate');
+                                if(!$audioSamplingRateExists && $audioSamplingRate1 != '' && $audioSamplingRate2 != '' && $audioSamplingRate1 != $audioSamplingRate2){
+                                    fwrite($mpdreport, "###'DVB check violated: Section 10.5.2.2- If Adaptation Sets in two different Periods are associated, then for audio Adaptation Sets all values and presence of all attributes and elements listed in Table 3 SHALL be identical for the two Adaptation Sets', @audioSamplingRate is not identical for Representation " . ($r+1) . " Adaptation Set " . ($i+1) . " in Period " . ($periodId1+1) . " and Representation " . ($r+1) . " Adaptation Set " . ($j+1) . " in Period " . ($periodId2+1) . ".\n");
+                                    $is_associative = false;
+                                }
+                                
+                                // AudioChannelConfiguration
+                                $audioChannelConfiguration1 = $rep1->getElementsByTagName('AudioChannelConfiguration');
+                                $audioChannelConfiguration2 = $rep2->getElementsByTagName('AudioChannelConfiguration');
+                                $audioChannelConfiguration1_cnt = $audioChannelConfiguration1->length;
+                                $audioChannelConfiguration2_cnt = $audioChannelConfiguration2->length;
+                                if(!$audioChannelConfigurationExits){
+                                    if($audioChannelConfiguration1_cnt != $audioChannelConfiguration2_cnt){
+                                        fwrite($mpdreport, "###'DVB check violated: Section 10.5.2.2- If Adaptation Sets in two different Periods are associated, then for audio Adaptation Sets all values and presence of all attributes and elements listed in Table 3 SHALL be identical for the two Adaptation Sets', not identical number of AudioChannelConfiguration elements found for Representation " . ($r+1) . " Adaptation Set " . ($i+1) . " in Period " . ($periodId1+1) . " and Representation " . ($r+1) . " Adaptation Set " . ($j+1) . " in Period " . ($periodId2+1) . ".\n");
+                                        $is_associative = false;
+                                    }
+                                    else{
+                                        for($a=0; $a<$audioChannelConfiguration1_cnt; $a++){
+                                            if(!nodes_equal($audioChannelConfiguration1->item($a), $audioChannelConfiguration2->item($a))){
+                                                fwrite($mpdreport, "###'DVB check violated: Section 10.5.2.2- If Adaptation Sets in two different Periods are associated, then for audio Adaptation Sets all values and presence of all attributes and elements listed in Table 3 SHALL be identical for the two Adaptation Sets', AudioChannelConfiguration is not identical for Representation " . ($r+1) . " Adaptation Set " . ($i+1) . " in Period " . ($periodId1+1) . " and Representation " . ($r+1) . " Adaptation Set " . ($j+1) . " in Period " . ($periodId2+1) . ".\n");
+                                                $is_associative = false;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            else{
+                $is_associative = false;
+            }
+            
+            if($is_associative)
+                $associativity[] = "$periodId1 $i $periodId2 $j";
+        }
+    }
 }
 
 function StreamBandwidthCheck($mpdreport){
@@ -722,7 +1030,7 @@ function DVB_audio_checks($adapt, $reps, $mpdreport, $i, $contentTemp_aud_found)
             }
         }
     }
-    if(strpos($adapt_codecs, 'dtsc') !== FALSE || strpos($adapt_codecs, 'dtsh') !== FALSE || strpos($adapt_codecs, 'dtse') !== FALSE || strpos($adapt_codecs, 'dtsi') !== FALSE){
+    if(strpos($adapt_codecs, 'dtsc') !== FALSE || strpos($adapt_codecs, 'dtsh') !== FALSE || strpos($adapt_codecs, 'dtse') !== FALSE || strpos($adapt_codecs, 'dtsl') !== FALSE){
         if(!empty($adapt_audioChConf_scheme) && !in_array('tag:dts.com,2014:dash:audio_channel_configuration:2012', $adapt_audioChConf_scheme))
             fwrite($mpdreport, "###'DVB check violated: Section 6.4- For all DTS audio formats AudioChannelConfiguration element SHALL use the \"tag:dts.com,2014:dash:audio_channel_configuration:2012\" for the @schemeIdUri attribute', conformance is not satisfied in Period $period_count Adaptation Set " . ($i+1) . " AudioChannelConfiguration.\n");
     }
@@ -783,9 +1091,9 @@ function DVB_audio_checks($adapt, $reps, $mpdreport, $i, $contentTemp_aud_found)
                         }
                     }
                 }
-                if((strpos($adapt_codecs, 'dtsc') !== FALSE || strpos($adapt_codecs, 'dtsh') !== FALSE || strpos($adapt_codecs, 'dtse') !== FALSE || strpos($adapt_codecs, 'dtsi') !== FALSE) ||
-                   (strpos($rep_codecs, 'dtsc') !== FALSE || strpos($rep_codecs, 'dtsh') !== FALSE || strpos($rep_codecs, 'dtse') !== FALSE || strpos($rep_codecs, 'dtsi') !== FALSE) ||
-                   (strpos($subrep_codecs, 'dtsc') !== FALSE || strpos($subrep_codecs, 'dtsh') !== FALSE || strpos($subrep_codecs, 'dtse') !== FALSE || strpos($subrep_codecs, 'dtsi') !== FALSE)){
+                if((strpos($adapt_codecs, 'dtsc') !== FALSE || strpos($adapt_codecs, 'dtsh') !== FALSE || strpos($adapt_codecs, 'dtse') !== FALSE || strpos($adapt_codecs, 'dtsl') !== FALSE) ||
+                   (strpos($rep_codecs, 'dtsc') !== FALSE || strpos($rep_codecs, 'dtsh') !== FALSE || strpos($rep_codecs, 'dtse') !== FALSE || strpos($rep_codecs, 'dtsl') !== FALSE) ||
+                   (strpos($subrep_codecs, 'dtsc') !== FALSE || strpos($subrep_codecs, 'dtsh') !== FALSE || strpos($subrep_codecs, 'dtse') !== FALSE || strpos($subrep_codecs, 'dtsl') !== FALSE)){
                     if(!empty($subrep_audioChConf_scheme) && !in_array('tag:dts.com,2014:dash:audio_channel_configuration:2012', $subrep_audioChConf_scheme))
                         fwrite($mpdreport, "###'DVB check violated: Section 6.4- For all DTS audio formats AudioChannelConfiguration element SHALL use the \"tag:dts.com,2014:dash:audio_channel_configuration:2012\" for the @schemeIdUri attribute', conformance is not satisfied in Period $period_count Adaptation Set " . ($i+1) . " Representation " . ($j+1) . " SubRepresentation " . ($ind+1) . " AudioChannelConfiguration.\n");
                 }
@@ -829,8 +1137,8 @@ function DVB_audio_checks($adapt, $reps, $mpdreport, $i, $contentTemp_aud_found)
                 fwrite($mpdreport, "###'DVB check violated: Section 6.3- (For E-AC-3 and AC-4 the AudioChannelConfiguration element) the @value attribute SHALL contain four digit hexadecimal representation of the 16 bit field', found \"$value\" in Period $period_count Adaptation Set " . ($i+1) . " Representation " . ($j+1) . " AudioChannelConfiguration.\n");
             }
         }
-        if((strpos($adapt_codecs, 'dtsc') !== FALSE || strpos($adapt_codecs, 'dtsh') !== FALSE || strpos($adapt_codecs, 'dtse') !== FALSE || strpos($adapt_codecs, 'dtsi') !== FALSE) ||
-           (strpos($rep_codecs, 'dtsc') !== FALSE || strpos($rep_codecs, 'dtsh') !== FALSE || strpos($rep_codecs, 'dtse') !== FALSE || strpos($rep_codecs, 'dtsi') !== FALSE)){
+        if((strpos($adapt_codecs, 'dtsc') !== FALSE || strpos($adapt_codecs, 'dtsh') !== FALSE || strpos($adapt_codecs, 'dtse') !== FALSE || strpos($adapt_codecs, 'dtsl') !== FALSE) ||
+           (strpos($rep_codecs, 'dtsc') !== FALSE || strpos($rep_codecs, 'dtsh') !== FALSE || strpos($rep_codecs, 'dtse') !== FALSE || strpos($rep_codecs, 'dtsl') !== FALSE)){
             if(!empty($rep_audioChConf_scheme) && !in_array('tag:dts.com,2014:dash:audio_channel_configuration:2012', $rep_audioChConf_scheme))
                 fwrite($mpdreport, "###'DVB check violated: Section 6.4- For all DTS audio formats AudioChannelConfiguration element SHALL use the \"tag:dts.com,2014:dash:audio_channel_configuration:2012\" for the @schemeIdUri attribute', conformance is not satisfied in Period $period_count Adaptation Set " . ($i+1) . " Representation " . ($j+1) . " AudioChannelConfiguration.\n");
         }
@@ -1353,3 +1661,204 @@ function xlink_reconstruct_MPD($dom_MPD)
         }         
         $stop = 1; // now don't do any more modifications to the MPD  
     }
+
+function DVB_mpd_anchor_check($dom, $mpdreport){
+    $allowed_keys = array('t', 'period', 'track', 'group');
+    
+    $anchors = explode('#', json_decode($_POST['urlcode'])[0]);
+    if(sizeof($anchors) > 1){
+        $MPD = $dom->getElementsByTagName('MPD')->item(0);
+        $periods = $MPD->getElementsByTagName('Period');
+        $period_ids = array();
+        foreach($periods as $period){
+            $adapts = $period->getElementsByTagName('AdaptationSet');
+            $adapt_ids_groups = array();
+            foreach($adapts as $adapt)
+                $adapt_ids_groups[] = $adapt->getAttribute('id') . ',' . $adapt->getAttribute('group');
+            
+            $period_ids[] = array($period->getAttribute('id') => $adapt_ids_groups);
+        }
+        
+        $period_exists = false;
+        $t_exists = false;
+        $posix_exits = false;
+        $anchors = $anchors[1];
+        $anchor_parts = explode('&', $anchors);
+        foreach($anchor_parts as $anchor){
+            $key = substr($anchor, 0, strpos($anchor, '='));
+            $value = substr($anchor, strpos($anchor, '=')+1);
+            if(!in_array($key, $allowed_keys))
+                fwrite($mpdreport, "Information on DVB conformance: Provided MPD anchor key \"$key\" is not one of the keys listed in Table C.1 in clause C.4 in ISO/IEC 23009-1.\n");
+            
+            if($key == 'period'){
+                $period_exists = true;
+                $str_info = '';
+                foreach($period_ids as $period_id){
+                    if(array_key_exists($value, $period_id))
+                        $str_info .= 'yes ';
+                    else
+                        $str_info .= 'no ';
+                }
+                
+                if(strpos($str_info, 'yes') === FALSE)
+                    fwrite($mpdreport, "Information on DVB conformance: Provided MPD anchor uses the key \"period\" but its value does not correspond to any of the period @id attributes.\n");
+            }
+            elseif($key == 'track' || $key == 'group'){
+                $str_info_1 = '';
+                $str_info_2 = '';
+                foreach($period_ids as $period_id){
+                    foreach($period_id as $adapt_id_group){
+                        foreach($adapt_id_group as $adapt_id_group_temp){
+                            $id_group = explode(',', $adapt_id_group_temp);
+                            
+                            if($key == 'track'){
+                                if(strpos($id_group[0], $value) !== FALSE)
+                                    $str_info_1 .= 'yes ';
+                                else
+                                    $str_info_1 .= 'no ';
+                            }
+                            elseif($key == 'group'){
+                                if(strpos($id_group[1], $value) !== FALSE)
+                                    $str_info_2 .= 'yes ';
+                                else
+                                    $str_info_2 .= 'no ';
+                            }
+                        }
+                    }
+                }
+                if($key == 'track' && strpos($str_info_1, 'yes') === FALSE)
+                    fwrite($mpdreport, "Information on DVB conformance: Provided MPD anchor uses the key \"track\" but its value does not correspond to any of the attribute @id attributes.\n");
+                
+                if($key == 'group' && strpos($str_info_2, 'yes') === FALSE)
+                    fwrite($mpdreport, "Information on DVB conformance: Provided MPD anchor uses the key \"group\" but its value does not correspond to any of the attribute @group attributes.\n");
+            }
+            elseif($key == 't'){
+                $t_exists = true;
+                if(strpos($value, 'posix') !== FALSE){
+                    $posix_exits = true;
+                    if($MPD->getAttribute('availabilityStartTime') == '')
+                        fwrite($mpdreport, "Information on DVB conformance: Provided MPD anchor uses the key \"t\" with prefix \"posix\" while MPD@availabilityStartTime does not exist.\n");
+                    
+                    $time_range = explode(',', substr($value, strpos($value, 'posix')+6));
+                    $t = compute_timerange($time_range);
+                }
+                else{
+                    if(strpos($value, 'npt') !== FALSE){
+                        $time_range = explode(',', substr($value, strpos($value, 'npt')+4));
+                        $t = compute_timerange($time_range);
+                    }
+                    else{
+                        $time_range = explode(',', $value);
+                        $t = compute_timerange($time_range);
+                    }
+                }
+            }
+        }
+        
+        if($period_exists && $t_exists)
+            fwrite($mpdreport, "Information on DVB conformance: Provided MPD anchor uses the key \"t\" while the key \"period\" is also used.\n");
+        
+        if($t_exists){
+            $periodDurations = periodDurationInfo($dom);
+            $p_starts = $periodDurations[0];
+            $p_durations = $periodDurations[1];
+            $coverage = false;
+            
+            if(!$posix_exits){      
+                if($t[0] >= $p_starts[0]){
+                    if(!($t[1] == PHP_INT_MAX)){
+                        if($t[1] <= $p_starts[sizeof($p_durations)-1] + $p_durations[sizeof($p_durations)-1])
+                            $coverage = true;
+                    }
+                    else
+                        $coverage = true;
+                }
+            }
+            else{
+                $AST = strtotime ($MPD->getAttribute('availabilityStartTime'));
+                if($t[0] - $AST >= $p_starts[0]){
+                    if(!($t[1] == PHP_INT_MAX)){
+                        if($t[1] - $AST <= $p_starts[sizeof($p_durations)-1] + $p_durations[sizeof($p_durations)-1])
+                            $coverage = true;
+                    }
+                    else
+                        $coverage = true;
+                }
+            }
+            
+            if(!$coverage)
+                fwrite($mpdreport, "Information on DVB conformance: Provided MPD anchor uses the key \"t\" which refers to a time that is not available according to the times in the MPD.\n");
+        }
+    }
+}
+
+function compute_timerange($time_range){
+    $first = 1;
+    foreach($time_range as $timestamp){
+        $t = 0;
+        
+        if($timestamp == ''){
+            if(!$first)
+                $t = PHP_INT_MAX;
+        }
+        elseif($timestamp == 'now'){
+            $t = time();
+        }
+        elseif(strpos($timestamp, ':') !== FALSE){
+            $vals = explode(':', $timestamp);
+            
+            if(sizeof($vals) > 3){
+                fwrite($mpdreport, "Information on DVB conformance: Provided MPD anchor uses the key \"t\" with W3C Media Fragment format with \"npt\" but allowed formats are one of {npt-ss, npt-mmss, npt-hhmmss}.\n");
+            }
+            
+            for($v=sizeof($vals)-1,$p=0; $v>0; $v--,$p++){
+                $val = $vals[$v];
+                
+                if(strpos($val, '.')){
+                    $val_vals = explode('.', $val);
+                    $t += ($val_vals[0]*pow(60, $p) + ($val_vals[1]/10)*pow(60,$p));
+                    
+                    if(!((((string) (int) $val_vals[0] === $val_vals[0]) || (( '0' . (string) (int) $val_vals[0]) === $val_vals[0])) && ($val_vals[0] <= PHP_INT_MAX) && ($val_vals[0] >= ~PHP_INT_MAX)) || !((((string) (int) $val_vals[1] === $val_vals[1]) || (( '0' . (string) (int) $val_vals[1]) === $val_vals[1])) && ($val_vals[1] <= PHP_INT_MAX) && ($val_vals[1] >= ~PHP_INT_MAX)))
+                        fwrite($mpdreport, "Information on DVB conformance: Provided MPD anchor uses the key \"t\" where the provided time range is not integer.\n");
+                    if($p > 0)
+                        fwrite($mpdreport, "Information on DVB conformance: Provided MPD anchor uses the key \"t\" with W3C Media Fragment format with \"npt\" but fraction notation is used for minutes and/or hours.\n");
+                    if((sizeof($vals) < 3 || $v != sizeof($vals)-1) && ($val_vals[0] < 0 || $val_vals[0] > 59))
+                        fwrite($mpdreport, "Information on DVB conformance: Provided MPD anchor uses the key \"t\" with W3C Media Fragment format with \"npt\" but the range for minutes and/or seconds is not in the range of [0,59].\n");
+                }
+                else{
+                    $t += ($val*pow(60, $p));
+                    
+                    if((sizeof($vals) < 3 || $v != sizeof($vals)-1) && ($val < 0 || $val > 59))
+                        fwrite($mpdreport, "Information on DVB conformance: Provided MPD anchor uses the key \"t\" with W3C Media Fragment format with \"npt\" but the range for minutes and/or seconds is not in the range of [0,59].\n");
+                }
+            }
+        }
+        elseif(strpos($timestamp, '.') !== FALSE){ // Fractional time
+            $vals = explode('.', $timestamp);
+            $t += $vals[0] + $vals[1]/10;
+            
+            if(!((((string) (int) $vals[0] === $vals[0]) || (( '0' . (string) (int) $vals[0]) === $vals[0])) && ($vals[0] <= PHP_INT_MAX) && ($vals[0] >= ~PHP_INT_MAX)) || !((((string) (int) $vals[1] === $vals[1]) || (( '0' . (string) (int) $vals[1]) === $vals[1])) && ($vals[1] <= PHP_INT_MAX) && ($vals[1] >= ~PHP_INT_MAX)))
+                fwrite($mpdreport, "Information on DVB conformance: Provided MPD anchor uses the key \"t\" where the provided time range is not integer.\n");
+        }
+        else{
+            $t += $timestamp;
+            if(!(((string) (int) $timestamp === $timestamp) && ($timestamp <= PHP_INT_MAX) && ($timestamp >= ~PHP_INT_MAX)))
+                fwrite($mpdreport, "Information on DVB conformance: Provided MPD anchor uses the key \"t\" where the provided time range is not integer.\n");
+        }
+        
+        if($first){
+            $first = 0;
+            $t_start = $t;
+        }
+        else
+            $t_end = $t;
+    }
+    
+    if(sizeof($time_range) == 1)
+        $t_end = PHP_INT_MAX;
+    
+    if($t_start > $t_end)
+        fwrite($mpdreport, "Information on DVB conformance: Provided MPD anchor uses the key \"t\" but the start time is larger that the end time.\n");
+    
+    return [$t_start, $t_end];
+}
