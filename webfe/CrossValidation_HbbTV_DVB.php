@@ -629,6 +629,22 @@ function common_validation_DVB($opfile, $dom, $xml_rep, $adapt_count, $rep_count
     }
     ##
     
+    ## Subtitle checks
+    if($adapt->getAttribute('mimeType') == 'application/mp4' || $rep->getAttribute('mimeType') == 'application/mp4'){
+        if($adapt->getAttribute('codecs') == 'stpp' || $rep->getAttribute('codecs') == 'stpp'){
+            if($hdlr_type != 'subt')
+                fwrite($opfile, "###'DVB check violated: For subtitle media, handler type in the Initialization Segment SHALL be \"subt\"', found \"$hdlr_type\".\n");
+            
+            $stpp = $xml_rep->getElementsByTagName('stpp');
+            if($stpp->length == 0)
+                fwrite($opfile, "###'DVB check violated: For subtitle media, sample entry type SHALL be \"stpp (XMLSubtitleSampleEntry)\"', stpp not found.\n");
+            else{
+                if($stpp->item(0)->getAttribute('namespace') == '')
+                    fwrite($opfile, "###'DVB check violated: For subtitle media, namespaces SHALL be listed in the sample entry', namespace not found.\n");
+            }
+        }
+    }
+    
     ## Segment checks
     $moof_boxes = $xml_rep->getElementsByTagName('moof');
     // Section 4.3 on on-demand profile periods containing sidx boxes
