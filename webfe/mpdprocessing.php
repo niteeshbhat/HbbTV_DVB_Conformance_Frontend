@@ -143,9 +143,12 @@ function process_mpd()
         echo $progressXML->asXML();
         exit;
     }
-      
-    //xlink_reconstruct_MPD($dom_sxe);
     
+    //xlink_reconstruct_MPD($dom_sxe);
+    global $cp_dom; // to have a dom document with the original unchanged mpd
+    $cp_dom = new DOMDocument('1.0');
+    $cp_dom_node = $cp_dom->importNode($dom_sxe, true);
+    $cp_dom->appendChild($cp_dom_node);
     if($check_dvb_conformance){
         $mpdreport = fopen($locate . '/mpdreport.txt', 'a+b');
         $dom_doc = new DOMDocument('1.0');
