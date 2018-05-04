@@ -262,7 +262,7 @@ function process_mpd()
             $periodCount++;
         }
     }
-
+    
     $val = $dom->getElementsByTagName('BaseURL'); // get BaseUrl node
     $segflag = $dom->getElementsByTagName('SegmentTemplate'); //check if segment template exists or not
 
@@ -841,7 +841,26 @@ function process_mpd()
             }
 
             $tempcount1 = $count1; //don't know why we need a buffer, but it only works this way with php 7
-            $sizearray = downloaddata($pathdir, $period_url[$count1][$count2]); // download data 
+            
+            ## For DVB subtitle checks related to mdat content
+            ## Determine the subtitle representations before segment download
+            $subtitle_rep = false;
+            $adapt = $periodNode->getElementsByTagName('AdaptationSet')->item($count1);
+            $rep = $adapt->getElementsByTagName('Representation')->item($count2);
+            if(strpos($adapt->getAttribute('mimeType'), 'application') || $adapt->getAttribute('contentType') == 'text' || $adapt->getAttribute('codecs') == 'stpp'){
+                $subtitle_rep = true;
+            }
+            if(strpos($rep->getAttribute('mimeType'), 'application') || $rep->getAttribute('codecs') == 'stpp'){
+                $subtitle_rep = true;
+            }
+            if($adapt->getElementsByTagName('ContentComponent')->length != 0){
+                $contComp = $adapt->getElementsByTagName('ContentComponent')->item(0);
+                if($contComp->getAttribute('contentType') == 'text')
+                    $subtitle_rep = true;
+            }
+            ##
+            
+            $sizearray = downloaddata($pathdir, $period_url[$count1][$count2], $subtitle_rep); // download data 
             if ($sizearray !== 0)
             {
 
