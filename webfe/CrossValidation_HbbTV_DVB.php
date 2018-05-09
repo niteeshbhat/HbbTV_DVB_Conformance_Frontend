@@ -13,8 +13,8 @@ function CrossValidation_HbbTV_DVB($dom,$hbbtv,$dvb)
 
 function common_crossValidation($dom,$hbbtv,$dvb)
 {
-    global $locate, $Period_arr, $string_info;
-    
+    global $locate, $Period_arr, $string_info, $cp_dom;
+    content_protection_report($cp_dom);
     for($adapt_count=0; $adapt_count<sizeof($Period_arr); $adapt_count++){
         $loc = $locate . '/Adapt' . $adapt_count.'/';
         
@@ -1367,6 +1367,230 @@ function bitrate_report($opfile, $dom, $xml_rep, $adapt_count, $rep_count, $size
     //exec($command,$output);
     
 }
+function content_protection_report($dom_MPD)
+{
+    global $locate;
+    $DRM_uuid_array = array ('urn:mpeg:dash:mp4protection:2011'=>'Generic Identifier 1',
+                             'urn:mpeg:dash:13818:1:CA_descriptor:2011'=>'Generic Identifier 2',
+                             'urn:uuid:5E629AF538DA4063897797FFBD9902D4'=>'Marlin Adaptive Streaming Specification',
+                             'urn:uuid:adb41c242dbf4a6d958b4457c0d27b95'=>'Nagra MediaAccess PRM 3.0',
+                             'urn:uuid:A68129D3575B4F1A9CBA3223846CF7C3'=>'Cisco/NDS VideoGuard Everywhere DRM',
+                             'urn:uuid:9a04f07998404286ab92e65be0885f95'=>'Microsoft PlayReady',
+                             'urn:uuid:9a27dd82fde247258cbc4234aa06ec09'=>'Verimatrix ViewRight Web',
+                             'urn:uuid:F239E769EFA348509C16A903C6932EFB'=>'Adobe Primetime',
+                             'urn:uuid:1f83e1e86ee94f0dba2f5ec4e3ed1a66'=>'SecureMedia',
+                             'urn:uuid:644FE7B5260F4FAD949A0762FFB054B4'=>'CMLA',
+                             'urn:uuid:6a99532d869f59229a91113ab7b1e2f3'=>'MobiTV',
+                             'urn:uuid:35BF197B530E42D78B651B4BF415070F'=>'DivX ',
+                             'urn:uuid:B4413586C58CFFB094A5D4896C1AF6C3'=>'Viaccess-Orca',
+                             'urn:uuid:edef8ba979d64acea3c827dcd51d21ed'=>'Widevine',
+                             'urn:uuid:80a6be7e14484c379e70d5aebe04c8d2'=>'Irdeto',
+                             'urn:uuid:dcf4e3e362f158187ba60a6fe33ff3dd'=>'DigiCAP SmartXess',
+                             'urn:uuid:45d481cb8fe049c0ada9ab2d2455b2f2'=>'CoreTrust',
+                             'urn:uuid:616C7469636173742D50726F74656374'=>'Alticast altiProtect',
+                             'urn:uuid:992c46e6c4374899b6a050fa91ad0e39'=>'SecureMedia SteelKnot',
+                             'urn:uuid:1077efecc0b24d02ace33c1e52e2fb4b'=>'W3C',
+                             'urn:uuid:e2719d58a985b3c9781ab030af78d30e'=>'Clear Key',
+                             'urn:uuid:94CE86FB07FF4F43ADB893D2FA968CA2'=>'Apple FairPlay Streaming',
+                             'urn:uuid:279fe473512c48feade8d176fee6b40f'=>'Arris Titanium');
+    $Adapt_index = 0;
+    $key_rotation_used = false;
+    foreach ($dom_MPD->getElementsByTagName('AdaptationSet') as $node)
+    {
+        $adapt_id = $Adapt_index + 1;
+        $adaptreport = fopen($locate . "/Adapt".$Adapt_index."_compInfo.txt", 'a+b');
+        fwrite($adaptreport, "***Report on Content Protection specifics*** \n");
+        $MPD_systemID_array = array();
+        $missing_pssh_array = array(); //holds the uuid-s of the DRM-s which are missing the pssh in the mpd
+        $reps_array = array(); // for the summary of reps and their KID
+        $rep_index = 0;
+        $kID_flag = false;
+        $content_protection_flag = false;
+        $generic_identifier = "";
+        foreach ($node->getElementsByTagName('ContentProtection') as $cp_node)
+        {
+            if(($cp_node->getAttribute('schemeIdUri') == "urn:mpeg:dash:mp4protection:2011") || ($cp_node->getAttribute('schemeIdUri') == 'urn:mpeg:dash:13818:1:CA_descriptor:2011'))
+            {
+                $generic_identifier = $cp_node->getAttribute('schemeIdUri');
+            }
+            
+            $content_protection_flag = true;
+            if(!$kID_flag) // if a KID was not found in the init seg check in the mpd
+            {   
+                $kID = $cp_node->getAttribute('cenc:default_KID');
+                if($kID != '')
+                {
+                    $kID = str_replace('-', '', $kID);
+                    $kID_flag = true; //there is a cenc:default_KID, so there must be a pssh in a mpd or init seg
+                }
+            }
+
+            $cenc_pssh = $cp_node->getAttribute('cenc:pssh');
+            if(($cenc_pssh == '') && ($cp_node->getAttribute('schemeIdUri') != "urn:mpeg:dash:mp4protection:2011") && ($cp_node->getAttribute('schemeIdUri') != 'urn:mpeg:dash:13818:1:CA_descriptor:2011'))
+            {
+                $uuid = $cp_node->getAttribute('schemeIdUri');
+                $uuid = str_replace('-', '', $uuid);
+                $missing_pssh_array[] = $uuid; //the drm uuid which is missing a pssh in the mpd
+            }
+
+            //excluding generic identifiers which are usually in the first instance of Content Protection
+            if (($cp_node->getAttribute('schemeIdUri') != "urn:mpeg:dash:mp4protection:2011") && ($cp_node->getAttribute('schemeIdUri') != 'urn:mpeg:dash:13818:1:CA_descriptor:2011'))
+            {
+                $MPD_systemID = $cp_node->getAttribute('schemeIdUri');
+                $MPD_systemID = str_replace('-', '', $MPD_systemID);
+
+                if(array_key_exists($MPD_systemID, $DRM_uuid_array))
+                {
+                    $MPD_systemID_array[$MPD_systemID] = $DRM_uuid_array[$MPD_systemID];
+                }
+                else 
+                {
+                    $MPD_systemID_array[$MPD_systemID] = 'unknown'; //if no matches are found in the mapping array 
+                }
+            }
+        }
+        
+        //reporting DRM systems in use
+        if($generic_identifier != "")
+        {
+            $MPD_systemID_k_v  = implode(', ', array_map(
+            function ($v, $k) { return sprintf(" '%s' :: '%s'", $k, $v); },
+            $MPD_systemID_array,array_keys($MPD_systemID_array)));
+            fwrite($adaptreport, "Information on DVB/HbbTV: DRM systems present in the MPD in Adaptation Set ".$adapt_id.
+                    " are identified as follows: ".$generic_identifier." :: ".$DRM_uuid_array[$generic_identifier]." ".$MPD_systemID_k_v."\n"); 
+        } 
+
+        foreach ($node->getElementsByTagName('Representation') as $rep)
+        {    
+            $duplication_flag = false;
+            $inconsistency_flag = false;
+            $missing_pssh_flag = false;
+            $PSSH_systemID_array = array(); // to see the DRM uuid in mpd and pssh and compare them
+            $xml_file_location = ($locate.'/Adapt'.$Adapt_index.'/Adapt'.$Adapt_index.'rep'.$rep_index.'.xml'); //first rep of the adapt set will have the same pssh as the rest
+            $load = simplexml_load_file($xml_file_location); // load mpd from url 
+            $dom_abs = dom_import_simplexml($load);
+            $abs = new DOMDocument('1.0');
+            $dom_abs = $abs->importNode($dom_abs, true); //create dom element to contain mpd     
+            $abs->appendChild($dom_abs);
+            if(!$kID_flag)   
+            {   
+                $kID = $abs->getElementsByTagName('tenc')->item(0)->getAttribute('default_KID');//default KID can be in the pssh in the init seg
+                if($kID != '')
+                {
+                    $kID_flag = true;
+                }
+            }
+            foreach ($abs->getElementsByTagName('pssh') as $pssh_node)
+            {
+
+                $PSSH_systemID = 'urn:uuid:'.$pssh_node->getAttribute('systemID');
+                if(array_key_exists($PSSH_systemID, $DRM_uuid_array))
+                {
+                    $PSSH_systemID_array[$PSSH_systemID] = $DRM_uuid_array[$PSSH_systemID];
+                }
+                else 
+                {
+                   $PSSH_systemID_array[$PSSH_systemID] = 'unknown'; //if no matches are found in the mapping array 
+                }        
+            }
+
+            if($kID_flag)
+            {   
+                // if a pssh is missing in the mpd then there must be in the init seg
+                // all the nr of instances which are missing the pssh in the mpd must be in the init seg  
+                if((count($missing_pssh_array) != 0) && (count(array_intersect($missing_pssh_array, $PSSH_systemID_array)) != count($missing_pssh_array)))//not all the missing pssh are in the init seg
+                {
+                    $missing_pssh_flag = true; 
+                }
+            }
+
+            if(($generic_identifier != "" ||(!empty($MPD_systemID_array))) && (!empty($PSSH_systemID_array))) //comparing if there's a DRM uuid in both mpd an pssh
+            {
+                //flag if in both and show inconsistencies 
+                //$diff_1 = array_diff($MPD_systemID_array, $PSSH_systemID_array); // the uuid that are in mpd but not in pssh
+                $diff_2 = array_diff(array_keys($PSSH_systemID_array), array_keys($MPD_systemID_array)); // the uuid that are in pssh but not mpd
+                if(count(array_intersect(array_keys($PSSH_systemID_array), array_keys($MPD_systemID_array))) !=0)
+                {
+                    $duplication_flag = true; //there is at least one DRM with the same uuid in both
+                }
+                else //the pssh box has at least one DRM uuid which is not in the mpd while all the DRM uuid-s must be in the ContentProtection instance of the MPD, so we have inconsistency 
+                {
+                    $inconsistency_flag = true; 
+                }    
+            }
+            //add summary for encrypted rep and their kID. use rep id to identify them 
+            if($generic_identifier != "") // if the adapt set is encrypted then all the reps in it are also encrypted
+            {     
+                $repr_id = $rep->getAttribute('id');
+                $reps_array[] = $repr_id;
+            }
+            //checking for key rotation:
+            //if there is no pssh in any moof then no key rotation is used
+            foreach ($abs->getElementsByTagName('moof') as $moof) 
+            {
+                if($moof->getElementsByTagName('pssh')->length != 0) //if pssh does't exists and is an empty node
+                {
+                    if(($moof->getElementsByTagName('sgpd')->length != 0) && ($moof->getElementsByTagName('sbgp')->length != 0))
+                    {
+                        $key_rotation_used = true;
+                    }
+                }     
+            }
+        
+            if(!empty($PSSH_systemID_array))
+            {
+                $PSSH_systemID_k_v  = implode(', ', array_map(
+                function ($v, $k) { return sprintf(" '%s' :: '%s'", $k, $v); },
+                $PSSH_systemID_array,array_keys($PSSH_systemID_array)));
+                fwrite($adaptreport, "Information on DVB/HbbTV: DRM systems present in the PSSH in Adaptation Set: ".$adapt_id.", Representation: ".$repr_id." are identified as follows ".$PSSH_systemID_k_v."\n"); 
+            } 
+            
+            //reporting if there is a missing PSSH
+            if($missing_pssh_flag)
+            {
+                fwrite($adaptreport, "Information on DVB/HbbTV: Warning! There is default_KID: ".$kID." but there is/are missing PSSH box/es (both in MPD and Init segment)"
+                    . " in Adaptation Set: ".$adapt_id." Representation: ".$repr_id."\n");
+            }
+            //reporting duplicate and inconsistent DRM-s in MPD and PSSH box
+            if($duplication_flag)
+            {
+                fwrite($adaptreport, "Information on DVB/HbbTV: There are consistent DRM-s in MPD and PSSH box in Adaptation Set: ".$adapt_id.", Representation: ".$repr_id."\n");
+            }
+
+            if($inconsistency_flag)
+            {
+                $diff_2_k_v  = implode(', ', array_map(
+                function ($v, $k) { return sprintf(" SystemID: '%s' ", $v); },
+                $diff_2,array_keys($diff_2)));
+                fwrite($adaptreport, "Information on DVB/HbbTV: There are inconsistent DRM-s in MPD and PSSH box in Adaptation Set: ".$adapt_id.", Representation: ".$repr_id." :\n "
+                        . "the following DRM systems were found present in PSSH but not MPD:\n".$diff_2_k_v."\n");;
+            }
+            
+            $rep_index ++; 
+        }
+        
+        //summary of reps and the KID used
+        if($kID_flag)
+        {
+            $reps_v  = implode(', ', array_map(
+            function ($v, $k) { return sprintf(" '%s' ", $v); },
+            $reps_array,array_keys($reps_array)));
+            fwrite($adaptreport, "Information on DVB/HbbTV: The KID: ".$kID." is used for representations:".$reps_v."in Adaptation Set ".$adapt_id."\n"); 
+        }
+        //reporting for key retation
+        if($key_rotation_used)
+        {
+            fwrite($adaptreport, "Information on DVB/HbbTV: Adaptation Set ".$adapt_id.": Key rotation used.\n");
+        }
+        else 
+        {
+            fwrite($adaptreport, "Information on DVB/HbbTV: Adaptation Set ".$adapt_id.": Key rotation not used.\n");
+        }
+        fwrite($adaptreport, "-------------------------------------------------------------------------------------------- \n");
+        fclose($adaptreport);
+        $Adapt_index ++; //move to check the next adapt set
+    }    
+}
 
 function DVB_period_continuous_adaptation_sets_check($dom, $opfile){
     global $locate, $associativity;
@@ -1480,3 +1704,4 @@ function segment_timing_info($dom, $xml_rep){
     
     return $EPT;
 }
+
