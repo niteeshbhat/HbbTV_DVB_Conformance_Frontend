@@ -1537,10 +1537,13 @@ function content_protection_report($dom_MPD)
                 }     
             }
             //Check the scheme_type field of the ‘schm’ box has the value ‘cenc’
-            if($abs->getElementsByTagName('schm')->item(0)->getAttribute('scheme') !== "cenc")
+            if($generic_identifier != "")
             {
-                fwrite($adaptreport, "Information on DVB/HbbTV: 'cenc' scheme not found in 'schm' box of PSSH in Adaptation Set: ".$adapt_id.", Representation: ".$repr_id."\n"); 
-            }
+                if($abs->getElementsByTagName('schm')->item(0)->getAttribute('scheme') !== "cenc")
+                {
+                    fwrite($adaptreport, "Information on DVB/HbbTV: 'cenc' scheme not found in 'schm' box of PSSH in Adaptation Set: ".$adapt_id.", Representation: ".$repr_id."\n"); 
+                }
+            }    
             if(!empty($PSSH_systemID_array))
             {
                 $PSSH_systemID_k_v  = implode(', ', array_map(
