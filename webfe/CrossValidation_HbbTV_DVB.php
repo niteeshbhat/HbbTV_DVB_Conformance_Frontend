@@ -1689,3 +1689,125 @@ function segment_timing_info($dom, $xml_rep){
     return $EPT;
 }
 
+function TLS_bitrate_check($dom_MPD)//$cp_dom as argument
+{
+    global $locate;
+    //test link https://media.axprod.net/TestVectors/v7-MultiDRM-SingleKey/Manifest.mpd
+    if($dom_MPD->getElementsByTagName('BaseURL')->length !=0)
+    {
+        $base_url = $dom_MPD->getElementsByTagName('BaseURL')->item(0)->textContent;
+    }
+    else
+    {
+        $base_url = '';
+    }
+
+    $MPD_url = $GLOBALS["url"];
+    //check if TLS is used
+    if (strpos($base_url, 'https') !== false)
+    {
+        $TLS_falg = true; 
+    }
+    elseif (strpos($base_url, 'http') !== false)
+    {
+        $TLS_falg = false;
+    }
+    else
+    {
+        if (strpos($MPD_url, 'https')!== false)
+        {
+            $TLS_falg = true;
+        }
+        else
+        {
+            $TLS_falg = false;
+        }
+    }
+    //if TLS is used then check if any combination excedes the constraint
+    if($TLS_falg)
+    {
+        $perio_index = 0;
+        foreach ($dom_MPD->getElementsByTagName('Period') as $period)
+        {
+            $period_id = $perio_index + 1;
+            $video_rep_array = array();
+            $audio_rep_array = array();
+            $sub_rep_array = array();
+            
+            foreach ($period->getElementsByTagName('AdaptationSet') as $adaptation_set)
+            {
+                foreach ($adaptation_set->getElementsByTagName('Representation') as $rep)
+                {
+                    $rep_id = $rep->getAttribute('id');
+                    $rep_BW = $rep->getAttribute('bandwidth');
+                    $mimeType = $adaptation_set->getAttribute('mimeType');
+                    if($mimeType == 'video/mp4')
+                    {
+                        $video_rep_array[$rep_id] = $rep_BW;
+                    }
+                    elseif($mimeType == 'audio/mp4')
+                    {
+                        $audio_rep_array[$rep_id] = $rep_BW;
+                    }
+                    elseif ($mimeType == 'application/mp4') 
+                    {
+                        $sub_rep_array[$rep_id] = $rep_BW;
+                    }
+                    elseif($mimeType == '')
+                    {
+                        if($rep->getAttribute('mimeType') == 'video/mp4')
+                        {
+                            $video_rep_array[$rep_id] = $rep_BW;
+                        }
+                        elseif ($rep->getAttribute('mimeType') == 'audio/mp4') 
+                        {
+                            $audio_rep_array[$rep_id] = $rep_BW;
+                        }
+                        elseif ($rep->getAttribute('mimeType') == 'application/mp4') 
+                        {
+                            $sub_rep_array[$rep_id] = $rep_BW;
+                        }
+                    }     
+                }
+            }
+            $constraint_violation_report = fopen($locate."/mpdreport.txt", 'a+b');
+            foreach ($video_rep_array as $k_v => $v_BW)
+            {
+                foreach ($audio_rep_array as $k_a => $a_BW)
+                {
+                    foreach ($sub_rep_array as $k_s => $s_BW)
+                    {
+                        $total_BW = $s_BW + $a_BW + $v_BW;
+                        if(($total_BW > 12000000) && ($total_BW <= 39000000))
+                        {
+                            // 12 Mbit/s if the terminal does not support UHD video.
+                            fwrite($constraint_violation_report, "***Information on HbbTV: Period ".$period_id." -> HbbTV TLS bitrate constraint violation - If the terminal does not support UHD video the bitrate "
+                                    . "should not exceed 12 Mbit/s.\n---The bandwidth sum of representations: ".$k_v.", ".$k_a.", ".$k_s." with the respective bandwidths: "
+                                    . $v_BW." bps, ".$a_BW." bps, ".$s_BW." bps which amounts to a total of ".$total_BW." bps was found to violate this constraint.***\n");
+                            
+                        }
+                        elseif (($total_BW > 39000000) && ($total_BW <= 51000000)) 
+                        {
+                            // 12 Mbit/s if the terminal does not support UHD video.
+                            // 39 Mbit/s if the terminal does support UHD video but does not support HFR video. 
+                            fwrite($constraint_violation_report, "***Information on HbbTV: Period ".$period_id." -> HbbTV TLS bitrate constraint violation - If the terminal does support UHD video but does not support HFR video"
+                                    . " the bitrate should not exceed 39 Mbit/s.\n---The bandwidth sum of representations: ".$k_v.", ".$k_a.", ".$k_s." with the respective bandwidths: "
+                                    . $v_BW." bps, ".$a_BW." bps, ".$s_BW." bps which amounts to a total of ".$total_BW." bps was found to violate this constraint.***\n");
+                        }
+                        elseif($total_BW > 51000000)
+                        {
+                            // 12 Mbit/s if the terminal does not support UHD video.
+                            // 39 Mbit/s if the terminal does support UHD video but does not support HFR video.
+                            // 51 Mbit/s if the terminal supports UHD HFR video. 
+                            fwrite($constraint_violation_report, "***Information on HbbTV: Period ".$period_id." -> HbbTV TLS bitrate constraint violation - If the terminal supports UHD HFR video"
+                                    . " the bitrate should not exceed 51 Mbit/s.\n---The bandwidth sum of representations: ".$k_v.", ".$k_a.", ".$k_s." with the respective bandwidths: "
+                                    . $v_BW." bps, ".$a_BW." bps, ".$s_BW." bps which amounts to a total of ".$total_BW." bps was found to violate this constraint.***\n");
+                        } 
+                    }
+                }
+            }
+            $perio_index ++;
+        }
+    }
+    fclose($constraint_violation_report);
+}

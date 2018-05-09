@@ -1319,7 +1319,7 @@ function DVB_content_protection($adapt, $reps, $mpdreport, $i, $cenc){
 
 function HbbTV_mpdvalidator($dom, $mpdreport){
     
-    global $onRequest_array, $xlink_not_valid_array;
+    global $onRequest_array, $xlink_not_valid_array, $cp_dom;
     
     if(!empty($onRequest_array))
     {
@@ -1336,7 +1336,7 @@ function HbbTV_mpdvalidator($dom, $mpdreport){
         $xlink_not_valid_array,array_keys($xlink_not_valid_array)));
         fwrite($mpdreport, "###'HbbTV check violated, MPD invalid xlink:href', found in :".$xlink_not_valid_k_v."\n"); 
     }
-    
+    TLS_bitrate_check($cp_dom);
     $mpd_string = $dom->saveXML();
     $mpd_bytes = strlen($mpd_string);
     if($mpd_bytes > 100*1024){
