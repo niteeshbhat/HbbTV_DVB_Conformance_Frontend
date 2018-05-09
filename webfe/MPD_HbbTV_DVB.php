@@ -9,8 +9,10 @@
 $period_count = 0;
 $adapt_video_count = 0;
 $adapt_audio_count = 0;
+$main_audios = array();
 $main_audio_found = false;
 $main_video_found = false;
+$hoh_subtitle_lang = array();
 $video_bw = array();
 $audio_bw = array();
 $subtitle_bw = array();
@@ -233,7 +235,7 @@ function DVB_HbbTV_cross_profile_check($dom, $mpdreport){
 #}
 
 function DVB_mpdvalidator($dom, $mpdreport){
-    global $adapt_video_count, $adapt_audio_count, $main_audio_found, $period_count, $audio_bw, $video_bw, $subtitle_bw, $supported_profiles;
+    global $adapt_video_count, $adapt_audio_count, $main_audio_found, $main_audios, $hoh_subtitle_lang, $period_count, $audio_bw, $video_bw, $subtitle_bw, $supported_profiles;
     
     global $onRequest_array, $xlink_not_valid_array;
     
@@ -353,7 +355,8 @@ function DVB_mpdvalidator($dom, $mpdreport){
             $period_count++;
             $adapt_video_count = 0; 
             $main_video_found = false;
-                                      
+            $main_audio_found = false;
+            
             foreach ($node->childNodes as $child){
                 if($child->nodeName == 'SegmentList')
                     fwrite($mpdreport, "###'DVB check violated: Section 4.2.2- The Period.SegmentList SHALL not be present', but found in Period $period_count.\n");
@@ -454,6 +457,25 @@ function DVB_mpdvalidator($dom, $mpdreport){
             if($video_service){
                 StreamBandwidthCheck($mpdreport);
             }
+            
+            ## Section 7.1.2 Table 11 - First Row "Hard of Hearing"
+            if($main_audio_found){
+                if(!empty($hoh_subtitle_lang)){
+                    $main_lang = array();
+                    foreach($main_audios as $main_audio){
+                        if($main_audio->getAttribute('lang') != '')
+                            $main_lang[] = $main_audio->getAttribute('lang');
+                    }
+                    
+                    foreach($hoh_subtitle_lang as $hoh_lang){
+                        if(!empty($main_lang)){
+                            if(!in_array($hoh_lang, $main_lang))
+                                fwrite($mpdreport, "###'DVB check violated: Section 7.1.2- According to Table 11, when hard of hearing subtitle type is signalled the @lang attribute of the subtitle representation SHALL be the same as the main audio for the programme', @lang attributes do not match in Period $period_count.\n");
+                        }
+                    }
+                }
+            }
+            ##
         }
         
         if($period_count > 64)
@@ -813,12 +835,24 @@ function DVB_video_checks($adapt, $reps, $mpdreport, $i, $contentTemp_vid_found)
             if($adapt->getAttribute('contentType') == 'video'){
                 if($ch->getAttribute('schemeIdUri') == 'urn:mpeg:dash:role:2011' && $ch->getAttribute('value') == 'main')
                     $main_video_found = true;
-                }
             }
-            if($ch->nodeName == 'ContentComponent'){
-                if($ch->getAttribute('contentType') == 'video')
-                    $ids[] = $ch->getAttribute('id');
+        }
+        if($ch->nodeName == 'ContentComponent'){
+            if($ch->getAttribute('contentType') == 'video')
+                $ids[] = $ch->getAttribute('id');
+        }
+        if($ch->nodeName == 'SupplementalProperty'){
+            if($ch->getAttribute('schemeIdUri') == 'urn:dvb:dash:fontdownload:2014' && $ch->getAttribute('value') == '1'){
+                if($ch->getAttribute('url') != '' && $ch->getAttribute('fontFamily') != '' && $ch->getAttribute('mimeType') != '')
+                    fwrite($mpdreport, "###'DVB check violated: Section 7.2.1.1- For DVB font download for subtitles, a descriptor with these properties SHALL only be placed within an Adaptation Set containing subtitle Representations', found SupplementalProperty element signaling downloadable fonts in video Adaptation Set in Period $period_count Adaptation Set " . ($i+1) . ".\n");
             }
+        }
+        if($ch->nodeName == 'EssentialProperty'){
+            if($ch->getAttribute('schemeIdUri') == 'urn:dvb:dash:fontdownload:2014' && $ch->getAttribute('value') == '1'){
+                if($ch->getAttribute('url') != '' && $ch->getAttribute('fontFamily') != '' && $ch->getAttribute('mimeType') != '')
+                    fwrite($mpdreport, "###'DVB check violated: Section 7.2.1.1- For DVB font download for subtitles, a descriptor with these properties SHALL only be placed within an Adaptation Set containing subtitle Representations', found EssentialProperty element signaling downloadable fonts in video Adaptation Set in Period $period_count Adaptation Set " . ($i+1) . ".\n");
+            }
+        }
     }
     ##
     
@@ -948,7 +982,7 @@ function DVB_video_checks($adapt, $reps, $mpdreport, $i, $contentTemp_vid_found)
 }
 
 function DVB_audio_checks($adapt, $reps, $mpdreport, $i, $contentTemp_aud_found){
-    global $adapt_audio_count, $main_audio_found, $period_count, $audio_bw;
+    global $adapt_audio_count, $main_audios, $main_audio_found, $period_count, $audio_bw;
     
     if($adapt->getAttribute('contentType') == 'audio'){
         $adapt_audio_count++;
@@ -973,10 +1007,11 @@ function DVB_audio_checks($adapt, $reps, $mpdreport, $i, $contentTemp_aud_found)
             if($ch->getAttribute('schemeIdUri') == 'urn:mpeg:dash:role:2011'){
                 $adapt_specific_role_count++;
                 $role_values[] = $ch->getAttribute('value');
-            }
-            if($adapt->getAttribute('contentType') == 'audio' && $ch->getAttribute('value') == 'main'){
-                $main_audio_found = true;
-                $main_audios[] = $adapt;
+                
+                if($ch->getAttribute('value') == 'main'){
+                    $main_audio_found = true;
+                    $main_audios[] = $adapt;
+                }
             }
         }
         if($ch->nodeName == 'Accessibility'){
@@ -997,6 +1032,18 @@ function DVB_audio_checks($adapt, $reps, $mpdreport, $i, $contentTemp_aud_found)
                     }
                 }
                 $ids[] = $ch->getAttribute('id');
+            }
+        }
+        if($ch->nodeName == 'SupplementalProperty'){
+            if($ch->getAttribute('schemeIdUri') == 'urn:dvb:dash:fontdownload:2014' && $ch->getAttribute('value') == '1'){
+                if($ch->getAttribute('url') != '' && $ch->getAttribute('fontFamily') != '' && $ch->getAttribute('mimeType') != '')
+                    fwrite($mpdreport, "###'DVB check violated: Section 7.2.1.1- For DVB font download for subtitles, a descriptor with these properties SHALL only be placed within an Adaptation Set containing subtitle Representations', found SupplementalProperty element signaling downloadable fonts in audio Adaptation Set in Period $period_count Adaptation Set " . ($i+1) . ".\n");
+            }
+        }
+        if($ch->nodeName == 'EssentialProperty'){
+            if($ch->getAttribute('schemeIdUri') == 'urn:dvb:dash:fontdownload:2014' && $ch->getAttribute('value') == '1'){
+                if($ch->getAttribute('url') != '' && $ch->getAttribute('fontFamily') != '' && $ch->getAttribute('mimeType') != '')
+                    fwrite($mpdreport, "###'DVB check violated: Section 7.2.1.1- For DVB font download for subtitles, a descriptor with these properties SHALL only be placed within an Adaptation Set containing subtitle Representations', found EssentialProperty element signaling downloadable fonts in audio Adaptation Set in Period $period_count Adaptation Set " . ($i+1) . ".\n");
             }
         }
     }
@@ -1167,8 +1214,9 @@ function DVB_audio_checks($adapt, $reps, $mpdreport, $i, $contentTemp_aud_found)
 }
 
 function DVB_subtitle_checks($adapt, $reps, $mpdreport, $i){
-    global $period_count, $subtitle_bw;
+    global $period_count, $subtitle_bw, $hoh_subtitle_lang;
     
+    $str_codec_info = '';
     $adapt_mimeType = $adapt->getAttribute('mimeType');
     $adapt_codecs = $adapt->getAttribute('codecs');
     $adapt_type = $adapt->getAttribute('contentType');
@@ -1178,7 +1226,12 @@ function DVB_subtitle_checks($adapt, $reps, $mpdreport, $i){
     $supp_present = false; $supp_scheme = array(); $supp_val = array(); $supp_url = array(); $supp_fontFam = array(); $supp_mime = array();
     $ess_present = false; $ess_scheme = array(); $ess_val = array(); $ess_url = array(); $ess_fontFam = array(); $ess_mime = array();
     
+    if(strpos($adapt_codecs, 'stpp') != FALSE)
+        $str_codec_info .= 'y ';
+    
     $ids = array();
+    $hoh_acc = false;
+    $hoh_role = false;
     foreach($adapt->childNodes as $ch){
         if($ch->nodeName == 'ContentComponent'){
             $contentComp = true;
@@ -1202,6 +1255,19 @@ function DVB_subtitle_checks($adapt, $reps, $mpdreport, $i){
             $ess_fontFam[] = $ch->getAttribute('fontFamily');
             $ess_mime[] = $ch->getAttribute('mimeType');
         }
+        if($ch->nodeName == 'Accessibility'){
+            if($ch->getAttribute('schemeIdUri') == 'urn:tva:metadata:cs:AudioPurposeCS:2007' && $ch->getAttribute('value') == '2')
+                $hoh_acc = true;
+        }
+        if($ch->nodeName == 'Role'){
+            if($ch->getAttribute('schemeIdUri') == 'urn:mpeg:dash:role:2011' && $ch->getAttribute('value') == 'main')
+                $hoh_role = true;
+        }
+    }
+    
+    if($hoh_acc && $hoh_role){
+        if($adapt->getAttribute('lang') != '')
+            $hoh_subtitle_lang[] = $adapt->getAttribute('lang');
     }
     
     $reps_len = $reps->length;
@@ -1209,11 +1275,16 @@ function DVB_subtitle_checks($adapt, $reps, $mpdreport, $i){
         $rep = $reps->item($j);
         
         $rep_codecs = $rep->getAttribute('codecs');
+        if(strpos($rep_codecs, 'stpp') !== FALSE)
+            $str_codec_info .= 'y ';
+        
         $subrep_codecs = array();
         foreach ($rep->childNodes as $ch){
             if($ch->nodeName == 'SubRepresentation'){
                 $subrep_codecs[] = $ch->getAttribute('codecs');
-            
+                if(strpos($ch->getAttribute('codecs'), 'stpp'))
+                    $str_codec_info .= 'y ';
+                
                 ##Information from this part is for Section 11.3.0: audio stream bandwidth percentage
                 if(in_array($ch->getAttribute('contentComponent'), $ids)){
                     $subtitle_bw[] = ($rep->getAttribute('bandwidth') != '') ? (float)($rep->getAttribute('bandwidth')) : (float)($ch->getAttribute('bandwidth'));
@@ -1234,6 +1305,10 @@ function DVB_subtitle_checks($adapt, $reps, $mpdreport, $i){
                     fwrite($mpdreport, "###'DVB check violated: Section 7.1.2- In oder to allow a Player to identify the primary purpose of a subtitle track, the language attribute SHALL be set on the Adaptation Set', not found on Adaptaion Set ". ($i+1) . ".\n");
             }
             
+            // Check if subtitle codec attribute is set correctly
+            if($str_codec_info == '')
+                fwrite($mpdreport, "###'DVB check violated: Section 7.1.1- The @codecs attribute indicated for subtitles SHALL be \"stpp\"', not used for in Period $period_count Adaptation Set " . ($i+1) . " Representation " . ($j+1) . ".\n");
+                
             ##Information from this part is for Section 11.3.0: audio stream bandwidth percentage 
             if(! $contentComp){
                 $subtitle_bw[] = (float)($rep->getAttribute('bandwidth'));
@@ -1252,7 +1327,7 @@ function DVB_subtitle_checks($adapt, $reps, $mpdreport, $i){
                     if($supp_val[$x] != '1'){
                         fwrite($mpdreport, "###'DVB check violated: Section 7.2.1.1- This descriptor (SupplementalProperty for downloadable fonts) SHALL use the values for @schemeIdUri and @value specified in clause 7.2.1.2', found as \"$supp_scheme_i\" and \"". $supp_val[$x] . "\" in Period $period_count Adaptation Set " . ($i+1) . ".\n");
                     }
-                    if($supp_url[$x] == '' || $supp_fontFam[$x] == '' || $supp_mime[$x] != 'application/font-sfnt' || $supp_mime[$x] != 'application/font-woff'){
+                    if($supp_url[$x] == '' || $supp_fontFam[$x] == '' || ($supp_mime[$x] != 'application/font-sfnt' && $supp_mime[$x] != 'application/font-woff')){
                         fwrite($mpdreport, "###'DVB check violated: Section 7.2.1.1- The descriptor (SupplementalProperty for downloadable fonts) SHALL carry all the mandatory additional attributes defined in clause 7.2.1.3', not complete in Period $period_count Adaptation Set " . ($i+1) . ".\n");
                     }
                 }
@@ -1266,27 +1341,12 @@ function DVB_subtitle_checks($adapt, $reps, $mpdreport, $i){
                     if($ess_val[$x] != '1'){
                         fwrite($mpdreport, "###'DVB check violated: Section 7.2.1.1- This descriptor (EssentialProperty for downloadable fonts) SHALL use the values for @schemeIdUri and @value specified in clause 7.2.1.2', found as \"$ess_scheme_i\" and \"". $ess_val[$x] . "\" in Period $period_count Adaptation Set " . ($i+1) . ".\n");
                     }
-                    if($ess_url[$x] == '' || $ess_fontFam[$x] == '' || $ess_mime[$x] != 'application/font-sfnt' || $ess_mime[$x] != 'application/font-woff'){
+                    if($ess_url[$x] == '' || $ess_fontFam[$x] == '' || ($ess_mime[$x] != 'application/font-sfnt' && $ess_mime[$x] != 'application/font-woff')){
                         fwrite($mpdreport, "###'DVB check violated: Section 7.2.1.1- The descriptor (EssentialProperty for downloadable fonts) SHALL carry all the mandatory additional attributes defined in clause 7.2.1.3', not complete in Period $period_count Adaptation Set " . ($i+1) . ".\n");
                     }
                 }
                 $x++;
             }
-        }
-    }
-    
-    $all_supp = $adapt->getElementsByTagName('SupplementalProperty');
-    $all_ess = $adapt->getElementsByTagName('EssentialProperty');
-    foreach($all_supp as $supp) {
-        if($supp->getAttribute('schemeIdUri') == 'urn:dvb:dash:fontdownload:2014' && $supp->getAttribute('value') == '1' && $supp->getAttribute('url') != '' && $supp->getAttribute('fontFamily') != '' && ($supp->getAttribute('mimeType') == 'application/font-sfnt' || $supp->getAttribute('mimeType') == 'application/font-woff')){
-            if($supp->parentNode->nodeName != 'AdaptationSet')
-                fwrite($mpdreport, "###'DVB check violated: Section 7.2.1.1- A descriptor (EssentialProperty for downloadable fonts) with these properties SHALL only be placed within an AdaptationSet containing subtitle Representations', not found on Adaptation Set " . " in Period $period_count Adaptation Set " . ($i+1) . ".\n");
-        }
-    }
-    foreach($all_ess as $ess) {
-        if($ess->getAttribute('schemeIdUri') == 'urn:dvb:dash:fontdownload:2014' && $ess->getAttribute('value') == '1' && $ess->getAttribute('url') != '' && $ess->getAttribute('fontFamily') != '' && ($supp->getAttribute('mimeType') == 'application/font-sfnt' || $ess->getAttribute('mimeType') == 'application/font-woff')){
-            if($ess->parentNode->nodeName != 'AdaptationSet')
-                fwrite($mpdreport, "###'DVB check violated: Section 7.2.1.1- A descriptor (EssentialProperty for downloadable fonts) with these properties SHALL only be placed within an AdaptationSet containing subtitle Representations', not found on Adaptation Set " . " in Period $period_count Adaptation Set " . ($i+1) . ".\n");
         }
     }
     ##
