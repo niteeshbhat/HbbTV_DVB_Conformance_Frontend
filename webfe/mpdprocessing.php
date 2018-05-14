@@ -850,16 +850,31 @@ function process_mpd()
             $subtitle_rep = false;
             $adapt = $periodNode->getElementsByTagName('AdaptationSet')->item($count1);
             $rep = $adapt->getElementsByTagName('Representation')->item($count2);
-            if(strpos($adapt->getAttribute('mimeType'), 'application') || $adapt->getAttribute('contentType') == 'text' || $adapt->getAttribute('codecs') == 'stpp'){
-                $subtitle_rep = true;
-            }
-            if(strpos($rep->getAttribute('mimeType'), 'application') || $rep->getAttribute('codecs') == 'stpp'){
-                $subtitle_rep = true;
-            }
-            if($adapt->getElementsByTagName('ContentComponent')->length != 0){
-                $contComp = $adapt->getElementsByTagName('ContentComponent')->item(0);
-                if($contComp->getAttribute('contentType') == 'text')
+            
+            if((strpos($adapt->getAttribute('mimeType'), 'application') != FALSE || strpos($rep->getAttribute('mimeType'), 'application') !== FALSE) &&
+               ($adapt->getAttribute('codecs') == 'stpp' || $rep->getAttribute('codecs') == 'stpp')){
+                
+                $contType = $adapt->getAttribute('contentType');
+                if($contType == ''){
+                    if($adapt->getElementsByTagName('ContentComponent')->length != 0){
+                        $contComp = $adapt->getElementsByTagName('ContentComponent')->item(0);
+                        if($contComp->getAttribute('contentType') == 'text')
+                            $subtitle_rep = true;
+                    }
+                    else
+                        $subtitle_rep = true;
+                }
+                elseif($contType == 'text')
                     $subtitle_rep = true;
+            }
+            
+            if($subtitle_rep){
+                $subtitle_dir = $pathdir . 'Subtitles/';
+                if (!file_exists($subtitle_dir)){
+                    $oldmask = umask(0);
+                    mkdir($subtitle_dir, 0777, true);
+                    umask($oldmask);
+                }
             }
             ##
             
