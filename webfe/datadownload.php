@@ -102,7 +102,7 @@ function downloaddata($directory, $array_file, $subtitle_rep)
                         ## For DVB subtitle checks related to mdat content
                         ## Save the mdat boxes' content into xml files
                         if($subtitle_rep){
-                            $mdat_file = $directory . $mdat_index . '.xml';
+                            $mdat_file = $directory . 'Subtitles/' . $mdat_index . '.xml';
                             fopen($mdat_file, 'w');
                             chmod($mdat_file, 0777);
                             $mdat_index++;
