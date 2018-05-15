@@ -14,7 +14,7 @@ function CrossValidation_HbbTV_DVB($dom,$hbbtv,$dvb)
 function common_crossValidation($dom,$hbbtv,$dvb)
 {
     global $locate, $Period_arr, $string_info, $cp_dom;
-    content_protection_report($cp_dom);
+    //content_protection_report($cp_dom);
     for($adapt_count=0; $adapt_count<sizeof($Period_arr); $adapt_count++){
         $loc = $locate . '/Adapt' . $adapt_count.'/';
         
