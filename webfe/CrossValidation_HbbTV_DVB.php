@@ -14,7 +14,8 @@ function CrossValidation_HbbTV_DVB($dom,$hbbtv,$dvb)
 function common_crossValidation($dom,$hbbtv,$dvb)
 {
     global $locate, $Period_arr, $string_info, $cp_dom;
-    //content_protection_report($cp_dom);
+    content_protection_report($cp_dom);
+    seg_duration_checks($cp_dom);
     for($adapt_count=0; $adapt_count<sizeof($Period_arr); $adapt_count++){
         $loc = $locate . '/Adapt' . $adapt_count.'/';
         
@@ -1361,7 +1362,7 @@ function bitrate_report($opfile, $dom, $xml_rep, $adapt_count, $rep_count, $size
     $bitrate_info = substr($bitrate_info, 0, strlen($bitrate_info)-2);
     
     $bitrate_report_name = 'Adapt' . $adapt_count . 'rep' . $rep_count . '.png';
-    $command="cd $locate && python bitratereport.py $locate $bitrate_info $bandwidth $bitrate_report_name";
+    $command="cd $locate && python bitratereport.py $bitrate_info $bandwidth $bitrate_report_name";
     exec($command);
 
     //exec($command,$output);
@@ -1404,24 +1405,25 @@ function content_protection_report($dom_MPD)
         $missing_pssh_array = array(); //holds the uuid-s of the DRM-s which are missing the pssh in the mpd
         $reps_array = array(); // for the summary of reps and their KID
         $rep_index = 0;
-        $kID_flag = false;
-        $content_protection_flag = false;
+        $MPD_kID_flag = false;
         $generic_identifier = "";
+        $content_protection_flag = false;
         foreach ($node->getElementsByTagName('ContentProtection') as $cp_node)
         {
+            // only if there is a content protection instance the below will be executed
+            $content_protection_flag = true;
             if(($cp_node->getAttribute('schemeIdUri') == "urn:mpeg:dash:mp4protection:2011") || ($cp_node->getAttribute('schemeIdUri') == 'urn:mpeg:dash:13818:1:CA_descriptor:2011'))
             {
                 $generic_identifier = $cp_node->getAttribute('schemeIdUri');
             }
             
-            $content_protection_flag = true;
-            if(!$kID_flag) // if a KID was not found in the init seg check in the mpd
+            if((!$MPD_kID_flag) && ($generic_identifier != "")) // if a KID was not found in the init seg check in the mpd
             {   
-                $kID = $cp_node->getAttribute('cenc:default_KID');
-                if($kID != '')
+                $MPD_kID = $cp_node->getAttribute('cenc:default_KID');
+                if($MPD_kID != '')
                 {
-                    $kID = str_replace('-', '', $kID);
-                    $kID_flag = true; //there is a cenc:default_KID, so there must be a pssh in a mpd or init seg
+                    $MPD_kID = str_replace('-', '', $kID);
+                    $MPD_kID_flag = true; //there is a cenc:default_KID, so there must be a pssh in a mpd or init seg
                 }
             }
 
@@ -1450,142 +1452,174 @@ function content_protection_report($dom_MPD)
             }
         }
         
-        //reporting DRM systems in use
-        if($generic_identifier != "")
-        {
-            $MPD_systemID_k_v  = implode(', ', array_map(
-            function ($v, $k) { return sprintf(" '%s' :: '%s'", $k, $v); },
-            $MPD_systemID_array,array_keys($MPD_systemID_array)));
-            fwrite($adaptreport, "Information on DVB/HbbTV: DRM systems present in the MPD in Adaptation Set ".$adapt_id.
-                    " are identified as follows: ".$generic_identifier." :: ".$DRM_uuid_array[$generic_identifier]." ".$MPD_systemID_k_v."\n"); 
-        } 
-
-        foreach ($node->getElementsByTagName('Representation') as $rep)
+        /*For an encrypted Adaptation Set, ContentProtection Descriptors shall always be
+        present in the AdaptationSet element, and apply to all contained Representations.
+        A ContentProtection Descriptor for the mp4 Protection Scheme with the
+        @schemeIdUri value of "urn:mpeg:dash:mp4protection:2011" and
+        @value=’cenc’ shall be present in the AdaptationSet element if the contained
+        Representations are encrypted.*/
+        if($content_protection_flag)
         {    
-            $duplication_flag = false;
-            $inconsistency_flag = false;
-            $missing_pssh_flag = false;
-            $PSSH_systemID_array = array(); // to see the DRM uuid in mpd and pssh and compare them
-            $xml_file_location = ($locate.'/Adapt'.$Adapt_index.'/Adapt'.$Adapt_index.'rep'.$rep_index.'.xml'); //first rep of the adapt set will have the same pssh as the rest
-            $load = simplexml_load_file($xml_file_location); // load mpd from url 
-            $dom_abs = dom_import_simplexml($load);
-            $abs = new DOMDocument('1.0');
-            $dom_abs = $abs->importNode($dom_abs, true); //create dom element to contain mpd     
-            $abs->appendChild($dom_abs);
-            if(!$kID_flag)   
-            {   
-                $kID = $abs->getElementsByTagName('tenc')->item(0)->getAttribute('default_KID');//default KID can be in the pssh in the init seg
-                if($kID != '')
-                {
-                    $kID_flag = true;
-                }
-            }
-            foreach ($abs->getElementsByTagName('pssh') as $pssh_node)
+            //reporting DRM systems in use
+            if($generic_identifier != "")
             {
+                $MPD_systemID_k_v  = implode(', ', array_map(
+                function ($v, $k) { return sprintf(" '%s' :: '%s'", $k, $v); },
+                $MPD_systemID_array,array_keys($MPD_systemID_array)));
+                fwrite($adaptreport, "Information on DVB/HbbTV: DRM systems present in the MPD in Adaptation Set ".$adapt_id.
+                " are identified as follows: ".$generic_identifier." :: ".$DRM_uuid_array[$generic_identifier]." ".$MPD_systemID_k_v."\n");
+                
+                $tenc_kID_array = array();
+                foreach ($node->getElementsByTagName('Representation') as $rep)
+                {    
+                    $duplication_flag = false;
+                    $inconsistency_flag = false;
+                    $missing_pssh_flag = false;
+                    $PSSH_systemID_array = array(); // to see the DRM uuid in mpd and pssh and compare them
+                    $tenc_kID_flag = false;
+                    
+                    $xml_file_location = ($locate.'/Adapt'.$Adapt_index.'/Adapt'.$Adapt_index.'rep'.$rep_index.'.xml'); //first rep of the adapt set will have the same pssh as the rest
+                    $load = simplexml_load_file($xml_file_location); // load mpd from url 
+                    $dom_abs = dom_import_simplexml($load);
+                    $abs = new DOMDocument('1.0');
+                    $dom_abs = $abs->importNode($dom_abs, true); //create dom element to contain mpd     
+                    $abs->appendChild($dom_abs);
+                    
+                    /*There SHALL be identical values of default_KID in the Track Encryption Box
+                    (‘tenc’) of all Representation referenced by one Adaptation Set.*/
+                          
+                    $tenc_kID = $abs->getElementsByTagName('tenc')->item(0)->getAttribute('default_KID');//default KID can be in the pssh in the init seg
+                    if($tenc_kID != '')
+                    {
+                        $tenc_kID_flag = true;
+                        $tenc_kID_array[] = $tenc_kID;
+                    }
+                    foreach ($abs->getElementsByTagName('pssh') as $pssh_node)
+                    {
 
-                $PSSH_systemID = 'urn:uuid:'.$pssh_node->getAttribute('systemID');
-                if(array_key_exists($PSSH_systemID, $DRM_uuid_array))
+                        $PSSH_systemID = 'urn:uuid:'.$pssh_node->getAttribute('systemID');
+                        if(array_key_exists($PSSH_systemID, $DRM_uuid_array))
+                        {
+                            $PSSH_systemID_array[$PSSH_systemID] = $DRM_uuid_array[$PSSH_systemID];
+                        }
+                        else 
+                        {
+                           $PSSH_systemID_array[$PSSH_systemID] = 'unknown'; //if no matches are found in the mapping array 
+                        }        
+                    }
+
+                    if($tenc_kID_flag || $MPD_kID_flag)
+                    {   
+                        // if a pssh is missing in the mpd then there must be in the init seg
+                        // all the nr of instances which are missing the pssh in the mpd must be in the init seg  
+                        if((count($missing_pssh_array) != 0) && (count(array_intersect($missing_pssh_array, $PSSH_systemID_array)) != count($missing_pssh_array)))//not all the missing pssh are in the init seg
+                        {
+                            $missing_pssh_flag = true; 
+                        }
+                    }
+
+                    if(!empty($PSSH_systemID_array)) //comparing if there's a DRM in pssh since the MPD has at least a generic one 
+                    {
+                        //flag if in both and show inconsistencies 
+                        //$diff_1 = array_diff($MPD_systemID_array, $PSSH_systemID_array); // the uuid that are in mpd but not in pssh
+                        $diff_2 = array_diff(array_keys($PSSH_systemID_array), array_keys($MPD_systemID_array)); // the uuid that are in pssh but not mpd
+                        if(count(array_intersect(array_keys($PSSH_systemID_array), array_keys($MPD_systemID_array))) !=0)
+                        {
+                            $duplication_flag = true; //there is at least one DRM with the same uuid in both
+                        }
+                        else //the pssh box has at least one DRM uuid which is not in the mpd while all the DRM uuid-s must be in the ContentProtection instance of the MPD, so we have inconsistency 
+                        {
+                            $inconsistency_flag = true; 
+                        }    
+                    }
+                    //add summary for encrypted rep and their kID. use rep id to identify them     
+                    $repr_id = $rep->getAttribute('id');
+                    $reps_array[$repr_id] = $tenc_kID; 
+                    //checking for key rotation:
+                    //if there is no pssh in any moof then no key rotation is used
+                    foreach ($abs->getElementsByTagName('moof') as $moof) 
+                    {
+                        if($moof->getElementsByTagName('pssh')->length != 0) //if pssh does't exists and is an empty node
+                        {
+                            if(($moof->getElementsByTagName('sgpd')->length != 0) && ($moof->getElementsByTagName('sbgp')->length != 0))
+                            {
+                                $key_rotation_used = true;
+                            }
+                        }     
+                    }
+                    //Check the scheme_type field of the ‘schm’ box has the value ‘cenc’
+                    if($abs->getElementsByTagName('schm')->item(0)->getAttribute('scheme') !== "cenc")
+                    {
+                        fwrite($adaptreport, "Information on DVB/HbbTV: 'cenc' scheme not found in 'schm' box in Adaptation Set: ".$adapt_id.", Representation: ".$repr_id."\n"); 
+                    }    
+                    if(!empty($PSSH_systemID_array))
+                    {
+                        $PSSH_systemID_k_v  = implode(', ', array_map(
+                        function ($v, $k) { return sprintf(" '%s' :: '%s'", $k, $v); },
+                        $PSSH_systemID_array,array_keys($PSSH_systemID_array)));
+                        fwrite($adaptreport, "Information on DVB/HbbTV: DRM systems present in the PSSH in Adaptation Set: ".$adapt_id.", Representation: ".$repr_id." are identified as follows ".$PSSH_systemID_k_v."\n"); 
+                    } 
+
+                    //reporting if there is a missing PSSH
+                    if($missing_pssh_flag)
+                    {
+                        fwrite($adaptreport, "Information on DVB/HbbTV: Warning! There is default_KID: ".$tenc_kID." but there is/are missing PSSH box/es (both in MPD and Init segment)"
+                            . " in Adaptation Set: ".$adapt_id." Representation: ".$repr_id."\n");
+                    }
+                    //reporting duplicate and inconsistent DRM-s in MPD and PSSH box
+                    if($duplication_flag)
+                    {
+                        fwrite($adaptreport, "Information on DVB/HbbTV: There are consistent DRM-s in MPD and PSSH box in Adaptation Set: ".$adapt_id.", Representation: ".$repr_id."\n");
+                    }
+
+                    if($inconsistency_flag)
+                    {
+                        $diff_2_k_v  = implode(', ', array_map(
+                        function ($v, $k) { return sprintf(" SystemID: '%s' ", $v); },
+                        $diff_2,array_keys($diff_2)));
+                        fwrite($adaptreport, "Information on DVB/HbbTV: There are inconsistent DRM-s in MPD and PSSH box in Adaptation Set: ".$adapt_id.", Representation: ".$repr_id." :\n "
+                                . "the following DRM systems were found present in PSSH but not MPD:\n".$diff_2_k_v."\n");;
+                    }
+
+                    $rep_index ++; 
+                }
+
+                //summary of reps and the KID used
+                if($tenc_kID_flag)
                 {
-                    $PSSH_systemID_array[$PSSH_systemID] = $DRM_uuid_array[$PSSH_systemID];
+                    if(count(array_unique($tenc_kID_array)) == 1) // is all defauld_KID-s in the adaptation set are the same then write the following report
+                    {
+                        $reps_k  = implode(', ', array_map(
+                        function ($v, $k) { return sprintf(" '%s' ", $k); },
+                        $reps_array,array_keys($reps_array)));
+                        fwrite($adaptreport, "Information on DVB/HbbTV: The KID: ".$tenc_kID." is used for representations:".$reps_k."in Adaptation Set ".$adapt_id."\n"); 
+                    }
+                    else
+                    {
+                        fwrite($adaptreport, "###ERROR on DVB/HbbTV: The Representations in Adaptation Set ".$adapt_id." should all have the same 'default_KID' in the 'tenc' box but found otherwise.\n");
+                    }
+                }
+                //reporting for key retation   
+                if($key_rotation_used)
+                {
+                    fwrite($adaptreport, "Information on DVB/HbbTV: Adaptation Set ".$adapt_id.": Key rotation used.\n");
                 }
                 else 
                 {
-                   $PSSH_systemID_array[$PSSH_systemID] = 'unknown'; //if no matches are found in the mapping array 
-                }        
+                    fwrite($adaptreport, "Information on DVB/HbbTV: Adaptation Set ".$adapt_id.": Key rotation not used.\n");
+                }   
             }
-
-            if($kID_flag)
-            {   
-                // if a pssh is missing in the mpd then there must be in the init seg
-                // all the nr of instances which are missing the pssh in the mpd must be in the init seg  
-                if((count($missing_pssh_array) != 0) && (count(array_intersect($missing_pssh_array, $PSSH_systemID_array)) != count($missing_pssh_array)))//not all the missing pssh are in the init seg
-                {
-                    $missing_pssh_flag = true; 
-                }
-            }
-
-            if(($generic_identifier != "" ||(!empty($MPD_systemID_array))) && (!empty($PSSH_systemID_array))) //comparing if there's a DRM uuid in both mpd an pssh
+            else 
             {
-                //flag if in both and show inconsistencies 
-                //$diff_1 = array_diff($MPD_systemID_array, $PSSH_systemID_array); // the uuid that are in mpd but not in pssh
-                $diff_2 = array_diff(array_keys($PSSH_systemID_array), array_keys($MPD_systemID_array)); // the uuid that are in pssh but not mpd
-                if(count(array_intersect(array_keys($PSSH_systemID_array), array_keys($MPD_systemID_array))) !=0)
-                {
-                    $duplication_flag = true; //there is at least one DRM with the same uuid in both
-                }
-                else //the pssh box has at least one DRM uuid which is not in the mpd while all the DRM uuid-s must be in the ContentProtection instance of the MPD, so we have inconsistency 
-                {
-                    $inconsistency_flag = true; 
-                }    
+                fwrite($adaptreport, "###ERROR on DVB/HbbTV: Content Protection instance found in Adaptation Set ".$adapt_id." but the ContentProtection Descriptor for the mp4 Protection Scheme with the".
+                "@schemeIdUri value of 'urn:mpeg:dash:mp4protection:2011' and @value=’cenc’ is missing.\n");
             }
-            //add summary for encrypted rep and their kID. use rep id to identify them 
-            if($generic_identifier != "") // if the adapt set is encrypted then all the reps in it are also encrypted
-            {     
-                $repr_id = $rep->getAttribute('id');
-                $reps_array[] = $repr_id;
-            }
-            //checking for key rotation:
-            //if there is no pssh in any moof then no key rotation is used
-            foreach ($abs->getElementsByTagName('moof') as $moof) 
-            {
-                if($moof->getElementsByTagName('pssh')->length != 0) //if pssh does't exists and is an empty node
-                {
-                    if(($moof->getElementsByTagName('sgpd')->length != 0) && ($moof->getElementsByTagName('sbgp')->length != 0))
-                    {
-                        $key_rotation_used = true;
-                    }
-                }     
-            }
-        
-            if(!empty($PSSH_systemID_array))
-            {
-                $PSSH_systemID_k_v  = implode(', ', array_map(
-                function ($v, $k) { return sprintf(" '%s' :: '%s'", $k, $v); },
-                $PSSH_systemID_array,array_keys($PSSH_systemID_array)));
-                fwrite($adaptreport, "Information on DVB/HbbTV: DRM systems present in the PSSH in Adaptation Set: ".$adapt_id.", Representation: ".$repr_id." are identified as follows ".$PSSH_systemID_k_v."\n"); 
-            } 
-            
-            //reporting if there is a missing PSSH
-            if($missing_pssh_flag)
-            {
-                fwrite($adaptreport, "Information on DVB/HbbTV: Warning! There is default_KID: ".$kID." but there is/are missing PSSH box/es (both in MPD and Init segment)"
-                    . " in Adaptation Set: ".$adapt_id." Representation: ".$repr_id."\n");
-            }
-            //reporting duplicate and inconsistent DRM-s in MPD and PSSH box
-            if($duplication_flag)
-            {
-                fwrite($adaptreport, "Information on DVB/HbbTV: There are consistent DRM-s in MPD and PSSH box in Adaptation Set: ".$adapt_id.", Representation: ".$repr_id."\n");
-            }
-
-            if($inconsistency_flag)
-            {
-                $diff_2_k_v  = implode(', ', array_map(
-                function ($v, $k) { return sprintf(" SystemID: '%s' ", $v); },
-                $diff_2,array_keys($diff_2)));
-                fwrite($adaptreport, "Information on DVB/HbbTV: There are inconsistent DRM-s in MPD and PSSH box in Adaptation Set: ".$adapt_id.", Representation: ".$repr_id." :\n "
-                        . "the following DRM systems were found present in PSSH but not MPD:\n".$diff_2_k_v."\n");;
-            }
-            
-            $rep_index ++; 
-        }
-        
-        //summary of reps and the KID used
-        if($kID_flag)
-        {
-            $reps_v  = implode(', ', array_map(
-            function ($v, $k) { return sprintf(" '%s' ", $v); },
-            $reps_array,array_keys($reps_array)));
-            fwrite($adaptreport, "Information on DVB/HbbTV: The KID: ".$kID." is used for representations:".$reps_v."in Adaptation Set ".$adapt_id."\n"); 
-        }
-        //reporting for key retation
-        if($key_rotation_used)
-        {
-            fwrite($adaptreport, "Information on DVB/HbbTV: Adaptation Set ".$adapt_id.": Key rotation used.\n");
         }
         else 
         {
-            fwrite($adaptreport, "Information on DVB/HbbTV: Adaptation Set ".$adapt_id.": Key rotation not used.\n");
+            fwrite($adaptreport, "Information on DVB/HbbTV: Content Protection not used in Adaptation Set ".$adapt_id.".\n");
         }
+            
         fwrite($adaptreport, "-------------------------------------------------------------------------------------------- \n");
         fclose($adaptreport);
         $Adapt_index ++; //move to check the next adapt set
@@ -1705,3 +1739,222 @@ function segment_timing_info($dom, $xml_rep){
     return $EPT;
 }
 
+function TLS_bitrate_check($dom_MPD)//$cp_dom as argument
+{
+    global $locate;
+    //test link https://media.axprod.net/TestVectors/v7-MultiDRM-SingleKey/Manifest.mpd
+    if($dom_MPD->getElementsByTagName('BaseURL')->length !=0)
+    {
+        $base_url = $dom_MPD->getElementsByTagName('BaseURL')->item(0)->textContent;
+    }
+    else
+    {
+        $base_url = '';
+    }
+
+    $MPD_url = $GLOBALS["url"];
+    //check if TLS is used
+    if (strpos($base_url, 'https') !== false)
+    {
+        $TLS_falg = true; 
+    }
+    elseif (strpos($base_url, 'http') !== false)
+    {
+        $TLS_falg = false;
+    }
+    else
+    {
+        if (strpos($MPD_url, 'https')!== false)
+        {
+            $TLS_falg = true;
+        }
+        else
+        {
+            $TLS_falg = false;
+        }
+    }
+    //if TLS is used then check if any combination excedes the constraint
+    if($TLS_falg)
+    {
+        $perio_index = 0;
+        foreach ($dom_MPD->getElementsByTagName('Period') as $period)
+        {
+            $period_id = $perio_index + 1;
+            $video_rep_array = array();
+            $audio_rep_array = array();
+            $sub_rep_array = array();
+            
+            foreach ($period->getElementsByTagName('AdaptationSet') as $adaptation_set)
+            {
+                foreach ($adaptation_set->getElementsByTagName('Representation') as $rep)
+                {
+                    $rep_id = $rep->getAttribute('id');
+                    $rep_BW = $rep->getAttribute('bandwidth');
+                    $mimeType = $adaptation_set->getAttribute('mimeType');
+                    if($mimeType == 'video/mp4')
+                    {
+                        $video_rep_array[$rep_id] = $rep_BW;
+                    }
+                    elseif($mimeType == 'audio/mp4')
+                    {
+                        $audio_rep_array[$rep_id] = $rep_BW;
+                    }
+                    elseif ($mimeType == 'application/mp4') 
+                    {
+                        $sub_rep_array[$rep_id] = $rep_BW;
+                    }
+                    elseif($mimeType == '')
+                    {
+                        if($rep->getAttribute('mimeType') == 'video/mp4')
+                        {
+                            $video_rep_array[$rep_id] = $rep_BW;
+                        }
+                        elseif ($rep->getAttribute('mimeType') == 'audio/mp4') 
+                        {
+                            $audio_rep_array[$rep_id] = $rep_BW;
+                        }
+                        elseif ($rep->getAttribute('mimeType') == 'application/mp4') 
+                        {
+                            $sub_rep_array[$rep_id] = $rep_BW;
+                        }
+                    }     
+                }
+            }
+            $constraint_violation_report = fopen($locate."/mpdreport.txt", 'a+b');
+            foreach ($video_rep_array as $k_v => $v_BW)
+            {
+                foreach ($audio_rep_array as $k_a => $a_BW)
+                {
+                    foreach ($sub_rep_array as $k_s => $s_BW)
+                    {
+                        $total_BW = $s_BW + $a_BW + $v_BW;
+                        if(($total_BW > 12000000) && ($total_BW <= 39000000))
+                        {
+                            // 12 Mbit/s if the terminal does not support UHD video.
+                            fwrite($constraint_violation_report, "***Information on HbbTV: Period ".$period_id." -> HbbTV TLS bitrate constraint violation - If the terminal does not support UHD video the bitrate "
+                                    . "should not exceed 12 Mbit/s.\n---The bandwidth sum of representations: ".$k_v.", ".$k_a.", ".$k_s." with the respective bandwidths: "
+                                    . $v_BW." bps, ".$a_BW." bps, ".$s_BW." bps which amounts to a total of ".$total_BW." bps was found to violate this constraint.***\n");
+                            
+                        }
+                        elseif (($total_BW > 39000000) && ($total_BW <= 51000000)) 
+                        {
+                            // 12 Mbit/s if the terminal does not support UHD video.
+                            // 39 Mbit/s if the terminal does support UHD video but does not support HFR video. 
+                            fwrite($constraint_violation_report, "***Information on HbbTV: Period ".$period_id." -> HbbTV TLS bitrate constraint violation - If the terminal does support UHD video but does not support HFR video"
+                                    . " the bitrate should not exceed 39 Mbit/s.\n---The bandwidth sum of representations: ".$k_v.", ".$k_a.", ".$k_s." with the respective bandwidths: "
+                                    . $v_BW." bps, ".$a_BW." bps, ".$s_BW." bps which amounts to a total of ".$total_BW." bps was found to violate this constraint.***\n");
+                        }
+                        elseif($total_BW > 51000000)
+                        {
+                            // 12 Mbit/s if the terminal does not support UHD video.
+                            // 39 Mbit/s if the terminal does support UHD video but does not support HFR video.
+                            // 51 Mbit/s if the terminal supports UHD HFR video. 
+                            fwrite($constraint_violation_report, "***Information on HbbTV: Period ".$period_id." -> HbbTV TLS bitrate constraint violation - If the terminal supports UHD HFR video"
+                                    . " the bitrate should not exceed 51 Mbit/s.\n---The bandwidth sum of representations: ".$k_v.", ".$k_a.", ".$k_s." with the respective bandwidths: "
+                                    . $v_BW." bps, ".$a_BW." bps, ".$s_BW." bps which amounts to a total of ".$total_BW." bps was found to violate this constraint.***\n");
+                        } 
+                    }
+                }
+            }
+            $perio_index ++;
+        }
+    }
+    fclose($constraint_violation_report);
+}
+function seg_duration_checks($dom_MPD)
+{
+    global $locate;
+
+    foreach ($dom_MPD->getElementsByTagName('Period') as $period)
+    {
+        $adapt_index = 0;
+        foreach ($dom_MPD->getElementsByTagName('AdaptationSet') as $adapt_set)
+        {
+            $rep_index = 0;
+            $adapt_id = $adapt_index + 1;
+            $adaptreport = fopen($locate . "/Adapt".$adapt_index."_compInfo.txt", 'a+b');
+            foreach ($adapt_set->getElementsByTagName('Representation') as $rep)
+            {
+                $seq_nr = 1;
+                $rep_id = $rep->getAttribute('id');
+                if($rep->getElementsByTagName('SegmentTemplate')->length != 0) //only if there is a segment template in the representation get the timescale and 
+                {
+                    $duration = $rep->getElementsByTagName('SegmentTemplate')->item(0)->getAttribute('duration');
+                    $timescale = $rep->getElementsByTagName('SegmentTemplate')->item(0)->getAttribute('timescale');
+                    if(($duration != '') && ($timescale != ''))
+                    {
+                        $MPD_duration_sec = $duration / $timescale;
+                        $MPD_duration_sec = round($MPD_duration_sec, 2);
+                    }    
+                }
+                else
+                {
+                    $MPD_duration_sec = 'Not_Set';
+                }
+          
+                //load the atom xml file into a dom Document
+                $xml_file_location = ($locate.'/Adapt'.$adapt_index.'/Adapt'.$adapt_index.'rep'.$rep_index.'.xml'); 
+                $load = simplexml_load_file($xml_file_location); // load mpd from url 
+                $dom_abs = dom_import_simplexml($load);
+                $abs = new DOMDocument('1.0');
+                $dom_abs = $abs->importNode($dom_abs, true); //create dom element to contain mpd     
+                $abs->appendChild($dom_abs);
+                
+                $atm_duration_array = array();// this holds the duration of all segments
+                $atm_duration_diff_array = array(); //array to hold the duration of segments present in atom file that are different from that advertised in the MPD
+                $atm_timescale = $abs->getElementsByTagName('mdhd')->item(0)->getAttribute('timescale');
+                foreach ($abs->getElementsByTagName('trun') as $trun_box) //there is a trun box for every moof(every segment)
+                {
+                    $atm_duration = round($trun_box->getAttribute('cummulatedSampleDuration') / $atm_timescale, 2);
+                    $atm_duration_array[$seq_nr] = $atm_duration;
+                    if($MPD_duration_sec != 'Not_Set')
+                    {
+                        if($atm_duration !== $MPD_duration_sec)
+                        {
+                            //report that the segment with sequential nr $seq_nr of rep $rep_index of adapt set $adapt_set is not consistent with duration advertised in MPD
+                            $atm_duration_diff_array[$seq_nr] = $atm_duration;
+                        }
+                    }
+                    $seq_nr ++;
+                }
+                
+                if(!empty($atm_duration_diff_array))
+                {
+                    $duration_diff_k_v  = implode(', ', array_map(function ($v, $k) { return sprintf(" seg: '%s' -> duration: '%s' sec ", $k, $v); },
+                    $atm_duration_diff_array,array_keys($atm_duration_diff_array)));
+                    fwrite($adaptreport, "Information on DVB/HbbTV: In Adaptation Set ".$adapt_id.", Representation: ".$rep_id." the following segments were found to have a different"
+                            . " duration from the one advertised in the MPD (".$MPD_duration_sec." sec) :\n".$duration_diff_k_v.".\n");
+                }
+                
+                $total_seg_duration = array_sum($atm_duration_array);
+                if($abs->getElementsByTagName('mehd')->length != 0)
+                {
+                    $fragment_duration = $abs->getElementsByTagName('mehd')->item(0)->getAttribute('fragmentDuration');
+                    $fragment_duration_sec = $fragment_duration / $abs->getElementsByTagName('mvhd')->item(0)->getAttribute('timeScale');
+                    $handler_type = $abs->getElementsByTagName('hdlr')->item(0)->getAttribute('handler_type');
+                    if($fragment_duration_sec != $total_seg_duration)
+                    {
+                        if($handler_type == 'vide')
+                        {
+                            fwrite($adaptreport, "###WARNING on DVB/HbbTV: The fragment duration of video type is different from the sum of all segment durations in Adaptation Set: "
+                                    .$adapt_id." Representation: ".$rep_id. ".\n");
+                        }
+                        elseif($handler_type == 'soun')
+                        {
+                            fwrite($adaptreport, "###ERROR on DVB/HbbTV: The fragment duration of audio type (".$fragment_duration_sec." sec) is different from the sum of all segment durations (".$total_seg_duration." sec) in Adaptation Set: "
+                                    .$adapt_id." Representation: ".$rep_id. ".\n");
+                        }
+                    }
+                }
+                
+                $atm_duration_array_str = implode(',', $atm_duration_array);
+                $location = $locate.'/Adapt' . $adapt_index . '_rep' . $rep_index . '.png';
+                $command = "cd $locate && python seg_duration.py  $atm_duration_array_str $MPD_duration_sec $location";
+                exec($command);
+                $rep_index ++;
+            }
+            fclose($adaptreport);
+            $adapt_index ++;
+        }
+    }
+}
