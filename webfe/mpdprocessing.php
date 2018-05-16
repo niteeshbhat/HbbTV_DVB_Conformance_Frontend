@@ -115,6 +115,8 @@ function process_mpd()
     if($check_dvb_conformance || $check_hbbtv_conformance){
         copy(dirname(__FILE__) . "/bitratereport.py", $locate . '/bitratereport.py'); // copy conformance tool to session folder to allow multi-session operation
         chmod($locate . '/bitratereport.py', 0777);
+        copy(dirname(__FILE__) . "/seg_duration.py", $locate . '/seg_duration.py'); // copy conformance tool to session folder to allow multi-session operation
+        chmod($locate . '/seg_duration.py', 0777);
     }
     
     //Create log file so that it is available if accessed
@@ -1113,8 +1115,13 @@ function process_mpd()
                     $index = strpos($copy_string_info, '</body>');
                     
                     $bitrate_report_name = 'Adapt' . $count1 . 'rep' . $count2 . '.png';
-                    $copy_string_info = substr($copy_string_info, 0, $index) . "<img id=\"bitrateReport\" src=\"$bitrate_report_name\" width=\"650\" height=\"350\">" . substr($copy_string_info, $index);
+                    $segemnet_duration_name = 'Adapt' . $count1 . '_rep' . $count2 . '.png';
+                    $copy_string_info = substr($copy_string_info, 0, $index) ."<img id=\"bitrateReport\" src=\"$segemnet_duration_name\" width=\"650\" height=\"350\">".
+                    "<img id=\"bitrateReport\" src=\"$bitrate_report_name\" width=\"650\" height=\"350\">" .substr($copy_string_info, $index);
                     $temp_string = str_replace(array('$Template$'), array($repno . "log"), $copy_string_info); // this string shows a text file on HTML
+                    
+                    
+                    
                 }
                 else
                     $temp_string = str_replace(array('$Template$'), array($repno . "log"), $string_info); // this string shows a text file on HTML
