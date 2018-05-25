@@ -502,7 +502,7 @@ function nodes_equal($node_1, $node_2){
     return $equal;
 }
 
-function common_validation($dom,$hbbtv,$dvb, $sizearray,$bandwidth, $pstart){
+function common_validation($dom,$hbbtv,$dvb, $sizearray,$bandwidth, $pstart, $media_types){
     global $presentationduration, $locate, $count1, $count2, $Adapt_arr;
 
     if(!($opfile = fopen($locate."/Adapt".$count1."rep".$count2."log.txt", 'a'))){
@@ -513,7 +513,7 @@ function common_validation($dom,$hbbtv,$dvb, $sizearray,$bandwidth, $pstart){
     $xml_rep = xmlFileLoad($locate.'/Adapt'.$count1.'/Adapt'.$count1.'rep'.$count2.'.xml');
     if($xml_rep != 0){
         if($dvb){
-            common_validation_DVB($opfile, $dom, $xml_rep, $count1, $count2, $sizearray);
+            common_validation_DVB($opfile, $dom, $xml_rep, $count1, $count2, $sizearray, $media_types);
         }
         if($hbbtv){
             common_validation_HbbTV($opfile, $dom, $xml_rep, $count1, $count2);
@@ -541,8 +541,8 @@ function common_validation($dom,$hbbtv,$dvb, $sizearray,$bandwidth, $pstart){
 
 }
 
-function common_validation_DVB($opfile, $dom, $xml_rep, $adapt_count, $rep_count, $sizearray){
-    global $profiles, $locate;
+function common_validation_DVB($opfile, $dom, $xml_rep, $adapt_count, $rep_count, $sizearray, $media_types){
+    global $profiles, $locate, $c;
     
     $adapt = $dom->getElementsByTagName('AdaptationSet')->item($adapt_count);
     $rep = $adapt->getElementsByTagName('Representation')->item($rep_count);
@@ -642,6 +642,120 @@ function common_validation_DVB($opfile, $dom, $xml_rep, $adapt_count, $rep_count
                 if($stpp->item(0)->getAttribute('namespace') == '')
                     fwrite($opfile, "###'DVB check violated: For subtitle media, namespaces SHALL be listed in the sample entry', namespace not found.\n");
             }
+            
+            ## EBU TECH 3381 - Section 5 - Layout check
+            if(in_array('video', $media_types)){
+                $tkhd = $xml_rep->getElementsByTagName('tkhd')->item(0);
+                if((int)($tkhd->getAttribute('width')) != 0 || (int)($tkhd->getAttribute('height')) != 0)
+                    fwrite($opfile, "Warning for DVB check: 'EBU TECH 3381 Section 5- When the subtitle track is associated with a video object the width and height of the subtitle track SHOULD NOT be set', found width and/or height value set.\n");
+            }
+            ##
+            
+            ## Check the timing of segments and the EBU-TT-D files
+            // EBU-TT-D
+            $meta_str = '';
+            $subt_times = array();
+            $files = glob($locate.'/Adapt'.$adapt_count.'rep'.$rep_count.'/Subtitles/*');
+            natsort($files);
+            foreach($files as $file){
+                $file_loaded = simplexml_load_file($file);
+                if($file_loaded){
+                    $dom_abs = dom_import_simplexml($file_loaded);
+                    $abs = new DOMDocument('1.0');
+                    $dom_abs = $abs->importNode($dom_abs, true);
+                    $dom_abs = $abs->appendChild($dom_abs);
+                    $abs = $abs->getElementsByTagName('tt')->item(0);
+                    
+                    ##Check if metadata present; if yes, check if the profile is other than EBU-TT-D
+                    if($abs->getElementsByTagName('metadata')->length != 0){
+                        $metadata_children = $abs->getElementsByTagName('metadata')->item(0)->childNodes;
+                        foreach($metadata_children as $metadata_child){
+                            if($metadata_child->nodeType == XML_ELEMENT_NODE){
+                                if(strpos($metadata_child->nodeName, 'ebutt') === FALSE)
+                                    $meta_str .= 'no '; 
+                            }
+                        }
+                    }
+                    ##
+                    
+                    $body = $abs->getElementsByTagName('body')->item(0);
+                    $divs = $body->getElementsByTagName('div');
+                    $begin = '';
+                    foreach($divs as $div){
+                        $ps = $div->getElementsByTagName('p');
+                        foreach($ps as $p){
+                            $h_m_s_begin = $p->getAttribute('begin');
+                            $h_m_s = explode(':', $h_m_s_begin);
+                            $begin .= ' ' . (string)($h_m_s[0]*60*60 + $h_m_s[1]*60 + $h_m_s[2]);
+                        }
+                    }
+                    
+                    $subt_times[] = $begin;
+                }
+            }
+            
+            if($meta_str != '')
+                fwrite($opfile, "###'DVB check violated: Subtitle segments do not contain ISO-BMFF packaged EBU-TT-D but some other profile.\n");
+            
+            
+            // Segments
+            $type = $dom->getElementsByTagName('MPD')->item(0)->getAttribute('type');
+            $xml_num_moofs=$xml_rep->getElementsByTagName('moof')->length;
+            $xml_trun=$xml_rep->getElementsByTagName('trun');
+            $xml_tfdt=$xml_rep->getElementsByTagName('tfdt');
+            
+            $sidx_boxes = $xml_rep->getElementsByTagName('sidx');
+            $subsegment_signaling = array();
+            if($sidx_boxes->length != 0){
+                foreach($sidx_boxes as $sidx_box){
+                    $subsegment_signaling[] = (int)($sidx_box->getAttribute('referenceCount'));
+                }
+            }
+            
+            $xml_elst = $xml_rep->getElementsByTagName('elst');
+            if($xml_elst->length == 0)
+                $mediaTime = 0;
+            else
+                $mediaTime = (int)($xml_elst->item(0)->getElementsByTagName('elstEntry')->item(0)->getAttribute('mediaTime'));
+            
+            if($type != 'dynamic'){
+                $timescale=$xml_rep->getElementsByTagName('mdhd')->item(0)->getAttribute('timescale');
+                $sidx_index = 0;
+                $cum_subsegDur=0;
+                $s=0;
+                for($j=0;$j<$xml_num_moofs;$j++){
+                    if(empty($subsegment_signaling)){
+                        $cum_subsegDur += (($xml_trun->item($j)->getAttribute('cummulatedSampleDuration'))/$timescale);
+                        
+                        $subt_begin = explode(' ', $subt_times[$j]);
+                        for($be=1; $be<sizeof($subt_begin); $be++){
+                            if($subt_begin[$be] > $cum_subsegDur)
+                                fwrite($opfile, "Warning for DVB check: 'For subtitle media, timing of subtitle $be with start \"" . $subt_begin[$be] . "\" lies completely outside the segment time period of the segment $j.\n");
+                        }
+                    }
+                    else{
+                        $ref_count = 1;
+                        if($sidx_index < sizeof($subsegment_signaling))
+                            $ref_count = $subsegment_signaling[$sidx_index];
+                        
+                        $cum_subsegDur += (($xml_trun->item($j)->getAttribute('cummulatedSampleDuration'))/$timescale);
+                        $subsegment_signaling[$sidx_index] = $ref_count - 1;
+                        if($subsegment_signaling[$sidx_index] == 0){
+                            while($s <= $j){
+                                $subt_begin = explode(' ', $subt_times[$s]);
+                                for($be=1; $be<sizeof($subt_begin); $be++){
+                                    if($subt_begin[$be] > $cum_subsegDur)
+                                        fwrite($opfile, "Warning for DVB check: 'For subtitle media, timing of subtitle $s with start \"" . $subt_begin[$be] . "\" lies completely outside the segment time period of the segment.\n");
+                                }
+                                $s++;
+                            }
+                            
+                            $sidx_index++;
+                        }
+                    }
+                }
+            }
+            ##
         }
     }
     
