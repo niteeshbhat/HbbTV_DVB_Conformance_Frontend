@@ -851,7 +851,7 @@ function process_mpd()
             $adapt = $periodNode->getElementsByTagName('AdaptationSet')->item($count1);
             $rep = $adapt->getElementsByTagName('Representation')->item($count2);
             
-            if((strpos($adapt->getAttribute('mimeType'), 'application') != FALSE || strpos($rep->getAttribute('mimeType'), 'application') !== FALSE) &&
+            if(($adapt->getAttribute('mimeType') == 'application/mp4' || $rep->getAttribute('mimeType') == 'application/mp4') &&
                ($adapt->getAttribute('codecs') == 'stpp' || $rep->getAttribute('codecs') == 'stpp')){
                 
                 $contType = $adapt->getAttribute('contentType');
@@ -1123,7 +1123,8 @@ function process_mpd()
                // }
                 
                 if($check_dvb_conformance || $check_hbbtv_conformance){
-                    common_validation($dom,$check_hbbtv_conformance,$check_dvb_conformance, $sizearray,$Period_arr[$count1]['Representation']['bandwidth'][$count2], $start);
+                    $media_types = media_types($periodNode);
+                    common_validation($dom,$check_hbbtv_conformance,$check_dvb_conformance, $sizearray,$Period_arr[$count1]['Representation']['bandwidth'][$count2], $start, $media_types);
                     $copy_string_info=$string_info;
                     $index = strpos($copy_string_info, '</body>');
                     

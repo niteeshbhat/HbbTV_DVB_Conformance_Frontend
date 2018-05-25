@@ -840,9 +840,7 @@ function StreamBandwidthCheck($mpdreport){
 
 function DVB_event_checks($possible_event, $mpdreport){
     global $period_count;
-    if($possible_event->getAttribute('schemeIdUri') != 'urn:dvb:iptv:cpm:2014')
-        fwrite($mpdreport, "###'DVB check violated: Section 9.1.2.1- The @schemeIdUri attribute (of EventStream) SHALL be set to \"urn:dvb:iptv:cpm:2014\"', not set accordingly in Period $period_count.\n");
-    else{
+    if($possible_event->getAttribute('schemeIdUri') != 'urn:dvb:iptv:cpm:2014'){
         if($possible_event->getAttribute('value') == '1'){
             $events = $possible_event->getElementsByTagName('Event');
             foreach ($events as $event){
