@@ -377,6 +377,7 @@ function DVB_mpdvalidator($dom, $mpdreport){
             if($adapts_len > 16)
                 fwrite($mpdreport, "###'DVB check violated: Section 4.5- The MPD has a maximum of 16 adaptation sets per period', found $adapts_len in Period $period_count.\n");
             
+            $audio_adapts = array();
             for($i=0; $i<$adapts_len; $i++){
                 $adapt = $adapts->item($i);
                 $video_found = false;
@@ -443,6 +444,8 @@ function DVB_mpdvalidator($dom, $mpdreport){
                     if($contentTemp_vid_found){
                         DVB_video_checks($adapt, $reps, $mpdreport, $i, $contentTemp_vid_found);
                     }
+                    
+                    $audio_adapts[] = $adapt;
                 }
                 else{
                     DVB_subtitle_checks($adapt, $reps, $mpdreport, $i);
@@ -457,6 +460,12 @@ function DVB_mpdvalidator($dom, $mpdreport){
             if($video_service){
                 StreamBandwidthCheck($mpdreport);
             }
+            
+            ## Section 6.6.3 - Check for Audio Fallback Operation
+            if(!empty($audio_adapts) && sizeof($audio_adapts) > 1){
+                FallbackOperationCheck($audio_adapts, $mpdreport);
+            }
+            ##
             
             ## Section 7.1.2 Table 11 - First Row "Hard of Hearing"
             if($main_audio_found){
@@ -487,6 +496,44 @@ function DVB_mpdvalidator($dom, $mpdreport){
     if($adapt_audio_count > 1 && $main_audio_found == false)
         fwrite($mpdreport, "###'DVB check violated: Section 6.1.2- If there is more than one audio Adaptation Set in a DASH Presentation then at least one of them SHALL be tagged with an @value set to \"main\"', could not be found in Period $period_count.\n");
     
+}
+
+function FallbackOperationCheck($audio_adapts, $mpdreport){
+    $len = sizeof($audio_adapts);
+    for($i=0; $i<$len; $i++){
+        $audio_adapt_i = $audio_adapts[$i];
+        $supps_i = $audio_adapt_i->getElementsByTagName('SupplementalProperty');
+        
+        $value = '';
+        foreach($supps_i as $supp_i){
+            if($supp_i->getAttribute('schemeIdUri') == 'urn:dvb:dash:fallback_adaptation_set:2014'){
+                $value = $supp_i->getAttribute('value');
+            }
+        }
+        
+        if($value != ''){
+            $string_info = '';
+            for($j=0; $j<$len; $j++){
+                if($j != $i){
+                    $audio_adapt_j = $audio_adapts[$j];
+                    $id = $audio_adapt_j->getAttribute('id');
+                    
+                    if($value == $id)
+                        $string_info .= 'yes ';
+                }
+            }
+            
+            if($string_info == '')
+                fwrite($mpdreport, "###'DVB check violated: Section 6.6.3- The (SupplementalProperty) descriptor SHALL have the @schemeIdUri attibute set to \"urn:dvb:dash:fallback_adaptation_set:2014\" and the @value attribute equal to the @id attribute of the Adaptation Set for which it supports the falling back operation', fallback operation is signalled via SupplementalProperty but the value does not match with any audio Adaptation Set @id in Period $period_count.\n");
+            else{
+                $role_i = $audio_adapt_i->getElementsByTagName('Role')->item(0);
+                $role_j = $audio_adapt_j->getElementsByTagName('Role')->item(0);
+                
+                if($role_i->getAttribute('schemeIdUri') != $role_j->getAttribute('schemeIdUri') || $role_i->getAttribute('value') != $role_j->getAttribute('value'))
+                    fwrite($mpdreport, "###'DVB check violated: Section 6.6.3- An additional low bit rate fallback Adaptation Set SHALL also be tagged with the same role as the Adaptation Set which it provides the fallback option for', roles are not the same in Period $period_count.\n");
+            }
+        }
+    }
 }
 
 function DVB_associated_adaptation_sets_check($dom, $mpdreport){
@@ -793,9 +840,7 @@ function StreamBandwidthCheck($mpdreport){
 
 function DVB_event_checks($possible_event, $mpdreport){
     global $period_count;
-    if($possible_event->getAttribute('schemeIdUri') != 'urn:dvb:iptv:cpm:2014')
-        fwrite($mpdreport, "###'DVB check violated: Section 9.1.2.1- The @schemeIdUri attribute (of EventStream) SHALL be set to \"urn:dvb:iptv:cpm:2014\"', not set accordingly in Period $period_count.\n");
-    else{
+    if($possible_event->getAttribute('schemeIdUri') != 'urn:dvb:iptv:cpm:2014'){
         if($possible_event->getAttribute('value') == '1'){
             $events = $possible_event->getElementsByTagName('Event');
             foreach ($events as $event){
