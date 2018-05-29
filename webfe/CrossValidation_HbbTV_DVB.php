@@ -522,7 +522,7 @@ function common_validation($dom,$hbbtv,$dvb, $sizearray,$bandwidth, $pstart, $me
         
         //seg_bitrate_common($opfile,$xml_rep);
         bitrate_report($opfile, $dom, $xml_rep, $count1, $count2, $sizearray,$bandwidth);
-        seg_duration_checks($dom, $count1, $count2);
+        seg_duration_checks($dom, $count1, $count2, $opfile);
 
         if ($presentationduration !== "") {
             $checks = segmentToPeriodDurationCheck($xml_rep);
@@ -531,15 +531,6 @@ function common_validation($dom,$hbbtv,$dvb, $sizearray,$bandwidth, $pstart, $me
             }
         }
     }
-    /*$stats = getSegmentStats($xml_rep);
-    $meanSegmentDuration = $stats[0];
-    $varianceSegmentDuration = $stats[1];
-    $minSegmentDuration = $stats[2];
-    $maxSegmentDuration = $stats[3];
-    if (averageDurationCheck($meanSegmentDuration, $Adapt_arr)==-1) {
-        fwrite($opfile, "###'HbbTV/DVB check violated: The average segment duration is not consistent with the durations advertised by the MPD.\n'");
-    }*/  
-
 }
 
 function common_validation_DVB($opfile, $dom, $xml_rep, $adapt_count, $rep_count, $sizearray, $media_types){
@@ -1077,45 +1068,6 @@ function segmentToPeriodDurationCheck($xml_rep) {
     return [$totalSegmentDuration==$presentationduration, $totalSegmentDuration, $presentationduration];
 }
 
-function getSegmentStats($xml_rep)
-{
-    $mdhd=$xml_rep->getElementsByTagName('mdhd')->item(0);
-    $timescale=$mdhd->getAttribute('timescale');
-    $num_moofs=$xml_rep->getElementsByTagName('moof')->length;
-    $totalSegmentDuration = 0;
-    $squaredTotalSegDuration = 0;
-    for ( $j = 0 ; $j < $num_moofs - 1 ; $j++ )
-    {
-        $trun = $xml_rep->getElementsByTagName('trun')->item($j);
-        $cummulatedSampleDuration = $trun->getAttribute('cummulatedSampleDuration');
-        $segDur = ( $cummulatedSampleDuration * 1.00 ) / $timescale;
-        if($j==0){ $minSegDur = $segDur; $maxSegDur = $segDur; }
-        if($segDur <= $minSegDur) $minSegDur = $segDur;
-        if($segDur >= $maxSegDur) $maxSegDur = $segDur;
-        $squaredTotalSegDuration += ($segDur)*($segDur);
-        $totalSegmentDuration += $segDur;
-    }
-    $meanSegmentDuration = ($totalSegmentDuration * 1.00) / ( $num_moofs - 1 );
-    $varianceSegmentDuration = (($squaredTotalSegDuration*1.00) / ($num_moofs-1)) - (($meanSegmentDuration)*($meanSegmentDuration));
-    return [$meanSegmentDuration, $varianceSegmentDuration, $minSegDur, $maxSegDur];
-}
-
-function averageDurationCheck($meanSegmentDuration, $Adapt_arr)
-{
-    global $profiles;
-    //if profiles is live, only then check, otherwise don't.
-    if (strpos($profiles, "on-demand") == false)
-    {
-        $Dur = ($Adapt_arr['Representation']['SegmentTemplate'][0]['duration'] *1.00);
-        $timescale = ($Adapt_arr['Representation']['SegmentTemplate'][0]['timescale']);
-        $segDur = $Dur / $timescale;
-        if (ceil($segDur) == ceil($meanSegmentDuration))
-            return 1;
-        else 
-            return -1;
-    }
-    return 0;
-}
 // Report on any resolutions used that are not in the tables of resoultions in 10.3 of the DVB DASH specification
 function resolutionCheck($opfile, $adapt, $rep){
     $conformant = true;
@@ -2004,7 +1956,7 @@ function TLS_bitrate_check($dom_MPD)//$cp_dom as argument
 }
 
 
-function seg_duration_checks($dom_MPD, $count1, $count2)
+function seg_duration_checks($dom_MPD, $count1, $count2, $opfile)
 {
     global $locate, $segment_duration_array;
     $MPD = $dom_MPD->getElementsByTagName('MPD')->item(0);
@@ -2012,9 +1964,6 @@ function seg_duration_checks($dom_MPD, $count1, $count2)
     $adapt_set = $dom_MPD->getElementsByTagName('AdaptationSet')->item($count1);
     $rep = $adapt_set->getElementsByTagName('Representation')->item($count2);
     $adapt_id = $count1 + 1;
-    $adaptreport = fopen($locate . "/Adapt".$count1."_compInfo.txt", 'a+b');
-    if($adaptreport !== false)
-    {  
         $rep_id = $rep->getAttribute('id');
         if($rep_id == '')
         {
@@ -2118,14 +2067,14 @@ function seg_duration_checks($dom_MPD, $count1, $count2)
             {
                 $duration_diff_k_v  = implode(', ', array_map(function ($v, $k) { return sprintf(" seg: '%s' -> duration: '%s' sec ", $k, $v); },
                 $duration_diff_array,array_keys($duration_diff_array)));
-                fwrite($adaptreport, "Information on DVB/HbbTV: In Adaptation Set ".$adapt_id.", Representation with 'id' : ".$rep_id." the following segments were found to have a different"
+                fwrite($opfile, "Information on DVB/HbbTV: In Adaptation Set ".$adapt_id.", Representation with 'id' : ".$rep_id." the following segments were found to have a different"
                         . " duration from the one advertised in the MPD (".$MPD_duration_sec." sec) :\n".$duration_diff_k_v.".\n");
             }
             else
             {
                 $duration_diff_k_v  = implode(', ', array_map(function ($v, $k) { return sprintf(" seg: '%s' -> duration: '%s' sec ", $k, $v); },
                 $duration_diff_array,array_keys($duration_diff_array)));
-                fwrite($adaptreport, "Information on DVB/HbbTV: In Adaptation Set ".$adapt_id.", Representation with 'id' : ".$rep_id." the following segments were found to have a different"
+                fwrite($opfile, "Information on DVB/HbbTV: In Adaptation Set ".$adapt_id.", Representation with 'id' : ".$rep_id." the following segments were found to have a different"
                         . " duration from the one advertised in the MPD:\n".$duration_diff_k_v.".\n");
             }
         }
@@ -2159,17 +2108,17 @@ function seg_duration_checks($dom_MPD, $count1, $count2)
                     {
                         if($handler_type == 'vide')
                         {
-                            fwrite($adaptreport, "###WARNING on DVB/HbbTV: The fragment duration of video type (".$fragment_duration_sec." sec) is different from the sum of all segment durations (".$total_seg_duration." sec) in Adaptation Set: "
+                            fwrite($opfile, "###WARNING on DVB/HbbTV: The fragment duration of video type (".$fragment_duration_sec." sec) is different from the sum of all segment durations (".$total_seg_duration." sec) in Adaptation Set: "
                                     .$adapt_id." Representation with 'id' : ".$rep_id. ".\n");
                         }
                         elseif($handler_type == 'soun')
                         {
-                            fwrite($adaptreport, "###ERROR on DVB/HbbTV: The fragment duration of audio type (".$fragment_duration_sec." sec) is different from the sum of all segment durations (".$total_seg_duration." sec) in Adaptation Set: "
+                            fwrite($opfile, "###ERROR on DVB/HbbTV: The fragment duration of audio type (".$fragment_duration_sec." sec) is different from the sum of all segment durations (".$total_seg_duration." sec) in Adaptation Set: "
                                     .$adapt_id." Representation with 'id' : ".$rep_id. ".\n");
                         }
                         elseif ($handler_type == 'missing') 
                         {
-                            fwrite($adaptreport, "###WARNING/ERROR on DVB/HbbTV: The fragment duration of 'unknown' type (".$fragment_duration_sec." sec) is different from the sum of all segment durations (".$total_seg_duration." sec) in Adaptation Set: "
+                            fwrite($opfile, "###WARNING/ERROR on DVB/HbbTV: The fragment duration of 'unknown' type (".$fragment_duration_sec." sec) is different from the sum of all segment durations (".$total_seg_duration." sec) in Adaptation Set: "
                                     .$adapt_id." Representation with 'id' : ".$rep_id. ".\n");
                         }
                     }
@@ -2184,7 +2133,13 @@ function seg_duration_checks($dom_MPD, $count1, $count2)
                     $location = $locate.'/Adapt' . $count1 . '_rep' . $count2 . '.png';
                     $command = "cd $locate && python seg_duration.py  $atm_duration_array_str $MPD_duration_sec $location";
                     exec($command);
-                }
+                    
+                    // Check if the average segment duration is consistent with that of the duration information in the MPD
+                    $num_segments = sizeof($segment_duration_array);
+                    $a = array_sum($segment_duration_array) - $segment_duration_array[$num_segments-1];
+                    $average_segment_duration = (array_sum($segment_duration_array) - $segment_duration_array[$num_segments-1])/ ($num_segments-1);
+                    if($MPD_duration_sec != 'Not_Set'){
+                        if(round($average_segment_duration, 2) != round($MPD_duration_sec, 2))
+                            fwrite($opfile, "###'HbbTV/DVB check violated: The average segment duration is not consistent with the durations advertised by the MPD" . round($average_segment_duration, 2) . ' vs. ' . round($MPD_duration_sec, 2) . ".\n'");
+                    }
 }
-        
-
