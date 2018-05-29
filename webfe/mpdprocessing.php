@@ -755,11 +755,11 @@ function process_mpd()
                 
                 if(($check_dvb_conformance || $check_hbbtv_conformance) && file_exists($locate . '/Adapt' . $i . '_compInfo.txt')){
                     $searchfiles = file_get_contents($locate . '/Adapt' . $i . '_compInfo.txt');
-                    if(strpos($searchfiles, "DVB check violated") !== FALSE || strpos($searchfiles, "HbbTV check violated") !== FALSE){
+                    if(strpos($searchfiles, "DVB check violated") !== FALSE || strpos($searchfiles, "HbbTV check violated") !== FALSE || strpos($searchfiles, 'ERROR') !== FALSE){
                         $ResultXML->Period[0]->Adaptation[$i]->addChild('ComparedRepresentations', 'error');
                         $file_error[] = $locate.'/Adapt'.$i.'_compInfo.html'; // add error file location to array
                     }
-                    elseif(strpos($searchfiles, "Warning") !== FALSE){
+                    elseif(strpos($searchfiles, "Warning") !== FALSE || strpos($searchfiles, "WARNING") !== FALSE){
                         $ResultXML->Period[0]->Adaptation[$i]->addChild('ComparedRepresentations', 'warning');
                         $file_error[] = $locate.'/Adapt'.$i.'_compInfo.html'; // add error file location to array
                     }

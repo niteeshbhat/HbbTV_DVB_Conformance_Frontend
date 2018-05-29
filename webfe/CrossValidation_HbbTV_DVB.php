@@ -54,7 +54,6 @@ function common_crossValidation($dom,$hbbtv,$dvb)
        
         }
         
-        fprintf($opfile, "\n-----Conformance checks completed----- ");
         fclose($opfile);
         $temp_string = str_replace (array('$Template$'),array("Adapt".$adapt_count."_compInfo"),$string_info);
         file_put_contents($locate.'/'."Adapt".$adapt_count."_compInfo.html",$temp_string);
@@ -1469,7 +1468,6 @@ function content_protection_report($dom_MPD)
         $adaptreport = fopen($locate . "/Adapt".$Adapt_index."_compInfo.txt", 'a+b');
         if($adaptreport !== false)
         {
-            fwrite($adaptreport, "***Report on Content Protection specifics*** \n");
             $MPD_systemID_array = array();
             $missing_pssh_array = array(); //holds the uuid-s of the DRM-s which are missing the pssh in the mpd
             $reps_array = array(); // for the summary of reps and their KID
@@ -1704,7 +1702,6 @@ function content_protection_report($dom_MPD)
                 fwrite($adaptreport, "Information on DVB/HbbTV: Content Protection not used in Adaptation Set ".$adapt_id.".\n");
             }
 
-            fwrite($adaptreport, "-------------------------------------------------------------------------------------------- \n");
             fclose($adaptreport);
         }    
         $Adapt_index ++; //move to check the next adapt set
@@ -2108,7 +2105,7 @@ function seg_duration_checks($dom_MPD, $count1, $count2, $opfile)
                     {
                         if($handler_type == 'vide')
                         {
-                            fwrite($opfile, "###WARNING on DVB/HbbTV: The fragment duration of video type (".$fragment_duration_sec." sec) is different from the sum of all segment durations (".$total_seg_duration." sec) in Adaptation Set: "
+                            fwrite($opfile, "WARNING on DVB/HbbTV: The fragment duration of video type (".$fragment_duration_sec." sec) is different from the sum of all segment durations (".$total_seg_duration." sec) in Adaptation Set: "
                                     .$adapt_id." Representation with 'id' : ".$rep_id. ".\n");
                         }
                         elseif($handler_type == 'soun')
