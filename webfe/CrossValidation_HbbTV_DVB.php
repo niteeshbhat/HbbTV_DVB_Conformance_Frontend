@@ -2066,14 +2066,14 @@ function seg_duration_checks($dom_MPD, $count1, $count2, $opfile)
         {
             if(empty($MPD_duration_sec_array))
             {
-                $duration_diff_k_v  = implode(', ', array_map(function ($v, $k) { return sprintf(" seg: '%s' -> duration: '%s' sec ", $k, $v); },
+                $duration_diff_k_v  = implode("\n", array_map(function ($v, $k) { return sprintf(" seg: '%s' -> duration: '%s' sec ", $k, $v); },
                 $duration_diff_array,array_keys($duration_diff_array)));
                 fwrite($opfile, "Information on DVB/HbbTV: In Adaptation Set ".$adapt_id.", Representation with 'id' : ".$rep_id." the following segments were found to have a different"
                         . " duration from the one advertised in the MPD (".$MPD_duration_sec." sec) :\n".$duration_diff_k_v.".\n");
             }
             else
             {
-                $duration_diff_k_v  = implode(', ', array_map(function ($v, $k) { return sprintf(" seg: '%s' -> duration: '%s' sec ", $k, $v); },
+                $duration_diff_k_v  = implode("\n", array_map(function ($v, $k) { return sprintf(" seg: '%s' -> duration: '%s' sec ", $k, $v); },
                 $duration_diff_array,array_keys($duration_diff_array)));
                 fwrite($opfile, "Information on DVB/HbbTV: In Adaptation Set ".$adapt_id.", Representation with 'id' : ".$rep_id." the following segments were found to have a different"
                         . " duration from the one advertised in the MPD:\n".$duration_diff_k_v.".\n");
