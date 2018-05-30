@@ -655,29 +655,32 @@ function common_validation_DVB($opfile, $dom, $xml_rep, $adapt_count, $rep_count
                     $abs = new DOMDocument('1.0');
                     $dom_abs = $abs->importNode($dom_abs, true);
                     $dom_abs = $abs->appendChild($dom_abs);
-                    $abs = $abs->getElementsByTagName('tt')->item(0);
+                    $abs = $abs->getElementsByTagName('subtitle')->item(0);
                     
-                    ##Check if metadata present; if yes, check if the profile is other than EBU-TT-D
-                    if($abs->getElementsByTagName('metadata')->length != 0){
-                        $metadata_children = $abs->getElementsByTagName('metadata')->item(0)->childNodes;
-                        foreach($metadata_children as $metadata_child){
-                            if($metadata_child->nodeType == XML_ELEMENT_NODE){
-                                if(strpos($metadata_child->nodeName, 'ebutt') === FALSE)
-                                    $meta_str .= 'no '; 
+                    $tts = $abs = $abs->getElementsByTagName('tt');
+                    $begin = '';
+                    foreach($tts as $tt){
+                        ##Check if metadata present; if yes, check if the profile is other than EBU-TT-D
+                        if($tt->getElementsByTagName('metadata')->length != 0){
+                            $metadata_children = $tt->getElementsByTagName('metadata')->item(0)->childNodes;
+                            foreach($metadata_children as $metadata_child){
+                                if($metadata_child->nodeType == XML_ELEMENT_NODE){
+                                    if(strpos($metadata_child->nodeName, 'ebutt') === FALSE)
+                                        $meta_str .= 'no '; 
+                                }
                             }
                         }
-                    }
-                    ##
-                    
-                    $body = $abs->getElementsByTagName('body')->item(0);
-                    $divs = $body->getElementsByTagName('div');
-                    $begin = '';
-                    foreach($divs as $div){
-                        $ps = $div->getElementsByTagName('p');
-                        foreach($ps as $p){
-                            $h_m_s_begin = $p->getAttribute('begin');
-                            $h_m_s = explode(':', $h_m_s_begin);
-                            $begin .= ' ' . (string)($h_m_s[0]*60*60 + $h_m_s[1]*60 + $h_m_s[2]);
+                        ##
+                        
+                        $body = $tt->getElementsByTagName('body')->item(0);
+                        $divs = $body->getElementsByTagName('div');
+                        foreach($divs as $div){
+                            $ps = $div->getElementsByTagName('p');
+                            foreach($ps as $p){
+                                $h_m_s_begin = $p->getAttribute('begin');
+                                $h_m_s = explode(':', $h_m_s_begin);
+                                $begin .= ' ' . (string)($h_m_s[0]*60*60 + $h_m_s[1]*60 + $h_m_s[2]);
+                            }
                         }
                     }
                     
