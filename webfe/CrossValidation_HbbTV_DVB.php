@@ -1056,7 +1056,7 @@ function segmentToPeriodDurationCheck($xml_rep) {
     $timescale=$mdhd->getAttribute('timescale');
     $num_moofs=$xml_rep->getElementsByTagName('moof')->length;
     $totalSegmentDuration = 0;
-    for ( $j = 0; $j <= $num_moofs - 1 ; $j++ )
+    for ( $j = 0; $j < $num_moofs ; $j++ )
     {
         $trun = $xml_rep->getElementsByTagName('trun')->item($j);
         $cummulatedSampleDuration = $trun->getAttribute('cummulatedSampleDuration');
@@ -1064,7 +1064,11 @@ function segmentToPeriodDurationCheck($xml_rep) {
         $totalSegmentDuration += $segDur;
     }
     
-    return [$totalSegmentDuration==$presentationduration, $totalSegmentDuration, $presentationduration];
+    $period_duration = (float)$presentationduration;
+    if(abs((round($totalSegmentDuration, 2) - round($period_duration, 2)) / round($period_duration, 2)) > 0.00001)
+        return [false, round($totalSegmentDuration, 2), round($period_duration, 2)];
+    else
+        return [true, round($totalSegmentDuration, 2), round($period_duration, 2)];
 }
 
 // Report on any resolutions used that are not in the tables of resoultions in 10.3 of the DVB DASH specification
@@ -2049,9 +2053,9 @@ function seg_duration_checks($dom_MPD, $count1, $count2, $opfile)
                     }
                     for($j = 0; $j < count($MPD_duration_sec_array); $j++ )
                     {
-                        if($MPD_duration_sec_array[j] != $segment_duration_array[j])
+                        if($MPD_duration_sec_array[$j] != $segment_duration_array[$j])
                         {
-                            $duration_diff_array[$j] = $segment_duration_array[j];
+                            $duration_diff_array[$j] = $segment_duration_array[$j];
                         }
                     }
                 }
@@ -2066,14 +2070,14 @@ function seg_duration_checks($dom_MPD, $count1, $count2, $opfile)
         {
             if(empty($MPD_duration_sec_array))
             {
-                $duration_diff_k_v  = implode("\n", array_map(function ($v, $k) { return sprintf(" seg: '%s' -> duration: '%s' sec ", $k, $v); },
+                $duration_diff_k_v  = implode(', ', array_map(function ($v, $k) { return sprintf(" seg: '%s' -> duration: '%s' sec ", $k, $v); },
                 $duration_diff_array,array_keys($duration_diff_array)));
                 fwrite($opfile, "Information on DVB/HbbTV: In Adaptation Set ".$adapt_id.", Representation with 'id' : ".$rep_id." the following segments were found to have a different"
                         . " duration from the one advertised in the MPD (".$MPD_duration_sec." sec) :\n".$duration_diff_k_v.".\n");
             }
             else
             {
-                $duration_diff_k_v  = implode("\n", array_map(function ($v, $k) { return sprintf(" seg: '%s' -> duration: '%s' sec ", $k, $v); },
+                $duration_diff_k_v  = implode(', ', array_map(function ($v, $k) { return sprintf(" seg: '%s' -> duration: '%s' sec ", $k, $v); },
                 $duration_diff_array,array_keys($duration_diff_array)));
                 fwrite($opfile, "Information on DVB/HbbTV: In Adaptation Set ".$adapt_id.", Representation with 'id' : ".$rep_id." the following segments were found to have a different"
                         . " duration from the one advertised in the MPD:\n".$duration_diff_k_v.".\n");
@@ -2095,7 +2099,7 @@ function seg_duration_checks($dom_MPD, $count1, $count2, $opfile)
                 if(($abs->getElementsByTagName('mehd')->length != 0) && ($abs->getElementsByTagName('mvhd')->length != 0))
                 {
                     $fragment_duration = $abs->getElementsByTagName('mehd')->item(0)->getAttribute('fragmentDuration');
-                    $fragment_duration_sec = $fragment_duration / $abs->getElementsByTagName('mvhd')->item(0)->getAttribute('timeScale');
+                    $fragment_duration_sec = (float)($fragment_duration) / (float)($abs->getElementsByTagName('mvhd')->item(0)->getAttribute('timeScale'));
                     if($abs->getElementsByTagName('hdlr')->length != 0)
                     {
                         $handler_type = $abs->getElementsByTagName('hdlr')->item(0)->getAttribute('handler_type');
@@ -2104,7 +2108,7 @@ function seg_duration_checks($dom_MPD, $count1, $count2, $opfile)
                     {
                         $handler_type = 'missing';
                     }
-                    if($fragment_duration_sec != $total_seg_duration)
+                    if(abs(($fragment_duration_sec-$total_seg_duration)/$total_seg_duration) > 0.00001)
                     {
                         if($handler_type == 'vide')
                         {
@@ -2136,10 +2140,9 @@ function seg_duration_checks($dom_MPD, $count1, $count2, $opfile)
                     
                     // Check if the average segment duration is consistent with that of the duration information in the MPD
                     $num_segments = sizeof($segment_duration_array);
-                    $a = array_sum($segment_duration_array) - $segment_duration_array[$num_segments-1];
-                    $average_segment_duration = (array_sum($segment_duration_array) - $segment_duration_array[$num_segments-1])/ ($num_segments-1);
+                    $average_segment_duration = (array_sum($segment_duration_array) ) / ($num_segments);
                     if($MPD_duration_sec != 'Not_Set'){
-                        if(round($average_segment_duration, 2) != round($MPD_duration_sec, 2))
-                            fwrite($opfile, "###'HbbTV/DVB check violated: The average segment duration is not consistent with the durations advertised by the MPD" . round($average_segment_duration, 2) . ' vs. ' . round($MPD_duration_sec, 2) . ".\n'");
+                        if(abs((round($average_segment_duration, 2)-round($MPD_duration_sec, 2)) / round($MPD_duration_sec, 2)) > 0.00001)
+                            fwrite($opfile, "###'HbbTV/DVB check violated: The average segment duration is not consistent with the durations advertised by the MPD " . round($average_segment_duration, 2) . ' vs. ' . round($MPD_duration_sec, 2) . ".\n'");
                     }
 }
