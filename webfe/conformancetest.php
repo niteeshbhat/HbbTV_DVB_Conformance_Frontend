@@ -942,6 +942,12 @@ function progress()  //Progress of Segments' Conformance
                         automate(adaptid[i-1],lastloc,"DVB-HbbTV Compared representations validation success");
                         tree.setItemImage2(lastloc,'right.jpg','right.jpg','right.jpg');
                         lastloc++;
+                        
+                        automate(adaptid[i-1],lastloc,"log");
+                        tree.setItemImage2( lastloc,'csh_winstyle/iconText.gif','csh_winstyle/iconText.gif','csh_winstyle/iconText.gif');
+                        kidsloc.push(lastloc);
+                        urlarray.push("temp/"+dirid+"/"+ "Adapt"+(i-1)+ "_compInfo.html");
+                        lastloc++;
                     }
                     else if(ComparedRepresentations[i-1].textContent=="warning"){
                         automate(adaptid[i-1],lastloc,"DVB-HbbTV Compared representations validation warning");
