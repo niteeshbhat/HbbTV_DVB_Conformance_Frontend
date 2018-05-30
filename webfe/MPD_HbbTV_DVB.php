@@ -301,16 +301,21 @@ function DVB_mpdvalidator($dom, $mpdreport){
             if($reportings->length != 0){
                 foreach($reportings as $reporting){
                     if($reporting->getAttribute('schemeIdUri') == 'urn:dvb:dash:reporting:2014' && $reporting->getAttribute('value') == 1){
-                        if($reporting->getAttribute('reportingUrl') == '')
+                        if($reporting->getAttribute('reportingUrl') == '' && $reporting->getAttribute('dvb:reportingUrl') == '')
                             fwrite($mpdreport, "Information on DVB conformance: Section 10.12.3 - Where DVB Metric reporting mechanism is indicated in a Reporting descriptor, it SHALL have the @reportingUrl attribute.\n");
                         else{
-                            if(!isAbsoluteURL($reporting->getAttribute('reportingUrl')))
+                            if(!isAbsoluteURL($reporting->getAttribute('reportingUrl')) && !isAbsoluteURL($reporting->getAttribute('dvb:reportingUrl')))
                                 fwrite($mpdreport, "Information on DVB conformance: Section 10.12.3 - value of the @reportingUrl attribute in the Reporting descriptor needs to be and absolute HTTP or HTTPS URL.\n");
                         }
                         
                         if($reporting->getAttribute('probability') != ''){
                             $probability = $reporting->getAttribute('probability');
-                            if(!(((string) (int) $probability === $probability) && ($probability <= 1000) && ($probability >= 0)))
+                            if(!(((string) (int) $probability === $probability) && ($probability <= 1000) && ($probability >= 1)))
+                                fwrite($mpdreport, "Information on DVB conformance: Section 10.12.3 - value of the @probability attribute in the Reporting descriptor needs to be a positive integer between 0 and 1000.\n");
+                        }
+                        if($reporting->getAttribute('dvb:probability') != ''){
+                            $probability = $reporting->getAttribute('dvb:probability');
+                            if(!(((string) (int) $probability === $probability) && ($probability <= 1000) && ($probability >= 1)))
                                 fwrite($mpdreport, "Information on DVB conformance: Section 10.12.3 - value of the @probability attribute in the Reporting descriptor needs to be a positive integer between 0 and 1000.\n");
                         }
                     }
@@ -888,13 +893,13 @@ function DVB_video_checks($adapt, $reps, $mpdreport, $i, $contentTemp_vid_found)
         }
         if($ch->nodeName == 'SupplementalProperty'){
             if($ch->getAttribute('schemeIdUri') == 'urn:dvb:dash:fontdownload:2014' && $ch->getAttribute('value') == '1'){
-                if($ch->getAttribute('url') != '' && $ch->getAttribute('fontFamily') != '' && $ch->getAttribute('mimeType') != '')
+                if(($ch->getAttribute('url') != '' || $ch->getAttribute('dvburl') != '') && ($ch->getAttribute('fontFamily') != '' || $ch->getAttribute('dvb:fontFamily') != '') && ($ch->getAttribute('mimeType') != '' || $ch->getAttribute('dvb:mimeType') != ''))
                     fwrite($mpdreport, "###'DVB check violated: Section 7.2.1.1- For DVB font download for subtitles, a descriptor with these properties SHALL only be placed within an Adaptation Set containing subtitle Representations', found SupplementalProperty element signaling downloadable fonts in video Adaptation Set in Period $period_count Adaptation Set " . ($i+1) . ".\n");
             }
         }
         if($ch->nodeName == 'EssentialProperty'){
             if($ch->getAttribute('schemeIdUri') == 'urn:dvb:dash:fontdownload:2014' && $ch->getAttribute('value') == '1'){
-                if($ch->getAttribute('url') != '' && $ch->getAttribute('fontFamily') != '' && $ch->getAttribute('mimeType') != '')
+                if(($ch->getAttribute('url') != '' || $ch->getAttribute('dvburl') != '') && ($ch->getAttribute('fontFamily') != '' || $ch->getAttribute('dvb:fontFamily') != '') && ($ch->getAttribute('mimeType') != '' || $ch->getAttribute('dvb:mimeType') != ''))
                     fwrite($mpdreport, "###'DVB check violated: Section 7.2.1.1- For DVB font download for subtitles, a descriptor with these properties SHALL only be placed within an Adaptation Set containing subtitle Representations', found EssentialProperty element signaling downloadable fonts in video Adaptation Set in Period $period_count Adaptation Set " . ($i+1) . ".\n");
             }
         }
@@ -1081,13 +1086,13 @@ function DVB_audio_checks($adapt, $reps, $mpdreport, $i, $contentTemp_aud_found)
         }
         if($ch->nodeName == 'SupplementalProperty'){
             if($ch->getAttribute('schemeIdUri') == 'urn:dvb:dash:fontdownload:2014' && $ch->getAttribute('value') == '1'){
-                if($ch->getAttribute('url') != '' && $ch->getAttribute('fontFamily') != '' && $ch->getAttribute('mimeType') != '')
+                if(($ch->getAttribute('url') != '' || $ch->getAttribute('dvburl') != '') && ($ch->getAttribute('fontFamily') != '' || $ch->getAttribute('dvb:fontFamily') != '') && ($ch->getAttribute('mimeType') != '' || $ch->getAttribute('dvb:mimeType') != ''))
                     fwrite($mpdreport, "###'DVB check violated: Section 7.2.1.1- For DVB font download for subtitles, a descriptor with these properties SHALL only be placed within an Adaptation Set containing subtitle Representations', found SupplementalProperty element signaling downloadable fonts in audio Adaptation Set in Period $period_count Adaptation Set " . ($i+1) . ".\n");
             }
         }
         if($ch->nodeName == 'EssentialProperty'){
             if($ch->getAttribute('schemeIdUri') == 'urn:dvb:dash:fontdownload:2014' && $ch->getAttribute('value') == '1'){
-                if($ch->getAttribute('url') != '' && $ch->getAttribute('fontFamily') != '' && $ch->getAttribute('mimeType') != '')
+                if(($ch->getAttribute('url') != '' || $ch->getAttribute('dvburl') != '') && ($ch->getAttribute('fontFamily') != '' || $ch->getAttribute('dvb:fontFamily') != '') && ($ch->getAttribute('mimeType') != '' || $ch->getAttribute('dvb:mimeType') != ''))
                     fwrite($mpdreport, "###'DVB check violated: Section 7.2.1.1- For DVB font download for subtitles, a descriptor with these properties SHALL only be placed within an Adaptation Set containing subtitle Representations', found EssentialProperty element signaling downloadable fonts in audio Adaptation Set in Period $period_count Adaptation Set " . ($i+1) . ".\n");
             }
         }
@@ -1288,17 +1293,17 @@ function DVB_subtitle_checks($adapt, $reps, $mpdreport, $i){
             $supp_present = true;
             $supp_scheme[] = $ch->getAttribute('schemeIdUri');
             $supp_val[] = $ch->getAttribute('value');
-            $supp_url[] = $ch->getAttribute('url');
-            $supp_fontFam[] = $ch->getAttribute('fontFamily');
-            $supp_mime[] = $ch->getAttribute('mimeType');
+            $supp_url[] = ($ch->getAttribute('dvb:url') != '') ? $ch->getAttribute('dvb:url') : $ch->getAttribute('url');
+            $supp_fontFam[] = ($ch->getAttribute('dvb:fontFamily') != '') ? $ch->getAttribute('dvb:fontFamily') : $ch->getAttribute('fontFamily');
+            $supp_mime[] = ($ch->getAttribute('dvb:mimeType') != '') ? $ch->getAttribute('dvb:mimeType') : $ch->getAttribute('mimeType');
         }
         if($ch->nodeName == 'EssentialProperty'){
             $ess_present = true;
             $ess_scheme[] = $ch->getAttribute('schemeIdUri');
             $ess_val[] = $ch->getAttribute('value');
-            $ess_url[] = $ch->getAttribute('url');
-            $ess_fontFam[] = $ch->getAttribute('fontFamily');
-            $ess_mime[] = $ch->getAttribute('mimeType');
+            $ess_url[] = ($ch->getAttribute('dvb:url') != '') ? $ch->getAttribute('dvb:url') : $ch->getAttribute('url');
+            $ess_fontFam[] = ($ch->getAttribute('dvb:fontFamily') != '') ? $ch->getAttribute('dvb:fontFamily') : $ch->getAttribute('fontFamily');
+            $ess_mime[] = ($ch->getAttribute('dvb:mimeType') != '') ? $ch->getAttribute('dvb:mimeType') : $ch->getAttribute('mimeType');
         }
         if($ch->nodeName == 'Accessibility'){
             if($ch->getAttribute('schemeIdUri') == 'urn:tva:metadata:cs:AudioPurposeCS:2007' && $ch->getAttribute('value') == '2')
