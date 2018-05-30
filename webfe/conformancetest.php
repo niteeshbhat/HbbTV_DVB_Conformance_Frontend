@@ -703,6 +703,7 @@ function processmpdresults(MPDtotalResultXML)
 //        console.log("totarr=");
 //        console.log(totarr);
     var failed ='false';
+    var hbbtvDvbTrue = 'false';
     var hbbtvDvbError = 'false';
     var hbbtvDvbWarning='false';
 
@@ -757,6 +758,7 @@ function processmpdresults(MPDtotalResultXML)
         {
             automate(y,x,"HbbTv DVB validation");
             tree.setItemImage2( x,'right.jpg','right.jpg','right.jpg');
+            hbbtvDvbTrue = 'temp/'+dirid+'/mpdreport.html';
         }
         else if(totarr[0]==='error'){
             automate(y,x,"HbbTv DVB validation");
@@ -787,24 +789,31 @@ function processmpdresults(MPDtotalResultXML)
         finishTest();
         return false;
     }
+    if(hbbtvDvbTrue !== 'false')
+    {
+        automate(y,x,"mpd log");
+        tree.setItemImage2( x,'csh_winstyle/iconText.gif','csh_winstyle/iconText.gif','csh_winstyle/iconText.gif');
+        kidsloc.push(x);
+        urlarray.push(hbbtvDvbTrue);
+        x++;
+        lastloc++;
+    }
     if(hbbtvDvbError !== 'false')
     {
         automate(y,x,"mpd error log");
-        tree.setItemImage2(x,'log.jpg','log.jpg','log.jpg');
+        tree.setItemImage2( x,'csh_winstyle/iconText.gif','csh_winstyle/iconText.gif','csh_winstyle/iconText.gif');
         kidsloc.push(x);
         urlarray.push(hbbtvDvbError);
-//        console.log(kidsloc);
-//        console.log(urlarray[0]);
         x++;
         lastloc++;
     }
     if(hbbtvDvbWarning==='true')
     {
         automate(y,x,"mpd warning log");
-        tree.setItemImage2(x,'log.jpg','log.jpg','log.jpg');   
+        tree.setItemImage2( x,'csh_winstyle/iconText.gif','csh_winstyle/iconText.gif','csh_winstyle/iconText.gif');
         kidsloc.push(x);
-        x++;
         urlarray.push("temp/"+dirid+"/mpdreport.html");
+        x++;
         lastloc++;
     }
 
@@ -955,7 +964,7 @@ function progress()  //Progress of Segments' Conformance
                         lastloc++;
                         
                         automate(adaptid[i-1],lastloc,"log");
-                        tree.setItemImage2( lastloc,'log.jpg','log.jpg','log.jpg');
+                        tree.setItemImage2( lastloc,'csh_winstyle/iconText.gif','csh_winstyle/iconText.gif','csh_winstyle/iconText.gif');
                         kidsloc.push(lastloc);
                         urlarray.push("temp/"+dirid+"/"+ "Adapt"+(i-1)+ "_compInfo.html");
                         lastloc++;
@@ -966,7 +975,7 @@ function progress()  //Progress of Segments' Conformance
                         lastloc++;
                         
                         automate(adaptid[i-1],lastloc,"log");
-                        tree.setItemImage2( lastloc,'log.jpg','log.jpg','log.jpg');
+                        tree.setItemImage2( lastloc,'csh_winstyle/iconText.gif','csh_winstyle/iconText.gif','csh_winstyle/iconText.gif');
                         kidsloc.push(lastloc);
                         urlarray.push("temp/"+dirid+"/"+ "Adapt"+(i-1)+ "_compInfo.html");
                         lastloc++;
