@@ -164,6 +164,10 @@ function processAdaptationset($Adapt, $periodProfiles, $periodBitstreamSwitching
         if (empty($width_AdaptSet))
             $width_AdaptSet = 0;
 
+        $framerate_AdaptSet = $Adapt->getAttribute ('frameRate');
+        if(empty($framerate_AdaptSet))
+            $framerate_AdaptSet = 0;
+        
         $lang_AdaptSet = $Adapt->getAttribute ('lang'); // Get language, if present in Adaptation Set level
         if(empty($lang_AdaptSet))
             $lang_AdaptSet=0;
@@ -426,7 +430,7 @@ function processAdaptationset($Adapt, $periodProfiles, $periodBitstreamSwitching
 
                 $frameRatevar = $temprep->getAttribute('frameRate');
                 if (empty($frameRatevar))
-                    $frameRatevar = 0;
+                    $frameRatevar = $framerate_AdaptSet;
                 $frameRate[$i] = $frameRatevar;
 
                 $sarvar = $temprep->getAttribute('sar');
