@@ -1678,7 +1678,7 @@ function content_protection_report($dom_MPD)
                         }
                         else
                         {
-                            fwrite($adaptreport, "###ERROR on DVB/HbbTV: The Representations in Adaptation Set ".$adapt_id." should all have the same 'default_KID' in the 'tenc' box but found otherwise.\n");
+                            fwrite($adaptreport, "###DVB/HbbTV check violated: The Representations in Adaptation Set ".$adapt_id." should all have the same 'default_KID' in the 'tenc' box but found otherwise.\n");
                         }
                     }
                     //reporting for key retation   
@@ -1693,7 +1693,7 @@ function content_protection_report($dom_MPD)
                 }
                 else 
                 {
-                    fwrite($adaptreport, "###ERROR on DVB/HbbTV: Content Protection instance found in Adaptation Set ".$adapt_id." but the ContentProtection Descriptor for the mp4 Protection Scheme with the".
+                    fwrite($adaptreport, "###DVB/HbbTV check violated: Content Protection instance found in Adaptation Set ".$adapt_id." but the ContentProtection Descriptor for the mp4 Protection Scheme with the".
                     "@schemeIdUri value of 'urn:mpeg:dash:mp4protection:2011' and @value=’cenc’ is missing.\n");
                 }
             }
@@ -2110,12 +2110,12 @@ function seg_duration_checks($dom_MPD, $count1, $count2, $opfile)
                         }
                         elseif($handler_type == 'soun')
                         {
-                            fwrite($opfile, "###ERROR on DVB/HbbTV: The fragment duration of audio type (".$fragment_duration_sec." sec) is different from the sum of all segment durations (".$total_seg_duration." sec) in Adaptation Set: "
+                            fwrite($opfile, "###DVB/HbbTV check violated: The fragment duration of audio type (".$fragment_duration_sec." sec) is different from the sum of all segment durations (".$total_seg_duration." sec) in Adaptation Set: "
                                     .$adapt_id." Representation with 'id' : ".$rep_id. ".\n");
                         }
                         elseif ($handler_type == 'missing') 
                         {
-                            fwrite($opfile, "###WARNING/ERROR on DVB/HbbTV: The fragment duration of 'unknown' type (".$fragment_duration_sec." sec) is different from the sum of all segment durations (".$total_seg_duration." sec) in Adaptation Set: "
+                            fwrite($opfile, "WARNING on DVB/HbbTV: The fragment duration of 'unknown' type (".$fragment_duration_sec." sec) is different from the sum of all segment durations (".$total_seg_duration." sec) in Adaptation Set: "
                                     .$adapt_id." Representation with 'id' : ".$rep_id. ".\n");
                         }
                     }
