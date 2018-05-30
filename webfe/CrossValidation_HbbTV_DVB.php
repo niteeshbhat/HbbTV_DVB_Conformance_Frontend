@@ -1998,11 +1998,13 @@ function seg_duration_checks($dom_MPD, $count1, $count2, $opfile)
             if(($duration != '') && ($timescale != ''))
             {
                 $MPD_duration_sec = round(($duration / $timescale), 2);
+                $ind = 0;
                 foreach ($segment_duration_array as $atom_seg_duration)
                 {
+                    $ind++;
                     if($atom_seg_duration != $MPD_duration_sec)
                     {
-                        $duration_diff_array[] = $atom_seg_duration;
+                        $duration_diff_array[$ind] = $atom_seg_duration;
                     }
                 }
                 
@@ -2022,11 +2024,13 @@ function seg_duration_checks($dom_MPD, $count1, $count2, $opfile)
                         if($repetition == -1)
                         {
                             $MPD_duration_sec = round(($duration / $timescale), 2);
+                            $ind = 0;
                             foreach ($segment_duration_array as $atom_seg_duration)
                             {
+                                $ind++;
                                 if($atom_seg_duration != $MPD_duration_sec)
                                 {
-                                    $duration_diff_array[] = $atom_seg_duration;
+                                    $duration_diff_array[$ind] = $atom_seg_duration;
                                 }
                             }
                         }
@@ -2047,7 +2051,7 @@ function seg_duration_checks($dom_MPD, $count1, $count2, $opfile)
                     {
                         if($MPD_duration_sec_array[j] != $segment_duration_array[j])
                         {
-                            $duration_diff_array[] = $segment_duration_array[j];
+                            $duration_diff_array[$j] = $segment_duration_array[j];
                         }
                     }
                 }
@@ -2075,8 +2079,7 @@ function seg_duration_checks($dom_MPD, $count1, $count2, $opfile)
                         . " duration from the one advertised in the MPD:\n".$duration_diff_k_v.".\n");
             }
         }
-
-                    
+        
         //load the atom xml file into a dom Document
         $xml_file_location = $locate.'/Adapt'.$count1.'/Adapt'.$count1.'rep'.$count2.'.xml'; 
         $load = simplexml_load_file($xml_file_location); // load mpd from url 
@@ -2105,7 +2108,7 @@ function seg_duration_checks($dom_MPD, $count1, $count2, $opfile)
                     {
                         if($handler_type == 'vide')
                         {
-                            fwrite($opfile, "WARNING on DVB/HbbTV: The fragment duration of video type (".$fragment_duration_sec." sec) is different from the sum of all segment durations (".$total_seg_duration." sec) in Adaptation Set: "
+                            fwrite($opfile, "Warning on DVB/HbbTV: The fragment duration of video type (".$fragment_duration_sec." sec) is different from the sum of all segment durations (".$total_seg_duration." sec) in Adaptation Set: "
                                     .$adapt_id." Representation with 'id' : ".$rep_id. ".\n");
                         }
                         elseif($handler_type == 'soun')
@@ -2115,7 +2118,7 @@ function seg_duration_checks($dom_MPD, $count1, $count2, $opfile)
                         }
                         elseif ($handler_type == 'missing') 
                         {
-                            fwrite($opfile, "WARNING on DVB/HbbTV: The fragment duration of 'unknown' type (".$fragment_duration_sec." sec) is different from the sum of all segment durations (".$total_seg_duration." sec) in Adaptation Set: "
+                            fwrite($opfile, "Warning on DVB/HbbTV: The fragment duration of 'unknown' type (".$fragment_duration_sec." sec) is different from the sum of all segment durations (".$total_seg_duration." sec) in Adaptation Set: "
                                     .$adapt_id." Representation with 'id' : ".$rep_id. ".\n");
                         }
                     }
