@@ -1460,11 +1460,11 @@ function bitrate_report($opfile, $dom, $xml_rep, $adapt_count, $rep_count, $size
     // Here 2 possible cases are considered for sidx -subsegment signalling.
     //First case is for no sidx box.
     if(empty($subsegment_signaling)){
-        for($j=0;$j<$num_moofs-1;$j++){
+        for($j=0;$j<$num_moofs;$j++){
             $cummulatedSampleDuration=$xml_rep->getElementsByTagName('trun')->item($j)->getAttribute('cummulatedSampleDuration');
             $segDur=$cummulatedSampleDuration/$timescale;
             $segSize = $sizearray[$j];
-            $segment_duration_array[] = round($segDur,2);
+            $segment_duration_array[] = $segDur;
             $bitrate_info = $bitrate_info . (string)($segSize*8/$segDur) . ',';
         }
     }
@@ -1484,7 +1484,7 @@ function bitrate_report($opfile, $dom, $xml_rep, $adapt_count, $rep_count, $size
             if($subsegment_signaling[$sidx_index] == 0){
                 $segSize = $sizearray[$sidx_index];
                 $bitrate_info = $bitrate_info . (string)($segSize*8/$cum_subsegDur) . ',';
-                $segment_duration_array[] = round($cum_subsegDur, 2);
+                $segment_duration_array[] = $cum_subsegDur;
                 $sidx_index++;
                 $cum_subsegDur = 0;
             }
