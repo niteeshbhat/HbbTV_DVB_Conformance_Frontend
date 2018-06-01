@@ -1031,23 +1031,82 @@ function common_validation_HbbTV($opfile, $dom, $xml_rep, $adapt_count, $rep_cou
 
     }
     
-    $mdhd=$xml_rep->getElementsByTagName('mdhd')->item(0);
-    $timescale=$mdhd->getAttribute('timescale');
-    $num_moofs=$xml_rep->getElementsByTagName('moof')->length;
-    $totalSegmentDuration = 0;
-    for($j=0;$j<$num_moofs-1;$j++)
-    {
-        $trun=$xml_rep->getElementsByTagName('trun')->item($j);
-        $cummulatedSampleDuration=$trun->getAttribute('cummulatedSampleDuration');
+    // Segment duration except the last one shall be at least one second
+    $sidx_boxes = $xml_rep->getElementsByTagName('sidx');
+    $subsegment_signaling = array();
+    if($sidx_boxes->length != 0){
+        foreach($sidx_boxes as $sidx_box){
+            $subsegment_signaling[] = (int)($sidx_box->getAttribute('referenceCount'));
+        }
+    }
+    
+    $timescale=$xml_rep->getElementsByTagName('mdhd')->item(0)->getAttribute('timescale');
+    $moof_boxes = $xml_rep->getElementsByTagName('moof');
+    $num_moofs=$moof_boxes->length;
+    $sidx_index = 0;
+    $cum_subsegDur=0;
+    for($j=0;$j<$num_moofs-1;$j++){
+        $cummulatedSampleDuration=$xml_rep->getElementsByTagName('trun')->item($j)->getAttribute('cummulatedSampleDuration');
         $segDur=$cummulatedSampleDuration/$timescale;
-        if($segDur <1)
-            fwrite($opfile, "###'HbbTV check violated Section E.2.3: Segments shall be at least 1s long except last segment of Period', segment ".($j+1)." found with duration ".$segDur." \n");
-        if($hdlr_type =='vide' && $segDur>15)
-            fwrite($opfile, "###'HbbTV check violated Section E.2.3: Each video segment shall have a duration of not more than 15s', segment ".($j+1)." found with duration ".$segDur." \n");
-        if($hdlr_type =='soun' && $segDur>15)
-            fwrite($opfile, "###'HbbTV check violated Section E.2.3: Each audio segment shall have a duration of not more than 15s', segment ".($j+1)." found with duration ".$segDur." \n");
         
-    }   
+        if(empty($subsegment_signaling) || (!empty($subsegment_signaling) && sizeof(array_unique($subsegment_signaling)) == 1 && in_array(0, $subsegment_signaling))){
+            if($hdlr_type =='vide' && $segDur>15)
+                fwrite($opfile, "###'HbbTV check violated Section E.2.3: Each video segment shall have a duration of not more than 15s', segment ".($j+1)." found with duration ".$segDur." \n");
+            if($hdlr_type =='soun' && $segDur>15)
+                fwrite($opfile, "###'HbbTV check violated Section E.2.3: Each audio segment shall have a duration of not more than 15s', segment ".($j+1)." found with duration ".$segDur." \n");
+            
+            if($segDur <1)
+                fwrite($opfile, "###'HbbTV check violated Section E.2.3: Segments shall be at least 1s long except last segment of Period', segment ".($j+1)." found with duration ".$segDur." \n");
+        }
+        elseif(!empty($subsegment_signaling) && !in_array(0, $subsegment_signaling)){
+            $ref_count = $subsegment_signaling[$sidx_index];
+            $cum_subsegDur += $segDur;
+            if($hdlr_type =='vide' && $segDur>15)
+                fwrite($opfile, "###'HbbTV check violated Section E.2.3: Each video segment shall have a duration of not more than 15s', segment ".($j+1)." found with duration ".$segDur." \n");
+            if($hdlr_type =='soun' && $segDur>15)
+                fwrite($opfile, "###'HbbTV check violated Section E.2.3: Each audio segment shall have a duration of not more than 15s', segment ".($j+1)." found with duration ".$segDur." \n");
+            
+            $subsegment_signaling[$sidx_index] = $ref_count - 1;
+            if($subsegment_signaling[$sidx_index] == 0){
+                if($cum_subsegDur < 1)
+                    fwrite($opfile, "###'HbbTV check violated Section E.2.3: Segments shall be at least 1s long except last segment of Period', segment ".($j+1)." found with duration ".$segDur." \n");
+                
+                $sidx_index++;
+                $cum_subsegDur = 0;
+            }
+        }
+        else{
+            $ref_count = $subsegment_signaling[$sidx_index];
+            if($ref_count == 0){
+                if($hdlr_type =='vide' && $segDur>15)
+                    fwrite($opfile, "###'HbbTV check violated Section E.2.3: Each video segment shall have a duration of not more than 15s', segment ".($j+1)." found with duration ".$segDur." \n");
+                if($hdlr_type =='soun' && $segDur>15)
+                    fwrite($opfile, "###'HbbTV check violated Section E.2.3: Each audio segment shall have a duration of not more than 15s', segment ".($j+1)." found with duration ".$segDur." \n");
+                
+                if($segDur <1)
+                    fwrite($opfile, "###'HbbTV check violated Section E.2.3: Segments shall be at least 1s long except last segment of Period', segment ".($j+1)." found with duration ".$segDur." \n");
+                
+                $sidx_index++;
+            }
+            else{
+                $subsegment_signaling[$sidx_index] = $ref_count - 1;
+                $cum_subsegDur += $segDur;
+                if($hdlr_type =='vide' && $segDur>15)
+                    fwrite($opfile, "###'HbbTV check violated Section E.2.3: Each video segment shall have a duration of not more than 15s', segment ".($j+1)." found with duration ".$segDur." \n");
+                if($hdlr_type =='soun' && $segDur>15)
+                    fwrite($opfile, "###'HbbTV check violated Section E.2.3: Each audio segment shall have a duration of not more than 15s', segment ".($j+1)." found with duration ".$segDur." \n");
+                
+                if($subsegment_signaling[$sidx_index] == 0){
+                    $sidx_index++;
+                    if($cum_subsegDur < 1)
+                        fwrite($opfile, "###'HbbTV check violated Section E.2.3: Segments shall be at least 1s long except last segment of Period', segment ".($j+1)." found with duration ".$segDur." \n");
+                    
+                    $cum_subsegDur = 0;
+                }
+            }
+        }
+    }
+    //   
     
     if($dom->getElementsByTagName('MPD')->item(0)->getAttribute('type') == 'dynamic' && count(glob($locate.'/Adapt'.$adapt_count.'rep'.$rep_count.'/*mp4')) == 1)
         fwrite($opfile, "###'HbbTV check violated 'Segment includes features that are not required by the profile being validated against', found only segment in the representation while MPD@type is dynamic.\n");
