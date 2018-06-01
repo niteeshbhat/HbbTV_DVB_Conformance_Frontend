@@ -199,7 +199,13 @@ function DVB_HbbTV_cross_profile_check($dom, $mpdreport){
     
     $profiles_arr = explode(',', $profiles);
     foreach($profiles_arr as $profile){
-        if(!in_array($profile, $supported_profiles))
+        $profile_found = false;
+        foreach($supported_profiles as $supported_profile){
+            if(strpos($profile, $supported_profile) !== FALSE)
+                $profile_found = true;
+        }
+        
+        if(!$profile_found)
             fwrite($mpdreport, "Information on DVB-HbbTV conformance: MPD element is scoped by the profile \"$profile\" that the tool is not validating against.\n");
     }
 }
