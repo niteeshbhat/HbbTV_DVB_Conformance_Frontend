@@ -1276,7 +1276,7 @@ function DVB_subtitle_checks($adapt, $reps, $mpdreport, $i){
     $supp_present = false; $supp_scheme = array(); $supp_val = array(); $supp_url = array(); $supp_fontFam = array(); $supp_mime = array();
     $ess_present = false; $ess_scheme = array(); $ess_val = array(); $ess_url = array(); $ess_fontFam = array(); $ess_mime = array();
     
-    if(strpos($adapt_codecs, 'stpp') != FALSE)
+    if(strpos($adapt_codecs, 'stpp') !== FALSE)
         $str_codec_info .= 'y ';
     
     $ids = array();
@@ -1332,7 +1332,7 @@ function DVB_subtitle_checks($adapt, $reps, $mpdreport, $i){
         foreach ($rep->childNodes as $ch){
             if($ch->nodeName == 'SubRepresentation'){
                 $subrep_codecs[] = $ch->getAttribute('codecs');
-                if(strpos($ch->getAttribute('codecs'), 'stpp'))
+                if(strpos($ch->getAttribute('codecs'), 'stpp') !== FALSE)
                     $str_codec_info .= 'y ';
                 
                 ##Information from this part is for Section 11.3.0: audio stream bandwidth percentage
