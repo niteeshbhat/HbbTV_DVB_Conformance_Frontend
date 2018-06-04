@@ -682,7 +682,7 @@ function processmpdresults(MPDtotalResultXML)
 
             document.getElementById('dynamic').style.visibility='visible';
 
-            document.getElementById("dynamic").href='http://vm1.dashif.org/DynamicServiceValidator/?mpdurl=' +url ;
+            document.getElementById("dynamic").href='http://localhost/HbbTV_DVB_Conformance_Backend/conformance/DynamicServiceValidator/index.html?mpdurl=' +url ;
     //            document.getElementById('list').style.visibility='visible';
 
     //            finishTest();
