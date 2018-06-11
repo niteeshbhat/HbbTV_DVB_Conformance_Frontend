@@ -576,10 +576,19 @@ function common_validation_DVB($opfile, $dom, $xml_rep, $adapt_count, $rep_count
     if(strpos($sdType, 'avc') === FALSE && strpos($sdType, 'hev1') === FALSE && strpos($sdType, 'hvc1') === FALSE && 
        strpos($sdType, 'mp4a') === FALSE && strpos($sdType, 'ec-3') === FALSE && strpos($sdType, 'ac-4') === FALSE &&
        strpos($sdType, 'dtsc') === FALSE && strpos($sdType, 'dtsh') === FALSE && strpos($sdType, 'dtse') === FALSE && strpos($sdType, 'dtsl') === FALSE &&
-       strpos($sdType, 'stpp') === FALSE)
+       strpos($sdType, 'stpp') === FALSE &&
+       strpos($sdType, 'enc') === FALSE)
         fwrite($opfile, "###'DVB check violated: codec in the Segment is not supported by the specification', found $sdType.\n");
     
-    if(strpos($sdType, 'avc') !== FALSE){
+    $original_format = '';
+    if(strpos($sdType, 'enc') !== FALSE){
+        $sinf_boxes = $xml_rep->getElementsByTagName('sinf');
+        if($sinf_boxes->length != 0){
+            $original_format = $sinf_boxes->item(0)->getElementsByTagName('frma')->item(0)->getAttribute('original_format');
+        }
+    }
+    
+    if(strpos($sdType, 'avc') !== FALSE || strpos($original_format, 'avc') !== FALSE){
         $nal_units = $xml_rep->getElementsByTagName('NALUnit');
         foreach($nal_units as $nal_unit){
             if($nal_unit->getAttribute('nal_type') == '0x07'){
@@ -592,12 +601,13 @@ function common_validation_DVB($opfile, $dom, $xml_rep, $adapt_count, $rep_count
             }
         }
     }
-    elseif(strpos($sdType, 'hev1') !== FALSE || strpos($sdType, 'hvc1') !== FALSE){
+    elseif(strpos($sdType, 'hev1') !== FALSE || strpos($sdType, 'hvc1') !== FALSE || strpos($original_format, 'hev1') !== FALSE || strpos($original_format, 'hvc1') !== FALSE){
         $width = $xml_rep->getElementsByTagName("$hdlr_type".'_sampledescription')->item(0)->getAttribute('width');
         $height = $xml_rep->getElementsByTagName("$hdlr_type".'_sampledescription')->item(0)->getAttribute('height');
         $nal_units = $xml_rep->getElementsByTagName('NALUnit');
         foreach($nal_units as $nal_unit){
-            if($nal_unit->getAttribute('nalUnitType') == '33'){
+            $nalUnitType = $nal_unit->parentNode->getAttribute('nalUnitType');
+            if($nalUnitType == '33'){
                 if($nal_unit->getAttribute('gen_tier_flag') != '0')
                     fwrite($opfile, "###'DVB check violated: tier used for the codec in Segment is not supported by the specification', found " . $nal_unit->getAttribute('gen_tier_flag') . ".\n");
                 if($nal_unit->getAttribute('bit_depth_luma_minus8') != 0 && $nal_unit->getAttribute('bit_depth_luma_minus8') != 2)
@@ -957,11 +967,20 @@ function common_validation_HbbTV($opfile, $dom, $xml_rep, $adapt_count, $rep_cou
     
     if($hdlr_type=='vide' || $hdlr_type=='soun'){
     if(strpos($sdType, 'avc') === FALSE && 
-       strpos($sdType, 'mp4a') === FALSE && strpos($sdType, 'ec-3') === FALSE)
+       strpos($sdType, 'mp4a') === FALSE && strpos($sdType, 'ec-3') === FALSE &&
+       strpos($sdType, 'enc') === FALSE)
         fwrite($opfile, "###'HbbTV check violated: codec in Segment is not supported by the specification', found $sdType.\n");
     }
     
-    if(strpos($sdType, 'avc') !== FALSE){
+    $original_format = '';
+    if(strpos($sdType, 'enc') !== FALSE){
+        $sinf_boxes = $xml_rep->getElementsByTagName('sinf');
+        if($sinf_boxes->length != 0){
+            $original_format = $sinf_boxes->item(0)->getElementsByTagName('frma')->item(0)->getAttribute('original_format');
+        }
+    }
+    
+    if(strpos($sdType, 'avc') !== FALSE || strpos($original_format, 'avc') !== FALSE){
         $width = $xml_rep->getElementsByTagName("$hdlr_type".'_sampledescription')->item(0)->getAttribute('width');
         $height = $xml_rep->getElementsByTagName("$hdlr_type".'_sampledescription')->item(0)->getAttribute('height');
         $nal_units = $xml_rep->getElementsByTagName('NALUnit');
