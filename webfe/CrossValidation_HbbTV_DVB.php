@@ -904,10 +904,12 @@ function common_validation_DVB($opfile, $dom, $xml_rep, $adapt_count, $rep_count
                 $pps_found = true;
         }
         
-        if(!$sps_found)
-            fwrite($opfile, "###'DVB check violated: Section 5.1.2- All information necessary to decode any Segment chosen from the Representation SHALL be provided in the initiaölization Segment', SPS not found.\n");
-        if(!$pps_found)
-            fwrite($opfile, "###'DVB check violated: Section 5.1.2- All information necessary to decode any Segment chosen from the Representation SHALL be provided in the initiaölization Segment', PPS not found.\n");
+        if($sdType != 'avc3'){ // in AVC3 this data goes in the first sample of every fragment (i.e. the first sample in each mdat box).
+            if(!$sps_found)
+                fwrite($opfile, "###'DVB check violated: Section 5.1.2- All information necessary to decode any Segment chosen from the Representation SHALL be provided in the initialization Segment', SPS not found.\n");
+            if(!$pps_found)
+                fwrite($opfile, "###'DVB check violated: Section 5.1.2- All information necessary to decode any Segment chosen from the Representation SHALL be provided in the initialization Segment', PPS not found.\n");
+        }
     }
     
     // Section 4.5 on subtitle segment sizes
@@ -1005,15 +1007,17 @@ function common_validation_HbbTV($opfile, $dom, $xml_rep, $adapt_count, $rep_cou
                 if($nal_unit->getAttribute('nal_type') =='0x08')
                     $pps_found=1;
             }
-            if($sps_found!=1)
-                fwrite($opfile, "###'HbbTV check violated Section E.2.3: All info necessary to decode any Segment shall be provided in Initialization Segment', for AVC video, Sequence parameter set not found\n");
-            if($pps_found!=1)
-                fwrite($opfile, "###'HbbTV check violated Section E.2.3: All info necessary to decode any Segment shall be provided in Initialization Segment', for AVC video, Picture parameter set not found \n");
-
+            if($sdType != 'avc3'){
+                if($sps_found!=1)
+                    fwrite($opfile, "###'HbbTV check violated Section E.2.3: All info necessary to decode any Segment shall be provided in Initialization Segment', for AVC video, Sequence parameter set not found\n");
+                if($pps_found!=1)
+                    fwrite($opfile, "###'HbbTV check violated Section E.2.3: All info necessary to decode any Segment shall be provided in Initialization Segment', for AVC video, Picture parameter set not found \n");
+            }
         }
-        else
-            fwrite($opfile, "###'HbbTV check violated Section E.2.3: All info necessary to decode any Segment shall be provided in Initialization Segment', for video, AVC decoder config record not found \n");
-
+        else{
+            if($sdType != 'avc3')
+                fwrite($opfile, "###'HbbTV check violated Section E.2.3: All info necessary to decode any Segment shall be provided in Initialization Segment', for video, AVC decoder config record not found \n");
+        }
     }
     else if($hdlr_type =='soun'){
         $soun_sample=$xml_rep->getElementsByTagName('soun_sampledescription');
