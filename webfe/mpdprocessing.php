@@ -937,9 +937,17 @@ function process_mpd()
                     $dash264 = true;
                 }
 
-                if ($Period_arr[$count1]['Representation']['ContentProtectionElementCount'][$count2] > 0 && $dash264 == true)
-                {
-                    $processArguments = $processArguments . "-dash264enc ";
+                if($check_dvb_conformance || $check_hbbtv_conformance){
+                    if ($Period_arr[$count1]['Representation']['ContentProtectionElementCount'][$count2] > 0)
+                    {
+                        $processArguments = $processArguments . "-dash264enc ";
+                    }
+                }
+                else{
+                    if ($Period_arr[$count1]['Representation']['ContentProtectionElementCount'][$count2] > 0 && $dash264 == true)
+                    {
+                        $processArguments = $processArguments . "-dash264enc ";
+                    }
                 }
 
                 $processArguments = $processArguments . "-codecs ";
