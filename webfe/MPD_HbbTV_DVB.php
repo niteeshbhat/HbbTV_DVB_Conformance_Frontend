@@ -1026,11 +1026,16 @@ function DVB_video_checks($adapt, $reps, $mpdreport, $i, $contentTemp_vid_found)
         ## Information from this part is used for Section 11.2.2 frame rate check
         $frame_rate_len = sizeof($reps_frameRate);
         for($f1=0; $f1<$frame_rate_len; $f1++){
-            for($f2=$f1+1; $f2<$frame_rate_len; $f2++){
-                $modulo = ($reps_frameRate[$f1] > $reps_frameRate[$f2]) ? ($reps_frameRate[$f1] % $reps_frameRate[$f2]) : ($reps_frameRate[$f2] % $reps_frameRate[$f1]);
+            if($reps_frameRate[$f1] != ''){
+                for($f2=$f1+1; $f2<$frame_rate_len; $f2++){
+                    if($reps_frameRate[$f2] != ''){
+                        $modulo = ($reps_frameRate[$f1] > $reps_frameRate[$f2]) ? ($reps_frameRate[$f1] % $reps_frameRate[$f2]) : ($reps_frameRate[$f2] % $reps_frameRate[$f1]);
+                        
+                        if($modulo != 0)
+                            fwrite($mpdreport, "Warning for DVB check: Section 11.2.2- 'The frame rates used SHOULD be multiple integers of each other to enable seamless switching', not satisfied for Period $period_count Adaptation Set " . ($i+1) . "- Representation " . ($f1+1) . " and Representation " . ($f2+1) . ".\n");
                 
-                if($modulo != 0)
-                    fwrite($mpdreport, "Warning for DVB check: Section 11.2.2- 'The frame rates used SHOULD be multiple integers of each other to enable seamless switching', not satisfied for Period $period_count Adaptation Set " . ($i+1) . "- Representation " . ($f1+1) . " and Representation " . ($f2+1) . ".\n");
+                    }
+                }
             }
         }
     }
