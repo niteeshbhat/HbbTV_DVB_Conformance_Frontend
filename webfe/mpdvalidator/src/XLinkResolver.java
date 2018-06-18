@@ -70,7 +70,7 @@ public class XLinkResolver {
 	
 	
 	public void resolveXLinks(String fileToResolve) throws SAXException, IOException, ParserConfigurationException, XPathExpressionException, XLinkException, TransformerException {
-		Document localDoc = parseXML(fileToResolve);
+		Document localDoc = parseXML(fileToResolve, new Integer(0));
 		documentList_.add(localDoc); // add start document to the list
 		Document newDocument = handleNodeList(localDoc);
 			
@@ -89,7 +89,7 @@ public class XLinkResolver {
 				String link = extractXLinkHref(nNode);
 				String resolveToZeroPeriod = new String("urn:mpeg:dash:resolve-to-zero:2013");
 				if (link != null && !link.equals(resolveToZeroPeriod)) {
-                    Document remoteDoc = parseXML(link);
+                    Document remoteDoc = parseXML(link, new Integer(1));
                     // Earlier the calling xlink node can be directly replaced with the remoteDoc's root element.
                     // But this is no longer possible, because we add a manual root element.
 					// Instead we need to extract the child nodes.
@@ -202,7 +202,7 @@ public class XLinkResolver {
 		out.close();
 	}
 	
-	private static Document parseXML(String xmlURI) throws SAXException, IOException, ParserConfigurationException {
+	private static Document parseXML(String xmlURI, Integer indicator) throws SAXException, IOException, ParserConfigurationException {
 		DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
 		dbFactory.setNamespaceAware(true); // resolve namespaces
 		
@@ -215,7 +215,7 @@ public class XLinkResolver {
             // manually adding a root element around the multi period content. Note that if it is a normal .xml file,
             // then it is being parsed as it was before (the if condition takes care of this).
             String type = xmlURI.substring(xmlURI.lastIndexOf('.') + 1);
-            if(!type.equals("mpd")) {
+            if(indicator == 1) {
 				// Add manual <root> element around the xml file.
                 List<InputStream> streams = Arrays.asList(
                         new ByteArrayInputStream("<root>".getBytes()),
