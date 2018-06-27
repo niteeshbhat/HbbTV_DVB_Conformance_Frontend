@@ -58,9 +58,15 @@ function HbbTV_DVB_mpdvalidator($dom, $hbbtv, $dvb) {
 }
 
 function DVB_HbbTV_profile_specific_media_types_report($dom, $mpdreport){
+    global $enforced_profile_dvb, $enforced_profile_hbbtv;
     
     $MPD = $dom->getElementsByTagName('MPD')->item(0);
     $mpd_profiles = $MPD->getAttribute('profiles');
+    
+    if($enforced_profile_dvb)
+        $mpd_profiles .= ',urn:dvb:dash:profile:dvb-dash:2014';
+    if($enforced_profile_hbbtv)
+        $mpd_profiles .= ',urn:hbbtv:dash:profile:isoff-live:2012';
     
     $profiles_arr = explode(',', $mpd_profiles);
     if(sizeof($profiles_arr) > 1){

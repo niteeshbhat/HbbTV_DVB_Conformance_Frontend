@@ -299,7 +299,7 @@
         <p class="sansserif"><input type="checkbox" id="mpdvalidation" class = "validation" value="0">MPD conformance only</p><br>
     </form>
     <div class="profiles">
-            Select profile(s): <input type="checkbox" class="profile1" id="dvbprofile">
+            Enforce profile(s): <input type="checkbox" class="profile1" id="dvbprofile">
                                     <label for="dvbprofile">DVB</label>
                                <input type="checkbox" class="profile2" id="hbbtvprofile">
                                     <label for="hbbtvprofile">HbbTV</label>
@@ -360,7 +360,8 @@ var progressSegmentsTimer;
 var pollingTimer;
 var ChainedToUrl;
 var cmaf = "<?php echo $cmaf; ?>";
-
+var dvb = 0;
+var hbbtv = 0;
 
 /////////////////////////////////////////////////////////////
 //Check if 'drag and drop' feature is supported by the browser, if not, then traditional file upload can be used.
@@ -752,8 +753,11 @@ function processmpdresults(MPDtotalResultXML)
     }
     totarr.splice(0,1);
     x++;
-    if($("#dvbprofile").is(':checked') || $("#hbbtvprofile").is(':checked'))
+    if($("#dvbprofile").is(':checked') || $("#hbbtvprofile").is(':checked') || (totarr !== undefined && totarr.length != 0 && totarr[0] != ''))
     {
+        dvb = 1;
+        hbbtv = 1;
+        
         if(totarr[0]==='true') // New for HbbTV-DVB conformance.
         {
             automate(y,x,"HbbTv DVB validation");
@@ -943,7 +947,7 @@ function progress()  //Progress of Segments' Conformance
             }
         }
         
-        if($("#dvbprofile").is(':checked') || $("#hbbtvprofile").is(':checked')){
+        if($("#dvbprofile").is(':checked') || $("#hbbtvprofile").is(':checked') || dvb == 1 || hbbtv == 1){
             if(ComparedRepresentations.length!=0 && adaptationid>totarr[0]){
                 for(var i =1; i<=ComparedRepresentations.length;i++)
                 {
