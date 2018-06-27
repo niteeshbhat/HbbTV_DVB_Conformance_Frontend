@@ -766,7 +766,7 @@ function common_validation_DVB($opfile, $dom, $xml_rep, $adapt_count, $rep_count
     ## Segment checks
     $moof_boxes = $xml_rep->getElementsByTagName('moof');
     // Section 4.3 on on-demand profile periods containing sidx boxes
-    if(strpos($profiles, 'urn:mpeg:dash:profile:isoff-on-demand:2011') !== FALSE){
+    if(strpos($profiles, 'urn:mpeg:dash:profile:isoff-on-demand:2011') !== FALSE || strpos($profiles, 'urn:dvb:dash:profile:dvb-dash:isoff-ext-on-demand:2014') !== FALSE){
         if($xml_rep->getElementsByTagName('sidx')->length != 1)
             fwrite($opfile, "###'DVB check violated: 'Segment includes features that are not required by the profile being validated against', found ". $xml_rep->getElementsByTagName('sidx')->length ." sidx boxes while according to Section 4.3 \"(For On Demand profile) The segment SHALL contain only one single Segment Index box ('sidx) for the entire segment\"'.\n");
         if(count(glob($locate.'/Adapt'.$adapt_count.'rep'.$rep_count.'/*')) - count(glob($locate.'/Adapt'.$adapt_count.'rep'.$rep_count.'/*', GLOB_ONLYDIR)) != 1)
