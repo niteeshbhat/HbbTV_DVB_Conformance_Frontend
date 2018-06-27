@@ -593,11 +593,11 @@ function common_validation_DVB($opfile, $dom, $xml_rep, $adapt_count, $rep_count
         foreach($nal_units as $nal_unit){
             if($nal_unit->getAttribute('nal_type') == '0x07'){
                 if($nal_unit->getAttribute('profile_idc') != 100)
-                    fwrite($opfile, "###'DVB check violated: profile used for the codec in Segment is not supported by the specification', found " . $nal_unit->getAttribute('profile_idc') . ".\n");
+                    fwrite($opfile, "###'DVB check violated: profile used for the AVC codec in Segment is not supported by the specification Section 5.1.1', found " . $nal_unit->getAttribute('profile_idc') . ".\n");
             
                 $level_idc = $nal_unit->getElementsByTagName('comment')->item(0)->getAttribute('level_idc');
                 if($level_idc != 30 && $level_idc != 31 && $level_idc != 32 && $level_idc != 40)
-                    fwrite($opfile, "###'DVB check violated: level used for the codec in Segment is not supported by the specification', found $level_idc.\n");
+                    fwrite($opfile, "###'DVB check violated: level used for the AVC codec in Segment is not supported by the specification Section 5.1.1', found $level_idc.\n");
             }
         }
     }
@@ -609,21 +609,21 @@ function common_validation_DVB($opfile, $dom, $xml_rep, $adapt_count, $rep_count
             $nalUnitType = $nal_unit->parentNode->getAttribute('nalUnitType');
             if($nalUnitType == '33'){
                 if($nal_unit->getAttribute('gen_tier_flag') != '0')
-                    fwrite($opfile, "###'DVB check violated: tier used for the codec in Segment is not supported by the specification', found " . $nal_unit->getAttribute('gen_tier_flag') . ".\n");
+                    fwrite($opfile, "###'DVB check violated: tier used for the HEVC codec in Segment is not supported by the specification Section 5.2.3', found " . $nal_unit->getAttribute('gen_tier_flag') . ".\n");
                 if($nal_unit->getAttribute('bit_depth_luma_minus8') != 0 && $nal_unit->getAttribute('bit_depth_luma_minus8') != 2)
-                    fwrite($opfile, "###'DVB check violated: bit depth used for the codec in Segment is not supported by the specification', found " . $nal_unit->getAttribute('bit_depth_luma_minus8') . ".\n");
+                    fwrite($opfile, "###'DVB check violated: bit depth used for the HEVC codec in Segment is not supported by the specification Section 5.2.3', found " . $nal_unit->getAttribute('bit_depth_luma_minus8') . ".\n");
                 
                 if((int)$width <= 1920 && (int)$height <= 1080){
                     if($nal_unit->getAttribute('gen_profile_idc') != '1' && $nal_unit->getAttribute('gen_profile_idc') != '2')
-                        fwrite($opfile, "###'DVB check violated: profile used for the codec in Segment is not supported by the specification', found " . $nal_unit->getAttribute('gen_profile_idc') . ".\n");
+                        fwrite($opfile, "###'DVB check violated: profile used for the HEVC codec in Segment is not supported by the specification Section 5.2.3', found " . $nal_unit->getAttribute('gen_profile_idc') . ".\n");
                     if((int)($nal_unit->getAttribute('sps_max_sub_layers_minus1')) == 0 && (int)($nal_unit->getAttribute('gen_level_idc')) > 123)
-                        fwrite($opfile, "###'DVB check violated: level used for the codec in Segment is not supported by the specification', found " . $nal_unit->getAttribute('gen_level_idc') . ".\n");
+                        fwrite($opfile, "###'DVB check violated: level used for the HEVC codec in Segment is not supported by the specification Section 5.2.3', found " . $nal_unit->getAttribute('gen_level_idc') . ".\n");
                 }
                 elseif((int)$width > 1920 && (int)$height > 1080){
                     if($nal_unit->getAttribute('gen_profile_idc') != '2')
-                        fwrite($opfile, "###'DVB check violated: profile used for the codec in Segment is not supported by the specification', found " . $nal_unit->getAttribute('gen_profile_idc') . ".\n");
+                        fwrite($opfile, "###'DVB check violated: profile used for the HEVC codec in Segment is not supported by the specification Section 5.2.3', found " . $nal_unit->getAttribute('gen_profile_idc') . ".\n");
                     if((int)($nal_unit->getAttribute('sps_max_sub_layers_minus1')) == 0 && (int)($nal_unit->getAttribute('gen_level_idc')) > 153)
-                        fwrite($opfile, "###'DVB check violated: level used for the codec in Segment is not supported by the specification', found " . $nal_unit->getAttribute('gen_level_idc') . ".\n");
+                        fwrite($opfile, "###'DVB check violated: level used for the HEVC codec in Segment is not supported by the specification Section 5.2.3', found " . $nal_unit->getAttribute('gen_level_idc') . ".\n");
                 }
             }
         }
@@ -988,19 +988,19 @@ function common_validation_HbbTV($opfile, $dom, $xml_rep, $adapt_count, $rep_cou
             if($nal_unit->getAttribute('nal_type') == '0x07'){
                 if((int)$width <= 720 && (int)$height <= 576){
                     if($nal_unit->getAttribute('profile_idc') != 77 && $nal_unit->getAttribute('profile_idc') != 100)
-                        fwrite($opfile, "###'HbbTV check violated: profile used for the codec in Segment is not supported by the specification', found " . $nal_unit->getAttribute('profile_idc') . ".\n");
+                        fwrite($opfile, "###'HbbTV check violated: profile used for the codec in Segment is not supported by the specification Section 7.3.1', found " . $nal_unit->getAttribute('profile_idc') . ".\n");
                     
                     $level_idc = $nal_unit->getElementsByTagName('comment')->item(0)->getAttribute('level_idc');
                     if($level_idc != 30)
-                        fwrite($opfile, "###'HbbTV check violated: level used for the codec in Segment is not supported by the specification', found $level_idc.\n");
+                        fwrite($opfile, "###'HbbTV check violated: level used for the codec in Segment is not supported by the specification Section 7.3.1', found $level_idc.\n");
                 }
                 elseif((int)$width >= 720 && (int)$height >= 640){
                     if($nal_unit->getAttribute('profile_idc') != 100)
-                        fwrite($opfile, "###'HbbTV check violated: profile used for the codec in Segment is not supported by the specification', found " . $nal_unit->getAttribute('profile_idc') . ".\n");
+                        fwrite($opfile, "###'HbbTV check violated: profile used for the codec in Segment is not supported by the specification Section 7.3.1', found " . $nal_unit->getAttribute('profile_idc') . ".\n");
                     
                     $level_idc = $nal_unit->getElementsByTagName('comment')->item(0)->getAttribute('level_idc');
                     if($level_idc != 30 && $level_idc != 31 && $level_idc != 32 && $level_idc != 40)
-                        fwrite($opfile, "###'HbbTV check violated: level used for the codec in Segment is not supported by the specification', found $level_idc.\n");
+                        fwrite($opfile, "###'HbbTV check violated: level used for the codec in Segment is not supported by the specification Section 7.3.1', found $level_idc.\n");
                 }
             }
         }
@@ -1767,7 +1767,7 @@ function content_protection_report($dom_MPD)
                         }
                         else
                         {
-                            fwrite($adaptreport, "###DVB/HbbTV check violated: The Representations in Adaptation Set ".$adapt_id." should all have the same 'default_KID' in the 'tenc' box but found otherwise.\n");
+                            fwrite($adaptreport, "###DVB/HbbTV check violated: The Representations in Adaptation Set ".$adapt_id." shall all have the same 'default_KID' in the 'tenc' box but found otherwise.\n");
                         }
                     }
                     //reporting for key retation   
@@ -2005,7 +2005,7 @@ function TLS_bitrate_check($dom_MPD)//$cp_dom as argument
                             if(($total_BW > 12000000) && ($total_BW <= 39000000))
                             {
                                 // 12 Mbit/s if the terminal does not support UHD video.
-                                fwrite($constraint_violation_report, "***Information on HbbTV: Period ".$period_id." -> HbbTV TLS bitrate constraint violation - If the terminal does not support UHD video the bitrate "
+                                fwrite($constraint_violation_report, "***Information on HbbTV: Period ".$period_id." -> HbbTV TLS bitrate constraint violation Section 7.3.1.2 - If the terminal does not support UHD video the bitrate "
                                         . "should not exceed 12 Mbit/s.\n---The bandwidth sum of representations: ".$k_v.", ".$k_a.", ".$k_s." with the respective bandwidths: "
                                         . $v_BW." bps, ".$a_BW." bps, ".$s_BW." bps which amounts to a total of ".$total_BW." bps was found to violate this constraint.***\n");
 
@@ -2014,7 +2014,7 @@ function TLS_bitrate_check($dom_MPD)//$cp_dom as argument
                             {
                                 // 12 Mbit/s if the terminal does not support UHD video.
                                 // 39 Mbit/s if the terminal does support UHD video but does not support HFR video. 
-                                fwrite($constraint_violation_report, "***Information on HbbTV: Period ".$period_id." -> HbbTV TLS bitrate constraint violation - If the terminal does support UHD video but does not support HFR video"
+                                fwrite($constraint_violation_report, "***Information on HbbTV: Period ".$period_id." -> HbbTV TLS bitrate constraint violation Section 7.3.1.2 - If the terminal does support UHD video but does not support HFR video"
                                         . " the bitrate should not exceed 39 Mbit/s.\n---The bandwidth sum of representations: ".$k_v.", ".$k_a.", ".$k_s." with the respective bandwidths: "
                                         . $v_BW." bps, ".$a_BW." bps, ".$s_BW." bps which amounts to a total of ".$total_BW." bps was found to violate this constraint.***\n");
                             }
@@ -2023,7 +2023,7 @@ function TLS_bitrate_check($dom_MPD)//$cp_dom as argument
                                 // 12 Mbit/s if the terminal does not support UHD video.
                                 // 39 Mbit/s if the terminal does support UHD video but does not support HFR video.
                                 // 51 Mbit/s if the terminal supports UHD HFR video. 
-                                fwrite($constraint_violation_report, "***Information on HbbTV: Period ".$period_id." -> HbbTV TLS bitrate constraint violation - If the terminal supports UHD HFR video"
+                                fwrite($constraint_violation_report, "***Information on HbbTV: Period ".$period_id." -> HbbTV TLS bitrate constraint violation Section 7.3.1.2 - If the terminal supports UHD HFR video"
                                         . " the bitrate should not exceed 51 Mbit/s.\n---The bandwidth sum of representations: ".$k_v.", ".$k_a.", ".$k_s." with the respective bandwidths: "
                                         . $v_BW." bps, ".$a_BW." bps, ".$s_BW." bps which amounts to a total of ".$total_BW." bps was found to violate this constraint.***\n");
                             } 
