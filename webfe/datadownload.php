@@ -102,6 +102,8 @@ function downloaddata($directory, $array_file, $subtitle_rep)
                         ## For DVB subtitle checks related to mdat content
                         ## Save the mdat boxes' content into xml files
                         if($subtitle_rep){
+                            $subtitle_xml_string = '<subtitle>';
+                            
                             $mdat_file = $directory . 'Subtitles/' . $mdat_index . '.xml';
                             fopen($mdat_file, 'w');
                             chmod($mdat_file, 0777);
@@ -109,16 +111,23 @@ function downloaddata($directory, $array_file, $subtitle_rep)
                             
                             $total = $location + $size;
                             if ($total < sizeof($byte_array)){
-                                $mdat_data = simplexml_load_string(substr($content, ($initoffset + $location + 7), ($size - 7)));
-                                $mdat_data->asXML($mdat_file);
+                                $text = substr($content, ($initoffset + $location + 7), ($size - 7));
+                                $text = substr($text, strpos($text, '<tt'));
+                                $subtitle_xml_string .= $text;
                                 //fwrite($mdat_file, substr($content, ($initoffset + $sizepos + 8), ($size - 1)));
                             }
                             else{
                                 $rest = partialdownload($filePath, $sizepos+8, $sizepos + $size - 1, $ch);
-                                $mdat_data = simplexml_load_string($rest);
-                                $mdat_data->asXML($mdat_file);
+                                $text = $rest;
+                                $text = substr($text, strpos($text, '<tt'));
+                                $subtitle_xml_string .= $text;
                                 //fwrite($mdat_file, $rest);
                             }
+                            
+                            $subtitle_xml_string = substr($subtitle_xml_string, 0, strrpos($subtitle_xml_string, '>')+1);
+                            $subtitle_xml_string .= '</subtitle>';
+                            $mdat_data = simplexml_load_string($subtitle_xml_string);
+                            $mdat_data->asXML($mdat_file);
                         }
                         ##
                         ////fwrite($newfile,str_pad("0",$size-8,"0")); //Incase of the requirement of stuffing mdat with zeros
