@@ -58,7 +58,7 @@ function string_operations($locate, $mpdURL)
             {
                 if($mpdReport[$j] != "MPD validation successful - DASH is valid!")
                 {
-                    while($mpdReport[$j] != "Start Schematron validation")
+                    while(($mpdReport[$j] != "Start Schematron validation") && ($mpdReport[$j] != "HbbTV-DVB Validation "))
                     {
                         $mpdReport_errors[] = $mpdReport[$j];
                         $j++;
@@ -83,11 +83,12 @@ function string_operations($locate, $mpdURL)
                     $HbbTV_DVB_info[] = $mpdReport[$j];
                     $j++;
                 }
-                $new_HbbTV_DVB_info = remove_duplicate_err($HbbTV_DVB_info);
+                $HbbTV_DVB_info = remove_duplicate_err($HbbTV_DVB_info);
                 break; // no need to check the rest
             } 
         }
-        $mpdReport_errors = array_merge( $mpdReport_errors, $new_HbbTV_DVB_info);
+        $mpdReport_errors = remove_duplicate_err($mpdReport_errors);
+        $mpdReport_errors = array_merge( $mpdReport_errors, $HbbTV_DVB_info);
         if(!empty($mpdReport_errors))
         {     
             WriteLineToSheet($mpdReport_errors, $sheet, $highCell, 'MPD Report', $mpdURL);   
@@ -165,6 +166,11 @@ function WriteLineToSheet($contents,$sheet,$highCell, $type, $mpdURL)
             {
                 $sheet->getStyle('B'.($highCell + $line_count))->getFont()->getColor()->setARGB(\PhpOffice\PhpSpreadsheet\Style\Color::COLOR_DARKBLUE);
             }
+            elseif (($stripped_line[2] == 'Warning') || ($stripped_line[2] =='WARNING')) 
+            {
+                //$sheet->getStyle('B'.($highCell + $line_count))->getFont()->getColor()->setARGB(\PhpOffice\PhpSpreadsheet\Style\Color::COLOR_DARKYELLOW);
+                $sheet->getStyle('B'.($highCell + $line_count))->getFont()->getColor()->setARGB('FFB266');
+            }
             else
             {
                 $sheet->getStyle('B'.($highCell + $line_count))->getFont()->getColor()->setARGB(\PhpOffice\PhpSpreadsheet\Style\Color::COLOR_DARKRED);
@@ -180,6 +186,11 @@ function WriteLineToSheet($contents,$sheet,$highCell, $type, $mpdURL)
                 {
                     $next = true;
                 }
+            }
+            elseif (($stripped_line[2] == 'Warning') || ($stripped_line[2] =='WARNING')) 
+            {
+                //$sheet->getStyle('B'.($highCell + $line_count))->getFont()->getColor()->setARGB(\PhpOffice\PhpSpreadsheet\Style\Color::COLOR_DARKYELLOW);
+                $sheet->getStyle('B'.($highCell + $line_count))->getFont()->getColor()->setARGB('FF8000');
             }
             else
             {

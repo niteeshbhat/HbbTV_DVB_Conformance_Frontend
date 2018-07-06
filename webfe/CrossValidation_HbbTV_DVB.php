@@ -1487,7 +1487,7 @@ function bitrate_report($opfile, $dom, $xml_rep, $adapt_count, $rep_count, $size
             $cummulatedSampleDuration=$xml_rep->getElementsByTagName('trun')->item($j)->getAttribute('cummulatedSampleDuration');
             $segDur=$cummulatedSampleDuration/$timescale;
             $segSize = $sizearray[$j];
-            $segment_duration_array[] = $segDur;
+            $segment_duration_array[] = round($segDur, 2);
             $bitrate_info = $bitrate_info . (string)($segSize*8/$segDur) . ',';
         }
     }
@@ -1507,7 +1507,7 @@ function bitrate_report($opfile, $dom, $xml_rep, $adapt_count, $rep_count, $size
             if($subsegment_signaling[$sidx_index] == 0){
                 $segSize = $sizearray[$sidx_index];
                 $bitrate_info = $bitrate_info . (string)($segSize*8/$cum_subsegDur) . ',';
-                $segment_duration_array[] = $cum_subsegDur;
+                $segment_duration_array[] = round($cum_subsegDur);
                 $sidx_index++;
                 $cum_subsegDur = 0;
             }
@@ -2155,17 +2155,17 @@ function seg_duration_checks($dom_MPD, $count1, $count2, $opfile)
         {
             if(empty($MPD_duration_sec_array))
             {
-                $duration_diff_k_v  = implode(', ', array_map(function ($v, $k) { return sprintf(" seg: '%s' -> duration: '%s' sec ", $k, $v); },
+                $duration_diff_k_v  = implode(' ', array_map(function ($v, $k) { return sprintf(" seg: '%s' -> duration: '%s' sec \n", $k, $v); },
                 $duration_diff_array,array_keys($duration_diff_array)));
                 fwrite($opfile, "Information on DVB/HbbTV: In Adaptation Set ".$adapt_id.", Representation with 'id' : ".$rep_id." the following segments were found to have a different"
-                        . " duration from the one advertised in the MPD (".$MPD_duration_sec." sec) :\n".$duration_diff_k_v.".\n");
+                        . " duration from the one advertised in the MPD (".$MPD_duration_sec." sec) :\n".$duration_diff_k_v."\n");
             }
             else
             {
-                $duration_diff_k_v  = implode(', ', array_map(function ($v, $k) { return sprintf(" seg: '%s' -> duration: '%s' sec ", $k, $v); },
+                $duration_diff_k_v  = implode(' ', array_map(function ($v, $k) { return sprintf(" seg: '%s' -> duration: '%s' sec \n", $k, $v); },
                 $duration_diff_array,array_keys($duration_diff_array)));
                 fwrite($opfile, "Information on DVB/HbbTV: In Adaptation Set ".$adapt_id.", Representation with 'id' : ".$rep_id." the following segments were found to have a different"
-                        . " duration from the one advertised in the MPD:\n".$duration_diff_k_v.".\n");
+                        . " duration from the one advertised in the MPD:\n".$duration_diff_k_v."\n");
             }
         }
         
@@ -2202,7 +2202,7 @@ function seg_duration_checks($dom_MPD, $count1, $count2, $opfile)
                         }
                         elseif($handler_type == 'soun')
                         {
-                            fwrite($opfile, "###DVB/HbbTV check violated: The fragment duration of audio type (".$fragment_duration_sec." sec) is different from the sum of all segment durations (".$total_seg_duration." sec) in Adaptation Set: "
+                            fwrite($opfile, "###Error on DVB/HbbTV: The fragment duration of audio type (".$fragment_duration_sec." sec) is different from the sum of all segment durations (".$total_seg_duration." sec) in Adaptation Set: "
                                     .$adapt_id." Representation with 'id' : ".$rep_id. ".\n");
                         }
                         elseif ($handler_type == 'missing') 

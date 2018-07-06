@@ -1025,7 +1025,7 @@ function DVB_video_checks($adapt, $reps, $mpdreport, $i, $contentTemp_vid_found)
     
         $adapt_scanType = $adapt->getAttribute('scanType');
         if(($adapt_scanType == 'interlaced') || in_array('interlaced', $reps_scanType)){
-            if(empty($reps_scanType) || array_unique($reps_scanType) !== 1 || !(in_array('interlaced', $reps_scanType)))
+            if(empty($reps_scanType) || count(array_unique($reps_scanType)) !== 1 || !(in_array('interlaced', $reps_scanType)))
                 fwrite($mpdreport, "###'DVB check violated: Section 4.4- For any Representation within an Adaptation Set with @contentType=\"video\" @scanType attribute SHALL be present if interlaced pictures are used within any Representation in the Adaptation Set', could not be found in neither Period $period_count Adaptation Set " . ($i+1) . " nor Period $period_count Adaptation Set " . ($i+1) . " Representation " . ($j+1) . ".\n");
         }
         
