@@ -47,7 +47,7 @@ function string_operations($locate, $mpdURL)
             {
                 if($mpdReport[$j] != "XLink resolving successful")
                 {
-                    while($mpdReport[$j] != "Start MPD validation")
+                    while(($mpdReport[$j] != "Start MPD validation") && ($mpdReport[$j] != "HbbTV-DVB Validation "))
                     {
                         $mpdReport_errors[] = $mpdReport[$j];
                         $j++;
