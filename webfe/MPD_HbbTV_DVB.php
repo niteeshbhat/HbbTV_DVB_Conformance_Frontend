@@ -201,7 +201,8 @@ function DVB_HbbTV_cross_profile_check($dom, $mpdreport){
     
     $supported_profiles = array('urn:mpeg:dash:profile:isoff-on-demand:2011', 'urn:mpeg:dash:profile:isoff-live:2011', 
                                 'urn:mpeg:dash:profile:isoff-main:2011', 'http://dashif.org/guidelines/dash264', 
-                                'urn:dvb:dash:profile:dvb-dash:2014', 'urn:hbbtv:dash:profile:isoff-live:2012');
+                                'urn:dvb:dash:profile:dvb-dash:2014', 'urn:hbbtv:dash:profile:isoff-live:2012',
+                                'urn:dvb:dash:profile:dvb-dash:isoff-ext-live:2014', 'urn:dvb:dash:profile:dvb-dash:isoff-ext-on-demand:2014');
     
     $profiles_arr = explode(',', $profiles);
     foreach($profiles_arr as $profile){
@@ -400,10 +401,13 @@ function DVB_mpdvalidator($dom, $mpdreport){
                 $video_found = false;
                 $audio_found = false;
                 
+                $adapt_profile_exists = false;
                 $adapt_profiles = $adapt->getAttribute('profiles');
                 if($profile_exists && $adapt_profiles != ''){
                     if(strpos($adapt_profiles, 'urn:dvb:dash:profile:dvb-dash:2014') === FALSE && (strpos($adapt_profiles, 'urn:dvb:dash:profile:dvb-dash:isoff-ext-live:2014') === FALSE || strpos($adapt_profiles, 'urn:dvb:dash:profile:dvb-dash:isoff-ext-on-demand:2014') === FALSE))
                         fwrite($mpdreport, "Warning for DVB check: Section 11.1- 'All Representations that are intended to be decoded and presented by a DVB conformant Player SHOULD be such that they will be inferred to have an @profiles attribute that includes the profile name defined in clause 4.1 as well as either the one defined in 4.2.5 or the one defined in 4.2.8', found profiles: $adapt_profiles.\n");
+                    else
+                        $adapt_profile_exists = true;
                 }
                 
                 $reps = $adapt->getElementsByTagName('Representation');
@@ -421,11 +425,14 @@ function DVB_mpdvalidator($dom, $mpdreport){
                             $contentTemp_aud_found = true;
                     }
                     if($ch->nodeName == 'Representation'){
-                        if($profile_exists && $adapt_profiles == ''){
+                        if($profile_exists && ($adapt_profiles == '' || $adapt_profile_exists)){
+                            $rep_profile_exists = false;
                             $rep_profiles = $ch->getAttribute('profiles');
                             if($rep_profiles != ''){
                                 if(strpos($rep_profiles, 'urn:dvb:dash:profile:dvb-dash:2014') === FALSE && (strpos($rep_profiles, 'urn:dvb:dash:profile:dvb-dash:isoff-ext-live:2014') === FALSE || strpos($rep_profiles, 'urn:dvb:dash:profile:dvb-dash:isoff-ext-on-demand:2014') === FALSE))
                                     fwrite($mpdreport, "Warning for DVB check: Section 11.1- 'All Representations that are intended to be decoded and presented by a DVB conformant Player SHOULD be such that they will be inferred to have an @profiles attribute that includes the profile name defined in clause 4.1 as well as either the one defined in 4.2.5 or the one defined in 4.2.8', found profiles: $rep_profiles.\n");
+                                else
+                                    $rep_profile_exists = true;
                             }
                         }
                         if(strpos($ch->getAttribute('mimeType'), 'video') !== FALSE)
@@ -433,7 +440,7 @@ function DVB_mpdvalidator($dom, $mpdreport){
                         if(strpos($ch->getAttribute('mimeType'), 'audio') !== FALSE)
                             $audio_found = true;
                         
-                        if($profile_exists && $adapt_profiles == '' && $rep_profiles == ''){
+                        if($profile_exists && ($adapt_profiles == '' || $adapt_profile_exists) && ($rep_profiles == '' || $rep_profile_exists)){
                             foreach($ch->childNodes as $c){
                                 if($c->nodeName == 'SubRepresentation'){
                                     $subrep_profiles = $c->getAttribute('profiles');
