@@ -900,7 +900,7 @@ function DVB_video_checks($adapt, $reps, $mpdreport, $i, $contentTemp_vid_found)
     
     $ids = array();
     foreach ($adapt->childNodes as $ch){
-        if($ch->name == 'Role'){
+        if($ch->nodeName == 'Role'){
             if($adapt->getAttribute('contentType') == 'video'){
                 if($ch->getAttribute('schemeIdUri') == 'urn:mpeg:dash:role:2011' && $ch->getAttribute('value') == 'main')
                     $main_video_found = true;
@@ -1021,18 +1021,15 @@ function DVB_video_checks($adapt, $reps, $mpdreport, $i, $contentTemp_vid_found)
     
     ## Information from this part is used for Section 4.4 check
     if($adapt->getAttribute('contentType') == 'video'){
-        if($adapt->getAttribute('maxWidth') == '' && (array_unique($reps_width) === 1 && $adapt_width_present == false))
+        if($adapt->getAttribute('maxWidth') == '' && $adapt_width_present == false)
             fwrite($mpdreport, "Warning for DVB check: Section 4.4- 'For any Adaptation Sets with @contentType=\"video\" @maxWidth attribute (or @width if all Representations have the same width) SHOULD be present', could not be found in Period $period_count Adaptation Set " . ($i+1) . ".\n");
-        if($adapt->getAttribute('maxHeight') == '' && (array_unique($reps_height) === 1 && $adapt_height_present == false))
+        if($adapt->getAttribute('maxHeight') == '' && $adapt_height_present == false)
             fwrite($mpdreport, "Warning for DVB check: Section 4.4- 'For any Adaptation Sets with @contentType=\"video\" @maxHeight attribute (or @height if all Representations have the same height) SHOULD be present', could not be found in Period $period_count Adaptation Set " . ($i+1) . ".\n");
-        if($adapt->getAttribute('maxFrameRate') == '' && (array_unique($reps_frameRate) === 1 && $adapt_frameRate_present == false))
+        if($adapt->getAttribute('maxFrameRate') == '' && $adapt_frameRate_present == false)
             fwrite($mpdreport, "Warning for DVB check: Section 4.4- 'For any Adaptation Sets with @contentType=\"video\" @maxFrameRate attribute (or @frameRate if all Representations have the same frameRate) SHOULD be present', could not be found in Period $period_count Adaptation Set " . ($i+1) . ".\n");
         if($adapt->getAttribute('par') == '')
             fwrite($mpdreport, "Warning for DVB check: Section 4.4- 'For any Adaptation Sets with @contentType=\"video\" @par attribute SHOULD be present', could not be found in Period $period_count Adaptation Set " . ($i+1) . ".\n");
-    
-        $adapt_scanType = $adapt->getAttribute('scanType');
-        if(($adapt_scanType == 'interlaced') || in_array('interlaced', $reps_scanType)){
-            if(empty($reps_scanType) || array_unique($reps_scanType) !== 1 || !(in_array('interlaced', $reps_scanType)))
+        if(in_array('interlaced', $reps_scanType) && in_array('', $reps_scanType)){
                 fwrite($mpdreport, "###'DVB check violated: Section 4.4- For any Representation within an Adaptation Set with @contentType=\"video\" @scanType attribute SHALL be present if interlaced pictures are used within any Representation in the Adaptation Set', could not be found in neither Period $period_count Adaptation Set " . ($i+1) . " nor Period $period_count Adaptation Set " . ($i+1) . " Representation " . ($j+1) . ".\n");
         }
         

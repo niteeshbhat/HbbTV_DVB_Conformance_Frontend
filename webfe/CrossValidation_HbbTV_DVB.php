@@ -370,10 +370,10 @@ function crossValidation_DVB_Representations($dom, $opfile, $xml_r, $xml_d, $i, 
                         $pars[] = $content_comp->getAttribute('par');
                     }
                     
-                    if(array_unique($pars) != 1 || array_unique($pars) == 1 && in_array('', $pars))
+                    if(count(array_unique($pars)) != 1 || count(array_unique($pars)) == 1 && in_array('', $pars))
                         fwrite($opfile, "Information on DVB conformance: Section 10.4- 'Players SHALL support seamless swicthing between video Representations which can differ in resolution, maintaining the same picture aspect ratio', different attribute values found in Adaptation Set " . ($i+1) . ": Representation " . ($r+1) . " and Representation " . ($d+1) . ".\n");
                     
-                    elseif(array_unique($pars) == 1 && !in_array('', $pars)){
+                    elseif(count(array_unique($pars)) == 1 && !in_array('', $pars)){
                         if($width_r != $width_d || $height_r != $height_d){
                             $par = $pars[0];
                             $par_arr = explode(':', $par);
