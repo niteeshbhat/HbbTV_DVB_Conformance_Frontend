@@ -96,7 +96,7 @@ function DVB_HbbTV_profile_specific_media_types_report($dom, $mpdreport){
                     $str = $str . " $mpd_media_type"; 
             }
             if($str != '')
-                fwrite($mpdreport, "###DVB/HbbTV Conformance violated: media type:$str is missing after the provided MPD is processed for profile: " . $profiles_arr[$ind] . ".\n");
+                fwrite($mpdreport, "###HbbTV-DVB DASH Validation Requirements Conformance violated: Section 'MPD' - media type:$str is missing after the provided MPD is processed for profile: " . $profiles_arr[$ind] . ".\n");
             
             $ind++;
         }
@@ -213,7 +213,7 @@ function DVB_HbbTV_cross_profile_check($dom, $mpdreport){
         }
         
         if(!$profile_found)
-            fwrite($mpdreport, "Information on DVB-HbbTV conformance: MPD element is scoped by the profile \"$profile\" that the tool is not validating against.\n");
+            fwrite($mpdreport, "Information on HbbTV-DVB DASH Validation Requirements conformance: Section 'MPD' - MPD element is scoped by the profile \"$profile\" that the tool is not validating against.\n");
     }
 }
 
@@ -257,7 +257,7 @@ function DVB_mpdvalidator($dom, $mpdreport){
         $onRequest_k_v  = implode(', ', array_map(
         function ($v, $k) { return sprintf(" %s with index (starting from 0) '%s'", $v, $k); },
         $onRequest_array,array_keys($onRequest_array)));
-        fwrite($mpdreport, "###'DVB check violated, MPD SHALL NOT have xlink:actuate set to onRequest', found in".$onRequest_k_v."\n"); 
+        fwrite($mpdreport, "###'HbbTV-DVB DASH Validation Requirements check violated for DVB: Section 'xlink' - MPD SHALL NOT have xlink:actuate set to onRequest', found in".$onRequest_k_v."\n"); 
     } 
     
     if(!empty($xlink_not_valid_array))
@@ -265,7 +265,7 @@ function DVB_mpdvalidator($dom, $mpdreport){
         $xlink_not_valid_k_v  = implode(', ', array_map(
         function ($v, $k) { return sprintf(" %s with index (starting from 0) '%s'", $v, $k); },
         $xlink_not_valid_array,array_keys($xlink_not_valid_array)));
-        fwrite($mpdreport, "###'DVB check violated, MPD invalid xlink:href', found in:".$xlink_not_valid_k_v."\n"); 
+        fwrite($mpdreport, "###'HbbTV-DVB DASH Validation Requirements check violated for DVB: Section 'xlink' - MPD invalid xlink:href', found in:".$xlink_not_valid_k_v."\n"); 
     }
     TLS_bitrate_check($cp_dom);
     $mpd_string = $dom->saveXML();
@@ -280,7 +280,7 @@ function DVB_mpdvalidator($dom, $mpdreport){
     if($MPD->getAttribute('minimumUpdatePeriod') != ''){
         $mup = timeparsing($MPD->getAttribute('minimumUpdatePeriod'));
         if($mup < 1)
-            fwrite($mpdreport, "Warning for DVB check: 'MPD@minimumUpdatePeriod has a lower value than 1 second.\n");
+            fwrite($mpdreport, "Warning for HbbTV-DVB DASH Validation Requirements check for DVB: Section 'MPD' - 'MPD@minimumUpdatePeriod has a lower value than 1 second.\n");
     }
     ##
     
@@ -1457,7 +1457,7 @@ function HbbTV_mpdvalidator($dom, $mpdreport){
         $onRequest_k_v  = implode(', ', array_map(
         function ($v, $k) { return sprintf(" %s with index (starting from 0) '%s'", $v, $k); },
         $onRequest_array,array_keys($onRequest_array)));
-        fwrite($mpdreport, "###'HbbTV check violated, MPD SHALL NOT have xlink:actuate set to onRequest', found in ".$onRequest_k_v."\n"); 
+        fwrite($mpdreport, "###'HbbTV-DVB DASH Validation Requirements check violated for HbbTV: Section 'xlink' - MPD SHALL NOT have xlink:actuate set to onRequest', found in ".$onRequest_k_v."\n"); 
     }
     
     if(!empty($xlink_not_valid_array))
@@ -1465,7 +1465,7 @@ function HbbTV_mpdvalidator($dom, $mpdreport){
         $xlink_not_valid_k_v  = implode(', ', array_map(
         function ($v, $k) { return sprintf(" %s with index (starting from 0) '%s'", $v, $k); },
         $xlink_not_valid_array,array_keys($xlink_not_valid_array)));
-        fwrite($mpdreport, "###'HbbTV check violated, MPD invalid xlink:href', found in :".$xlink_not_valid_k_v."\n"); 
+        fwrite($mpdreport, "###'HbbTV-DVB DASH Validation Requirements check violated for HbbTV: Section 'xlink' - MPD invalid xlink:href', found in :".$xlink_not_valid_k_v."\n"); 
     }
     TLS_bitrate_check($cp_dom);
     $mpd_string = $dom->saveXML();
@@ -1485,7 +1485,7 @@ function HbbTV_mpdvalidator($dom, $mpdreport){
     if($MPD->getAttribute('minimumUpdatePeriod') != ''){
         $mup = timeparsing($MPD->getAttribute('minimumUpdatePeriod'));
         if($mup < 1)
-            fwrite($mpdreport, "Warning for HbbTV check: 'MPD@minimumUpdatePeriod has a lower value than 1 second.\n");
+            fwrite($mpdreport, "Warning for HbbTV-DVB DASH Validation Requirements check for HbbTV: Section 'MPD' - 'MPD@minimumUpdatePeriod has a lower value than 1 second.\n");
     }
     ##
     
@@ -1832,7 +1832,7 @@ function DVB_mpd_anchor_check($dom, $mpdreport){
             $key = substr($anchor, 0, strpos($anchor, '='));
             $value = substr($anchor, strpos($anchor, '=')+1);
             if(!in_array($key, $allowed_keys))
-                fwrite($mpdreport, "Information on DVB conformance: Provided MPD anchor key \"$key\" is not one of the keys listed in Table C.1 in clause C.4 in ISO/IEC 23009-1.\n");
+                fwrite($mpdreport, "Information on HbbTV-DVB DASH Validation Requirements conformance for DVB: Section 'DVB DASH Specifics' - Provided MPD anchor key \"$key\" is not one of the keys listed in Table C.1 in clause C.4 in ISO/IEC 23009-1.\n");
             
             if($key == 'period'){
                 $period_exists = true;
@@ -1845,7 +1845,7 @@ function DVB_mpd_anchor_check($dom, $mpdreport){
                 }
                 
                 if(strpos($str_info, 'yes') === FALSE)
-                    fwrite($mpdreport, "Information on DVB conformance: Provided MPD anchor uses the key \"period\" but its value does not correspond to any of the period @id attributes.\n");
+                    fwrite($mpdreport, "Information on HbbTV-DVB DASH Validation Requirements conformance for DVB: Section 'DVB DASH Specifics' - Provided MPD anchor uses the key \"period\" but its value does not correspond to any of the period @id attributes.\n");
             }
             elseif($key == 'track' || $key == 'group'){
                 $str_info_1 = '';
@@ -1871,17 +1871,17 @@ function DVB_mpd_anchor_check($dom, $mpdreport){
                     }
                 }
                 if($key == 'track' && strpos($str_info_1, 'yes') === FALSE)
-                    fwrite($mpdreport, "Information on DVB conformance: Provided MPD anchor uses the key \"track\" but its value does not correspond to any of the attribute @id attributes.\n");
+                    fwrite($mpdreport, "Information on HbbTV-DVB DASH Validation Requirements conformance for DVB: Section 'DVB DASH Specifics' - Provided MPD anchor uses the key \"track\" but its value does not correspond to any of the attribute @id attributes.\n");
                 
                 if($key == 'group' && strpos($str_info_2, 'yes') === FALSE)
-                    fwrite($mpdreport, "Information on DVB conformance: Provided MPD anchor uses the key \"group\" but its value does not correspond to any of the attribute @group attributes.\n");
+                    fwrite($mpdreport, "Information on HbbTV-DVB DASH Validation Requirements conformance for DVB: Section 'DVB DASH Specifics' - Provided MPD anchor uses the key \"group\" but its value does not correspond to any of the attribute @group attributes.\n");
             }
             elseif($key == 't'){
                 $t_exists = true;
                 if(strpos($value, 'posix') !== FALSE){
                     $posix_exits = true;
                     if($MPD->getAttribute('availabilityStartTime') == '')
-                        fwrite($mpdreport, "Information on DVB conformance: Provided MPD anchor uses the key \"t\" with prefix \"posix\" while MPD@availabilityStartTime does not exist.\n");
+                        fwrite($mpdreport, "Information on HbbTV-DVB DASH Validation Requirements conformance for DVB: Section 'DVB DASH Specifics' - Provided MPD anchor uses the key \"t\" with prefix \"posix\" while MPD@availabilityStartTime does not exist.\n");
                     
                     $time_range = explode(',', substr($value, strpos($value, 'posix')+6));
                     $t = compute_timerange($time_range);
@@ -1900,7 +1900,7 @@ function DVB_mpd_anchor_check($dom, $mpdreport){
         }
         
         if($period_exists && $t_exists)
-            fwrite($mpdreport, "Information on DVB conformance: Provided MPD anchor uses the key \"t\" while the key \"period\" is also used.\n");
+            fwrite($mpdreport, "Information on HbbTV-DVB DASH Validation Requirements conformance for DVB: Section 'DVB DASH Specifics' - Provided MPD anchor uses the key \"t\" while the key \"period\" is also used.\n");
         
         if($t_exists){
             $periodDurations = periodDurationInfo($dom);
@@ -1931,7 +1931,7 @@ function DVB_mpd_anchor_check($dom, $mpdreport){
             }
             
             if(!$coverage)
-                fwrite($mpdreport, "Information on DVB conformance: Provided MPD anchor uses the key \"t\" which refers to a time that is not available according to the times in the MPD.\n");
+                fwrite($mpdreport, "Information on HbbTV-DVB DASH Validation Requirements conformance for DVB: Section 'DVB DASH Specifics' - Provided MPD anchor uses the key \"t\" which refers to a time that is not available according to the times in the MPD.\n");
         }
     }
 }
@@ -1952,7 +1952,7 @@ function compute_timerange($time_range){
             $vals = explode(':', $timestamp);
             
             if(sizeof($vals) > 3){
-                fwrite($mpdreport, "Information on DVB conformance: Provided MPD anchor uses the key \"t\" with W3C Media Fragment format with \"npt\" but allowed formats are one of {npt-ss, npt-mmss, npt-hhmmss}.\n");
+                fwrite($mpdreport, "Information on HbbTV-DVB DASH Validation Requirements conformance for DVB: Section 'DVB DASH Specifics' - Provided MPD anchor uses the key \"t\" with W3C Media Fragment format with \"npt\" but allowed formats are one of {npt-ss, npt-mmss, npt-hhmmss}.\n");
             }
             
             for($v=sizeof($vals)-1,$p=0; $v>0; $v--,$p++){
@@ -1963,17 +1963,17 @@ function compute_timerange($time_range){
                     $t += ($val_vals[0]*pow(60, $p) + ($val_vals[1]/10)*pow(60,$p));
                     
                     if(!((((string) (int) $val_vals[0] === $val_vals[0]) || (( '0' . (string) (int) $val_vals[0]) === $val_vals[0])) && ($val_vals[0] <= PHP_INT_MAX) && ($val_vals[0] >= ~PHP_INT_MAX)) || !((((string) (int) $val_vals[1] === $val_vals[1]) || (( '0' . (string) (int) $val_vals[1]) === $val_vals[1])) && ($val_vals[1] <= PHP_INT_MAX) && ($val_vals[1] >= ~PHP_INT_MAX)))
-                        fwrite($mpdreport, "Information on DVB conformance: Provided MPD anchor uses the key \"t\" where the provided time range is not integer.\n");
+                        fwrite($mpdreport, "Information on HbbTV-DVB DASH Validation Requirements conformance for DVB: Section 'DVB DASH Specifics' - Provided MPD anchor uses the key \"t\" where the provided time range is not integer.\n");
                     if($p > 0)
-                        fwrite($mpdreport, "Information on DVB conformance: Provided MPD anchor uses the key \"t\" with W3C Media Fragment format with \"npt\" but fraction notation is used for minutes and/or hours.\n");
+                        fwrite($mpdreport, "Information on HbbTV-DVB DASH Validation Requirements conformance for DVB: Section 'DVB DASH Specifics' - Provided MPD anchor uses the key \"t\" with W3C Media Fragment format with \"npt\" but fraction notation is used for minutes and/or hours.\n");
                     if((sizeof($vals) < 3 || $v != sizeof($vals)-1) && ($val_vals[0] < 0 || $val_vals[0] > 59))
-                        fwrite($mpdreport, "Information on DVB conformance: Provided MPD anchor uses the key \"t\" with W3C Media Fragment format with \"npt\" but the range for minutes and/or seconds is not in the range of [0,59].\n");
+                        fwrite($mpdreport, "Information on HbbTV-DVB DASH Validation Requirements conformance for DVB: Section 'DVB DASH Specifics' - Provided MPD anchor uses the key \"t\" with W3C Media Fragment format with \"npt\" but the range for minutes and/or seconds is not in the range of [0,59].\n");
                 }
                 else{
                     $t += ($val*pow(60, $p));
                     
                     if((sizeof($vals) < 3 || $v != sizeof($vals)-1) && ($val < 0 || $val > 59))
-                        fwrite($mpdreport, "Information on DVB conformance: Provided MPD anchor uses the key \"t\" with W3C Media Fragment format with \"npt\" but the range for minutes and/or seconds is not in the range of [0,59].\n");
+                        fwrite($mpdreport, "Information on HbbTV-DVB DASH Validation Requirements conformance for DVB: Section 'DVB DASH Specifics' - Provided MPD anchor uses the key \"t\" with W3C Media Fragment format with \"npt\" but the range for minutes and/or seconds is not in the range of [0,59].\n");
                 }
             }
         }
@@ -1982,12 +1982,12 @@ function compute_timerange($time_range){
             $t += $vals[0] + $vals[1]/10;
             
             if(!((((string) (int) $vals[0] === $vals[0]) || (( '0' . (string) (int) $vals[0]) === $vals[0])) && ($vals[0] <= PHP_INT_MAX) && ($vals[0] >= ~PHP_INT_MAX)) || !((((string) (int) $vals[1] === $vals[1]) || (( '0' . (string) (int) $vals[1]) === $vals[1])) && ($vals[1] <= PHP_INT_MAX) && ($vals[1] >= ~PHP_INT_MAX)))
-                fwrite($mpdreport, "Information on DVB conformance: Provided MPD anchor uses the key \"t\" where the provided time range is not integer.\n");
+                fwrite($mpdreport, "Information on HbbTV-DVB DASH Validation Requirements conformance for DVB: Section 'DVB DASH Specifics' - Provided MPD anchor uses the key \"t\" where the provided time range is not integer.\n");
         }
         else{
             $t += $timestamp;
             if(!(((string) (int) $timestamp === $timestamp) && ($timestamp <= PHP_INT_MAX) && ($timestamp >= ~PHP_INT_MAX)))
-                fwrite($mpdreport, "Information on DVB conformance: Provided MPD anchor uses the key \"t\" where the provided time range is not integer.\n");
+                fwrite($mpdreport, "Information on HbbTV-DVB DASH Validation Requirements conformance for DVB: Section 'DVB DASH Specifics' - Provided MPD anchor uses the key \"t\" where the provided time range is not integer.\n");
         }
         
         if($first){
@@ -2002,7 +2002,7 @@ function compute_timerange($time_range){
         $t_end = PHP_INT_MAX;
     
     if($t_start > $t_end)
-        fwrite($mpdreport, "Information on DVB conformance: Provided MPD anchor uses the key \"t\" but the start time is larger that the end time.\n");
+        fwrite($mpdreport, "Information on HbbTV-DVB DASH Validation Requirements conformance for DVB: Section 'DVB DASH Specifics' - Provided MPD anchor uses the key \"t\" but the start time is larger that the end time.\n");
     
     return [$t_start, $t_end];
 }
