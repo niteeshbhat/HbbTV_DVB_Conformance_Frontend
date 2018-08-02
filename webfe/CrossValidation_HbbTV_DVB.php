@@ -2165,7 +2165,6 @@ function seg_duration_checks($dom_MPD, $count1, $count2, $opfile)
             {
                 $duration_diff_k_v  = implode(' ', array_map(function ($v, $k) { return sprintf(" seg: '%s' -> duration: '%s' sec \n", $k, $v); },
                 $duration_diff_array,array_keys($duration_diff_array)));
-
                 fwrite($opfile, "Information on HbbTV-DVB DASH Validation Requirements: Section 'Duration Self consistency' - In Adaptation Set ".$adapt_id.", Representation with 'id' : ".$rep_id." the following segments were found to have a different"
                         . " duration from the one advertised in the MPD:\n".$duration_diff_k_v.".\n");
             }
@@ -2204,7 +2203,6 @@ function seg_duration_checks($dom_MPD, $count1, $count2, $opfile)
                         }
                         elseif($handler_type == 'soun')
                         {
-
                             fwrite($opfile, "###Error on DVB/HbbTV: Section 'Duration Self consistency' - The fragment duration of audio type (".$fragment_duration_sec." sec) is different from the sum of all segment durations (".$total_seg_duration." sec) in Adaptation Set: "
                                     .$adapt_id." Representation with 'id' : ".$rep_id. ".\n");
                         }
@@ -2244,8 +2242,7 @@ function DVB_HbbTV_err_file_op()
     $all_report_files = array_merge($RepLogFiles, $CrossValidDVB, $CrossRepDASH); // put all the filepaths in a single array
    
     foreach ($all_report_files as $file_location)
-    {
-        
+    {       
         if(!in_array($file_location, $already_processed))
         {
             $duplicate_file = substr_replace($file_location, "full.txt", -4);
