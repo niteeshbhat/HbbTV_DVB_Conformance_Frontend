@@ -1,22 +1,18 @@
 <?php
-
 /* This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation, either version 3 of the License, or
   (at your option) any later version.
-
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
   GNU General Public License for more details.
-
   You should have received a copy of the GNU General Public License
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 function process_mpd()
 {
-    global $Adapt_arr, $Period_arr, $repno, $repnolist, $period_url, $locate, $string_info
+    global $Adapt_arr, $Period_arr, $repno, $repnolist, $period_url, $locate, $string_info, $enforced_profile_dvb, $enforced_profile_hbbtv
     , $presentationduration, $count1, $count2, $perioddepth, $adaptsetdepth, $period_baseurl, $foldername, $type, $minBufferTime, $profiles, $MPD, $session_id, $progressXML; //Global variables to be used within the main function
     //  $path_parts = pathinfo($mpdurl); 
     $Baseurl = false; //define if Baseurl is used or no
@@ -29,9 +25,7 @@ function process_mpd()
     // if (isset($_POST['urlcode'])) { // in case of client send first connection attempt
     $sessname = 'sess' . rand(); // get a random session name
     session_name($sessname); // set session name
-
     $directories = array_diff(scandir(dirname(__FILE__) . '/' . 'temp'), array('..', '.'));
-
     foreach ($directories as $file)
     { // Clean temp folder from old sessions in order to save diskspace
         if (file_exists(dirname(__FILE__) . '/' . 'temp' . '/' . $file))
@@ -47,7 +41,6 @@ function process_mpd()
                 rrmdir(dirname(__FILE__) . '/' . 'temp' . '/' . $file); // if last time folder was modified exceed 300 second it should be removed 
         }
     }
-
     // Work out which validator binary to use
     $validatemp4 = (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') ? "validatemp4-vs2010.exe" : "ValidateMP4.exe";
     //var_dump( $path_parts  );
@@ -67,7 +60,6 @@ function process_mpd()
     // rrmdir($locate);
     $locate = dirname(__FILE__) . '/' . 'temp' . '/' . $foldername; //session  folder location
     $_SESSION['locate'] = $locate; // save session folder location
-
     $oldmask = umask(0);
     mkdir($locate, 0777, true); // create session folder
     umask($oldmask);
@@ -75,7 +67,6 @@ function process_mpd()
     copy(dirname(__FILE__) . "/" . $validatemp4, $locate . '/' . $validatemp4); // copy conformance tool to session folder to allow multi-session operation
     chmod($locate . '/' . $validatemp4, 0777);
     $url_array = json_decode($_POST['urlcode']);
-
     if (isset($_SESSION['fileContent']))
     {  // If file is uploaded 
         file_put_contents($locate . '/uploaded.mpd', $_SESSION['fileContent']);
@@ -85,12 +76,9 @@ function process_mpd()
         $dom_abs = dom_import_simplexml($MPD_abs);
         $abs = new DOMDocument('1.0');
         $dom_abs = $abs->importNode($dom_abs, true); //create dom element to contain mpd 
-
         $dom_abs = $abs->appendChild($dom_abs);
-
         $MPD_abs = $abs->getElementsByTagName('MPD')->item(0); // access the parent "MPD" in mpd file
         $Baseurl_abs = $MPD_abs->getElementsByTagName('BaseURL');
-
         if ($Baseurl_abs->length > 0)
         {
             $Baseurl_abs = $Baseurl_abs->item(0);
@@ -103,28 +91,19 @@ function process_mpd()
         else
             $url_array[2] = 1;
     }
-
     $url_array[3] = $locate; //Used for e.g. placing intermediate files etc.
     $cmaf_val = $url_array[4];     
-    $check_dvb_conformance = $url_array[5];
-    $check_hbbtv_conformance = $url_array[6];
+    $enforced_profile_dvb = $url_array[5];
+    $enforced_profile_hbbtv = $url_array[6];
     //The status of the mpd is logged in the visitor's log file.
     writeMPDStatus($url_array[0]);
     
     copy(dirname(__FILE__) . "/" . "featuretable.html", $locate . '/' . "featuretable.html"); // copy features list html file to session folder
-    if($check_dvb_conformance || $check_hbbtv_conformance){
-        copy(dirname(__FILE__) . "/bitratereport.py", $locate . '/bitratereport.py'); // copy conformance tool to session folder to allow multi-session operation
-        chmod($locate . '/bitratereport.py', 0777);
-        copy(dirname(__FILE__) . "/seg_duration.py", $locate . '/seg_duration.py'); // copy conformance tool to session folder to allow multi-session operation
-        chmod($locate . '/seg_duration.py', 0777);
-    }
-    
     //Create log file so that it is available if accessed
     $progressXML = simplexml_load_string('<root><Profile></Profile><Progress><percent>0</percent><dataProcessed>0</dataProcessed><dataDownloaded>0</dataDownloaded><CurrentAdapt>1</CurrentAdapt><CurrentRep>1</CurrentRep></Progress><completed>false</completed></root>'); // get progress bar update
     $progressXML->asXml($locate . '/progress.xml'); //progress xml location
     //libxml_use_internal_logors(true);
     $MPD_O = simplexml_load_file($GLOBALS["url"]); // load mpd from url 
-
     if (!$MPD_O)
     {
         $progressXML->MPDError = "1"; //MPD error is updated in the progress.xml file.
@@ -137,21 +116,53 @@ function process_mpd()
         $progressXML->MPDError = "0";
         $progressXML->asXml(trim($locate . '/progress.xml'));
     }
-
     $dom_sxe = dom_import_simplexml($MPD_O);
-
     if (!$dom_sxe)
     {
         echo $progressXML->asXML();
         exit;
     }
     
-    xlink_reconstruct_MPD($dom_sxe);
+    ## First determine if DVB and/or HbbTV profiles exist in the provided MPD file
+    ## If yes, then the MPD and media segments shall be validated against the profile(s)
+    $check_dvb_conformance = 0;
+    $check_hbbtv_conformance = 0;
+    $preliminary_dom_doc = new DOMDocument('1.0');
+    $preliminary_dom_sxe = $preliminary_dom_doc->importNode($dom_sxe, true);
+    $preliminary_dom_doc->appendChild($preliminary_dom_sxe);
+    $MPD_nodes = $preliminary_dom_doc->getElementsByTagName('MPD');
+    if($MPD_nodes->length != 0){
+        $MPD_node = $MPD_nodes->item(0);
+        $MPD_profiles = $MPD_node->getAttribute('profiles');
+        if(strpos($MPD_profiles, 'urn:dvb:dash:profile:dvb-dash:2014') !== FALSE || strpos($MPD_profiles, 'urn:dvb:dash:profile:dvb-dash:isoff-ext-live:2014')!== FALSE || strpos($MPD_profiles, 'urn:dvb:dash:profile:dvb-dash:isoff-ext-on-demand:2014') !== FALSE)
+            $check_dvb_conformance = 1;
+        if(strpos($MPD_profiles, 'urn:hbbtv:dash:profile:isoff-live:2012') !== FALSE)
+            $check_hbbtv_conformance = 1;
+    }
+    ##
+    
+    $dvb = 0;
+    $hbbtv = 0;
+    if($check_dvb_conformance || $enforced_profile_dvb)
+        $dvb = 1;
+    if($check_hbbtv_conformance || $enforced_profile_hbbtv)
+        $hbbtv = 1;
+    json_encode("DVB/HbbTV: $dvb $hbbtv");
+    
+    // To import DVB/HbbTV-related plotting functions into the created temporary session folder
+    if($dvb || $hbbtv){
+        copy(dirname(__FILE__) . "/bitratereport.py", $locate . '/bitratereport.py'); // copy conformance tool to session folder to allow multi-session operation
+        chmod($locate . '/bitratereport.py', 0777);
+        copy(dirname(__FILE__) . "/seg_duration.py", $locate . '/seg_duration.py'); // copy conformance tool to session folder to allow multi-session operation
+        chmod($locate . '/seg_duration.py', 0777);
+    }
+    
+    //xlink_reconstruct_MPD($dom_sxe);
     global $cp_dom; // to have a dom document with the original unchanged mpd
     $cp_dom = new DOMDocument('1.0');
     $cp_dom_node = $cp_dom->importNode($dom_sxe, true);
     $cp_dom->appendChild($cp_dom_node);
-    if($check_dvb_conformance){
+    if($dvb){
         $mpdreport = fopen($locate . '/mpdreport.txt', 'a+b');
         $dom_doc = new DOMDocument('1.0');
         $dom_node = $dom_doc->importNode($dom_sxe, true);
@@ -166,7 +177,6 @@ function process_mpd()
             fwrite($mpdreport, "**'DVB check violated: Section 4.5- The MPD has a maximum of 64 periods before xlink resolution', found $period_count.\n");
         }
     }
-
     $validate_result = mpdvalidator($url_array, $locate, $foldername);
     writeMPDEndTime();
     $exit = $validate_result[0];
@@ -191,19 +201,8 @@ function process_mpd()
     createMpdFeatureList($dom, $schematronIssuesReport);
     
     $mpd_profiles = $MPD->getAttribute('profiles');
-    if($check_hbbtv_conformance || $check_dvb_conformance){
-        if($check_dvb_conformance && strpos('urn:dvb:dash:profile:dvb-dash:2014', $mpd_profiles) === FALSE)
-            $mpd_profiles = $mpd_profiles . ',urn:dvb:dash:profile:dvb-dash:2014';
-        if($check_hbbtv_conformance && strpos('urn:hbbtv:dash:profile:isoff-live:2012', $mpd_profiles) === FALSE)
-            $mpd_profiles = $mpd_profiles . ',urn:hbbtv:dash:profile:isoff-live:2012';
-        
-        $MPD->removeAttribute('profiles');
-        $MPD->setAttribute('profiles', $mpd_profiles);
-        $dom = new DOMDocument('1.0');
-        $dom_sxe = $dom->importNode($MPD, true);
-        $dom->appendChild($dom_sxe);
-        
-        $result_hbbtvDvb=HbbTV_DVB_mpdvalidator($dom, $check_hbbtv_conformance, $check_dvb_conformance);
+    if($hbbtv || $dvb){
+        $result_hbbtvDvb=HbbTV_DVB_mpdvalidator($dom, $hbbtv, $dvb);
         if($result_hbbtvDvb!=="")
             $temp_mpdres = $temp_mpdres . $result_hbbtvDvb;
     }
@@ -229,7 +228,6 @@ function process_mpd()
         writeEndTime((int)$progressXML->completed->attributes());
         exit; //Exit
     }
-
     ///////////////////////////////////////Processing mpd attributes in order to get value//////////////////////////////////////////////////////////
     
     $mediaPresentationDuration = $MPD->getAttribute('mediaPresentationDuration'); // get mediapersentation duration from mpd level
@@ -238,7 +236,6 @@ function process_mpd()
     $bufferdepth = timeparsing($bufferdepth);
     $presentationduration = timeparsing($mediaPresentationDuration);
     //createMpdFeatureList($dom, $schematronIssuesReport);
-
     $type = $MPD->getAttribute('type'); // get mpd type
     if ($type === 'dynamic' && $dom->getElementsByTagName('SegmentTemplate')->length == 0)
     {
@@ -247,12 +244,10 @@ function process_mpd()
         //$totarr[]='dynamic'; // Incase of dynamic only mpd conformance.
         //$exit =true;		 //Session destroy flag is true
     }
-
     $minBufferTime = $MPD->getAttribute('minBufferTime'); //get min buffer time
     $profiles = $MPD->getAttribute('profiles'); // get profiles
     $progressXML->Profile = $profiles;
     $progressXML->asXml(trim($locate . '/progress.xml'));
-
     $periodDurations = periodDurationInfo($dom)[1];
     $periodCount = 0;
     foreach ($dom->documentElement->childNodes as $node)
@@ -270,14 +265,11 @@ function process_mpd()
     
     $val = $dom->getElementsByTagName('BaseURL'); // get BaseUrl node
     $segflag = $dom->getElementsByTagName('SegmentTemplate'); //check if segment template exists or not
-
     if ($segflag->length > 0)
         $setsegflag = true; // Segment template is supported
-
     if ($val->length > 0)
     { // if baseurl is used
         $Baseurl = true; // set Baseurl flag = true
-
         for ($i = 0; $i < sizeof($val); $i++)
         {
             //check if Baseurl node exist in MPD level or lower level
@@ -291,7 +283,6 @@ function process_mpd()
                     $dir = dirname($GLOBALS["url"]) . '/' . $dir; // use location of Baseurl as location of mpd location
             }
         }
-
         if (!isset($dir))// if there is no Baseurl in mpd level 
             $dir = dirname($GLOBALS["url"]) . '/'; // set location of segments dir as mpd location
     }
@@ -307,7 +298,6 @@ function process_mpd()
       if(($supplementalScheme === 'urn:mpeg:dash:chaining:2016') || ($supplementalScheme ==='urn:mpeg:dash:fallback:2016')){
 	  $MPDChainingURL=$supplemental->item(0)->getAttribute('value');
       }
-
       $progressXML->MPDChainingURL=$MPDChainingURL;
       $progressXML->asXml(trim($locate . '/progress.xml'));
     }
@@ -331,14 +321,11 @@ function process_mpd()
                     $timescale = $Period_arr[$k]['SegmentTemplate']['timescale'];
                 else
                     $timescale = 1; // if doesn't exist set default to 1
-
                 if ($duration != 0)
                 {
                     $duration = $duration / $timescale; // get duration
-
                     $segmentno = ceil(($presentationduration - $start) / $duration); //get segment number
                 }
-
                 $startnumber = $Period_arr[$k]['SegmentTemplate']['startNumber'];  // get first number in segment
                 $initialization = $Period_arr[$k]['SegmentTemplate']['initialization']; // get initialization degment 
                 if ($initialization != "")
@@ -348,39 +335,32 @@ function process_mpd()
                 $media = $Period_arr[$k]['SegmentTemplate']['media']; // get  media template
 //                    $timehash = null; // used only in segment timeline 
                 $timehash = array(); // contains all segmenttimelines for all segments
-
                 if (!empty($Period_arr[$k]['SegmentTemplate']['SegmentTimeline']))
                 { // in case of using Segment timeline
                     $timeseg = $Period_arr[$k]['SegmentTemplate']['SegmentTimeline'][0][0]; // get time segment 
-
                     for ($lok = 0; $lok < sizeof($Period_arr[$k]['SegmentTemplate']['SegmentTimeline']); $lok++)
                     { // loop on segment time line 
                         $d = $Period_arr[$k]['SegmentTemplate']['SegmentTimeline'][$lok][1]; // get d 
                         $r = $Period_arr[$k]['SegmentTemplate']['SegmentTimeline'][$lok][2]; // get r 
                         $te = $Period_arr[$k]['SegmentTemplate']['SegmentTimeline'][$lok][0]; // get t
-
                         if ($r == 0)
                         {
                             $timehash[] = $timeseg;
                             $timeseg = $timeseg + $d;
                         }
-
                         if ($r < 0)
                         { //Repeat untill the last segment within presentation
                             if (!isset($Period_arr[$k]['SegmentTemplate']['SegmentTimeline'][$lok + 1]))
                                 $ende = $presentationduration * $timescale; // end of presentation duration
                             else
                                 $ende = $Period_arr[$k]['SegmentTemplate']['SegmentTimeline'][$lok + 1];
-
                             $ende = $ende;
-
                             while ($timeseg < $ende)
                             { // calculate time segment until the end of duration
                                 $timehash[] = $timeseg; //contain duration of all segments cumulatively
                                 $timeseg = $timeseg + $d;
                             }
                         }
-
                         if ($r > 0)
                         {
                             for ($cn = 0; $cn <= $r; $cn++)
@@ -399,22 +379,17 @@ function process_mpd()
                 { // incase of using Base url
                     if (!isset($perioddepth[0])) // period doesn't contain any baseurl infromation
                         $perioddepth[0] = "";
-
                     if (!isset($adaptsetdepth[$k]))  // adaptation set doesn't contain any baseurl information
                         $adaptsetdepth[$k] = "";
-
                     $direct = $dir . $perioddepth[0] . $adaptsetdepth[$k]; // combine baseURLs in both period level and adaptationset level
                 }
-
                 if (!empty($Period_arr[$k]['Representation']['SegmentTemplate'][$j]))
                 { // in case of using segmenttemplate
                     $duration = $Period_arr[$k]['Representation']['SegmentTemplate'][$j]['duration']; // get  segment duration attribute
-
                     if (!empty($Period_arr[$k]['Representation']['SegmentTemplate'][$j]['timescale'])) //get time scale
                         $timescale = $Period_arr[$k]['Representation']['SegmentTemplate'][$j]['timescale'];
                     else
                         $timescale = 1; // set to 1 if not avaliable 
-
                     if ($duration != 0)
                     {
                         $duration = $duration / $timescale; // get duration scaled
@@ -422,31 +397,25 @@ function process_mpd()
                         //print_r2($startnumber);
                     }
                     $startnumber = $Period_arr[$k]['Representation']['SegmentTemplate'][$j]['startNumber']; // get start number
-
                     if ($Adapt_initialization_setflag == 0)
                     {
                         $initialization = $Period_arr[$k]['Representation']['SegmentTemplate'][$j]['initialization']; // get initialization
                     }
                     $media = $Period_arr[$k]['Representation']['SegmentTemplate'][$j]['media']; // get media template
-
                     if (!empty($Period_arr[$k]['Representation']['SegmentTemplate'][$j]['SegmentTimeline']))
                     { // check timeline 
                         $timeseg = $Period_arr[$k]['Representation']['SegmentTemplate'][$j]['SegmentTimeline'][0][0]; // segment start time
-
                         for ($lok = 0; $lok < sizeof($Period_arr[$k]['Representation']['SegmentTemplate'][$j]['SegmentTimeline']); $lok++)
                         {//loop on timeline
                             $timehash = array(); //contains time tag for each segment
-
                             $d = $Period_arr[$k]['Representation']['SegmentTemplate'][$j]['SegmentTimeline'][$lok][1]; //get d
                             $r = $Period_arr[$k]['Representation']['SegmentTemplate'][$j]['SegmentTimeline'][$lok][2]; //get r
                             $te = $Period_arr[$k]['Representation']['SegmentTemplate'][$j]['SegmentTimeline'][$lok][0]; //get te
-
                             if ($r == 0)
                             {// no duration repeat
                                 $timehash[] = $timeseg; //segment time stamp is same as segment time
                                 $timeseg = $timeseg + $d;
                             }
-
                             if ($r < 0)
                             { // segments untill the end of presentation duration
                                 if (!isset($Period_arr[$k]['Representation']['SegmentTemplate'][$j]['SegmentTimeline'][$lok + 1]))
@@ -454,7 +423,6 @@ function process_mpd()
                                 else
                                     $ende = $Period_arr[$k]['Representation']['SegmentTemplate'][$j]['SegmentTimeline'][$lok + 1];
                                 $ende = $ende;
-
                                 while ($timeseg < $ende)
                                 {
                                     $timehash[] = $timeseg;
@@ -472,10 +440,8 @@ function process_mpd()
                         }
                     }
                 }
-
                 $bandwidth = $Period_arr[$k]['Representation']['bandwidth'][$j]; // get bandwidth of given representation
                 $id = $Period_arr[$k]['Representation']['id'][$j]; // get id of given representation
-
                 if($initialization != ""){
                     $init = str_replace(array('$Bandwidth$', '$RepresentationID$'), array($bandwidth, $id), $initialization); //get initialization segment template is replaced by bandwidth and id 
                     //test is $direct contains "/" in the end
@@ -493,7 +459,6 @@ function process_mpd()
                     $startnumber = 1; // start number set to 1
                     $timehashmask = $timehash;
                 }
-
                 if ($type === "dynamic")
                 {
 //                        if ($dom->getElementsByTagName('SegmentTimeline')->length !== 0) {
@@ -508,7 +473,6 @@ function process_mpd()
                 }
                 else
                     $i = 0;
-
                 while ($i < $segmentno)
                 {
                     // here $Number$ / $Time$ is replaced (if it exists)
@@ -548,27 +512,22 @@ function process_mpd()
                     $i++;
                 }
                 $adapt_url[] = $segm_url; // contains all representations within certain adaptation set
-
                 $segm_url = array(); // delete segment url array and process the next representation
             }
-
             $period_url[] = $adapt_url; // add all adaptationset urls to period array
             $adapt_url = array(); // delete adaptationset array and process the next adaptation set
         }
     }
-
     if ($Baseurl)
     {// in case of using Base url node
         for ($i = 0; $i < sizeof($period_baseurl); $i++)
         { // loop on base url
             if (!isset($perioddepth[0]))// if period doesn't contain baseurl
                 $perioddepth[0] = "";
-
             for ($j = 0; $j < sizeof($period_baseurl[$i]); $j++)
             { //loop on baseurl in adaptationset  
                 if (!isset($adaptsetdepth[$i])) // if adaptationset doesn't contain baseurl
                     $adaptsetdepth[$i] = "";
-
                 for ($lo = 0; $lo < sizeof($period_baseurl[$i][$j]); $lo++)
                 { // loop on baseurl in period level
                     if (!isAbsoluteURL($period_baseurl[$i][$j][$lo]))
@@ -582,7 +541,6 @@ function process_mpd()
             $period_url = $period_baseurl; // if segment template is not used, use baseurl
     }
     $_SESSION['period_url'] = $period_url; // save all period urls in session variable
-
     $_SESSION['Period_arr'] = $Period_arr; //save all period parameters in session variable
     $totarr[] = sizeof($period_url); // get number of adaptation sets
     for ($i = 0; $i < sizeof($period_url); $i++)
@@ -595,13 +553,10 @@ function process_mpd()
     //print_r2($period_url);
     if (isset($_SESSION['count1']))  // reset adaptationset counter before download start
         unset($_SESSION['count1']);
-
     if (isset($_SESSION['count2'])) //reset representation counter before  download start
         unset($_SESSION['count2']);
-
     $_SESSION['type'] = $type;
     $_SESSION['minBufferTime'] = $minBufferTime;
-
     if ($type === "dynamic")
     {
         $totarr[] = "dynamic";
@@ -614,7 +569,6 @@ function process_mpd()
         $progressXML->dynamic = "false";
         $progressXML->asXml(trim($locate . '/progress.xml'));
     }
-
     //Question: why should we tell if it's dynamic or not only when segment template is used?!
     if ($setsegflag)
     { // Segment template is used
@@ -642,7 +596,6 @@ function process_mpd()
 //                $progressXML->asXml(trim($locate.'/progress.xml'));
 //            }
     }
-
     //check if SegmentList exist
     if ($dom->getElementsByTagName('SegmentList')->length !== 0)
     {
@@ -658,7 +611,6 @@ function process_mpd()
         writeEndTime((int)$progressXML->completed->attributes());
         exit;
     }
-
     $ResultXML = $progressXML->addChild('Results'); // Create Results tree in progress.xml and updates tree later.
     for ($i1 = 0; $i1 < $periodCount; $i1++)
     {
@@ -674,7 +626,6 @@ function process_mpd()
         }
     }
     $progressXML->asXml(trim($locate . '/progress.xml'));
-
 //        echo $stri; // send no. of periods,adaptationsets, representation, mpd file to client
     //  }
     ////////////////////////////////////////////////////////////////////////////////////
@@ -684,7 +635,6 @@ function process_mpd()
     {
         $root = dirname(__FILE__);
         $destiny = array();
-
         if ($count2 >= sizeof($period_url[$count1]))
         {//check if all representations within a segment is downloaded
 	    if ($cmaf_val == "yes" )//&& $shouldCompare)  // if all data in an adaptation set is downloaded properly, then start comparing
@@ -699,7 +649,6 @@ function process_mpd()
                 $progressXML->asXml(trim($locate . '/progress.xml'));
             }
         }
-
         if ($count1 >= sizeof($period_url))
         { //check if all adapatationsets is processed 
             error_log("AllAdaptDownloaded");
@@ -707,8 +656,8 @@ function process_mpd()
                 checkRepresentationsConformance();//Check after downloading all AdaptationSets.
                 checkSwitchingSets();
             }
-            if($check_hbbtv_conformance || $check_dvb_conformance){
-                CrossValidation_HbbTV_DVB($dom,$check_hbbtv_conformance,$check_dvb_conformance);
+            if($hbbtv || $dvb){
+                CrossValidation_HbbTV_DVB($dom,$hbbtv,$dvb);
             }
             crossRepresentationProcess();
             $missingexist = file_exists($locate . '/missinglink.txt'); //check if any broken urls is detected
@@ -753,7 +702,7 @@ function process_mpd()
                     $ResultXML->Period[0]->Adaptation[$i]->ComparedRepresentations->addAttribute('url', str_replace($_SERVER['DOCUMENT_ROOT'], 'http://' . $_SERVER['SERVER_NAME'], $locate.'/Adapt'.$i.'_compInfo.txt'));
                 }
                 
-                if(($check_dvb_conformance || $check_hbbtv_conformance) && file_exists($locate . '/Adapt' . $i . '_compInfo.txt')){
+                if(($dvb || $hbbtv) && file_exists($locate . '/Adapt' . $i . '_compInfo.txt')){
                     $searchfiles = file_get_contents($locate . '/Adapt' . $i . '_compInfo.txt');
                     if(strpos($searchfiles, "DVB check violated") !== FALSE || strpos($searchfiles, "HbbTV check violated") !== FALSE || strpos($searchfiles, 'ERROR') !== FALSE){
                         $ResultXML->Period[0]->Adaptation[$i]->addChild('ComparedRepresentations', 'error');
@@ -818,9 +767,7 @@ function process_mpd()
                 $file_error[] = "noerror";
             }
             $send_string = json_encode($file_error); //encode array to string and send it 
-
             error_log("ReturnFinish:" . $send_string);
-
 //            echo $send_string; // send string with location of all error logs to client
             $progressXML->completed = "true";
             $progressXML->completed->addAttribute('time', time());
@@ -833,18 +780,15 @@ function process_mpd()
         {
             $repno = "Adapt" . $count1 . "rep" . $count2; // presentation unique name
             $pathdir = $locate . "/" . $repno . "/";
-
             $progressXML->Progress->CurrentRep = $count2 + 1; // Update currently running Representation, used in display status message.
             $progressXML->asXml(trim($locate . '/progress.xml'));
             error_log("Download_pathdir:" . $pathdir);
-
             if (!file_exists($pathdir))
             {
                 $oldmask = umask(0);
                 mkdir($pathdir, 0777, true); // create folder for each presentation
                 umask($oldmask);
             }
-
             $tempcount1 = $count1; //don't know why we need a buffer, but it only works this way with php 7
             
             ## For DVB subtitle checks related to mdat content
@@ -883,12 +827,9 @@ function process_mpd()
             $sizearray = downloaddata($pathdir, $period_url[$count1][$count2], $subtitle_rep); // download data 
             if ($sizearray !== 0)
             {
-
                 Assemble($pathdir, $period_url[$count1][$count2], $sizearray); // Assemble all presentation in to one presentation
-
                 chmod($locate . '/' . "mdatoffset.txt", 0777);
                 rename($locate . '/' . "mdatoffset.txt", $locate . '/' . $repno . "mdatoffset.txt"); //rename txt file contains mdatoffset
-
                 $file_location = array();
                 $exeloc = dirname(__FILE__);
                 chdir($locate);
@@ -922,34 +863,34 @@ function process_mpd()
                     $sar_x_y = explode(':', $Period_arr[$count1]['Representation']['sar'][$count2]);
                     $processArguments = $processArguments . '-sarx ' . $sar_x_y[0] . ' -sary ' . $sar_x_y[1] . " ";
                 }
-
                 if ($type === "dynamic")
                     $processArguments = $processArguments . "-dynamic ";
-
                 if ($Period_arr[$count1]['Representation']['startWithSAP'][$count2] != "")
                     $processArguments = $processArguments . "-startwithsap " . $Period_arr[$count1]['Representation']['startWithSAP'][$count2] . " ";
-
                 if (strpos($Period_arr[$count1]['Representation']['profiles'][$count2], "urn:mpeg:dash:profile:isoff-on-demand:2011") !== false || strpos($Period_arr[$count1]['Representation']['profiles'][$count2], "urn:dvb:dash:profile:dvb-dash:isoff-ext-on-demand:2014") !== false)
                     $processArguments = $processArguments . "-isoondemand ";
-
                 if (strpos($Period_arr[$count1]['Representation']['profiles'][$count2], "urn:mpeg:dash:profile:isoff-live:2011") !== false || strpos($Period_arr[$count1]['Representation']['profiles'][$count2], "urn:dvb:dash:profile:dvb-dash:isoff-ext-live:2014") !== false)
                     $processArguments = $processArguments . "-isolive ";
-
                 if (strpos($Period_arr[$count1]['Representation']['profiles'][$count2], "urn:mpeg:dash:profile:isoff-main:2011") !== false)
                     $processArguments = $processArguments . "-isomain ";
-
                 $dash264 = false;
                 if (strpos($Period_arr[$count1]['Representation']['profiles'][$count2], "http://dashif.org/guidelines/dash264") !== false)
                 {
                     $processArguments = $processArguments . "-dash264base ";
                     $dash264 = true;
                 }
-
-                if ($Period_arr[$count1]['Representation']['ContentProtectionElementCount'][$count2] > 0 && $dash264 == true)
-                {
-                    $processArguments = $processArguments . "-dash264enc ";
+                if($dvb || $hbbtv){
+                    if ($Period_arr[$count1]['Representation']['ContentProtectionElementCount'][$count2] > 0)
+                    {
+                        $processArguments = $processArguments . "-dash264enc ";
+                    }
                 }
-
+                else{
+                    if ($Period_arr[$count1]['Representation']['ContentProtectionElementCount'][$count2] > 0 && $dash264 == true)
+                    {
+                        $processArguments = $processArguments . "-dash264enc ";
+                    }
+                }
                 $processArguments = $processArguments . "-codecs ";
                 if ($Period_arr[$count1]['codecs'] === 0)
                 {
@@ -960,9 +901,7 @@ function process_mpd()
                     $codecs = $Period_arr[$count1]['codecs'];
                 }
                 $processArguments = $processArguments . $codecs;
-
                 // add indexRange to process arguments to give it to MPD validator
-
                 if ($Period_arr[$count1]['Representation']['indexRange'][$count2] !== null)
                 {
                     $indexRange = $Period_arr[$count1]['Representation']['indexRange'][$count2];
@@ -975,7 +914,6 @@ function process_mpd()
                     $processArguments = $processArguments . " -indexrange ";
                     $processArguments = $processArguments . $indexRange;
                 }
-
                 $processArguments = $processArguments . " -audiochvalue ";
                 if ($Period_arr[$count1]['AudioChannelValue'] === 0)
                 {
@@ -986,7 +924,6 @@ function process_mpd()
                     $audioChValue = $Period_arr[$count1]['AudioChannelValue'];
                 }
                 $processArguments = $processArguments . $audioChValue;
-
                 if ($Period_arr[$count1]['Representation']['SegmentTemplate']['RepresentationIndex'] !== null ||
                         $Period_arr[$count1]['Representation']['SegmentBase']['RepresentationIndex'] !== null ||
                         $Period_arr[$count1]['SegmentTemplate']['RepresentationIndex'] !== null ||
@@ -1021,7 +958,7 @@ function process_mpd()
                     }
                 }
                 
-                if($check_dvb_conformance || $check_hbbtv_conformance){
+                if($dvb || $hbbtv){
                     if($Period_arr[$count1]['frameRate'] === NULL)
                         $processArguments = $processArguments . " -framerate " . $Period_arr[$count1]['Representation']['frameRate'][$count2];
                     else
@@ -1047,7 +984,6 @@ function process_mpd()
                 error_log("validatemp4");
                 // Work out which validator binary to use
                 $validatemp4 = (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') ? "validatemp4-vs2010.exe" : "ValidateMP4.exe";
-
                 $file_loc = $locate . "/config_file.txt";
                 $config_file = fopen($file_loc, "w");
                 fwrite($config_file, $locate . '/' . $repno . ".mp4 " . "\n");
@@ -1062,14 +998,13 @@ function process_mpd()
                     if ($pie !== "")
                         fwrite($config_file, $pie . "\n");
                 }
-
-                if($cmaf_val == "yes" || $check_dvb_conformance || $check_hbbtv_conformance){
+                if($cmaf_val == "yes" || $dvb || $hbbtv){
                     $command = $locate . '/' . $validatemp4 . " -atomxml";
                     if($cmaf_val == "yes")
                         $command = $command . " -cmaf";
-                    if($check_dvb_conformance)
+                    if($dvb)
                         $command = $command . " -dvb";
-                    if($check_hbbtv_conformance){
+                    if($hbbtv){
                         $command = $command . " -hbbtv";
                         if(strpos($processArguments, '-isolive') === FALSE)
                             fwrite($config_file, "-isolive\n");
@@ -1102,15 +1037,13 @@ function process_mpd()
                     }
                 }
                 rename($locate . '/' . "leafinfo.txt", $locate . '/' . $repno . "_infofile.txt"); //Rename infor file to contain representation number (to avoid over writing 
-
                 $file_location[] = "temp" . '/' . $foldername . '/' . $repno . "_infofile.html";
-
                 $destiny[] = $locate . '/' . $repno . "_infofile.txt";
                 rename($locate . '/' . "stderr.txt", $locate . '/' . $repno . "log.txt"); //Rename conformance software output file to representation number file
                 
                 // Compare representations
                 //if($shouldCompare){
-                if($cmaf_val == "yes" || $check_dvb_conformance || $check_hbbtv_conformance){
+                if($cmaf_val == "yes" || $dvb || $hbbtv){
                     $new_pathdir = $locate . "/Adapt" . $count1;
                     if (!file_exists($new_pathdir)){
                         $oldmask = umask(0);
@@ -1132,9 +1065,9 @@ function process_mpd()
                //     unlink($locate . '/' . "atominfo.xml");
                // }
                 
-                if($check_dvb_conformance || $check_hbbtv_conformance){
+                if($dvb || $hbbtv){
                     $media_types = media_types($periodNode);
-                    common_validation($dom,$check_hbbtv_conformance,$check_dvb_conformance, $sizearray,$Period_arr[$count1]['Representation']['bandwidth'][$count2], $start, $media_types);
+                    common_validation($dom,$hbbtv,$dvb, $sizearray,$Period_arr[$count1]['Representation']['bandwidth'][$count2], $start, $media_types);
                     $copy_string_info=$string_info;
                     $index = strpos($copy_string_info, '</body>');
                     
@@ -1142,28 +1075,19 @@ function process_mpd()
                     $segemnet_duration_name = 'Adapt' . $count1 . '_rep' . $count2 . '.png';
                     $copy_string_info = substr($copy_string_info, 0, $index) ."<img id=\"bitrateReport\" src=\"$segemnet_duration_name\" width=\"650\" height=\"350\">".
                     "<img id=\"bitrateReport\" src=\"$bitrate_report_name\" width=\"650\" height=\"350\">" .substr($copy_string_info, $index);
-                    $temp_string = str_replace(array('$Template$'), array($repno . "log"), $copy_string_info); // this string shows a text file on HTML
-                    
-                    
-                    
+                    $temp_string = str_replace(array('$Template$'), array($repno . "log"), $copy_string_info);
                 }
                 else
                     $temp_string = str_replace(array('$Template$'), array($repno . "log"), $string_info); // this string shows a text file on HTML
-
                 file_put_contents($locate . '/' . $repno . "log.html", $temp_string); // Create html file containing log file result
                 $file_location[] = "temp" . '/' . $foldername . '/' . $repno . "log.html"; // add it to file location which is sent to client to get URL of log file on server
-
                 $destiny[] = $locate . '/' . $repno . "log.txt";
-
-
                 $file_location[] = "temp" . '/' . $repno . "myfile.html";
                 $destiny[] = $locate . '/' . $repno . "myfile.txt";
-
                 $period_url[$count1][$count2] = null;
                 ob_flush();
                 $count2 = $count2 + 1;
                 $search = file_get_contents($locate . '/' . $repno . "log.txt"); //Search for errors within log file
-
                 if (strpos($search, "error") === false)
                 { //if no error , notify client with no error
                     $ResultXML->Period[0]->Adaptation[$tempcount1]->Representation[$count2 - 1] = "noerror";
@@ -1174,7 +1098,7 @@ function process_mpd()
                     $ResultXML->Period[0]->Adaptation[$tempcount1]->Representation[$count2 - 1] = "error";
                     $file_location[] = "error"; //else notify client with error
                 }
-                if($check_dvb_conformance || $check_hbbtv_conformance){
+                if($dvb || $hbbtv){
                     if (strpos($search, "###") === false){
                         if(strpos($search, "Warning") === false && strpos($search, "WARNING") === false){
                             $ResultXML->Period[0]->Adaptation[$tempcount1]->Representation[$count2 - 1] = "noerror";
@@ -1193,7 +1117,6 @@ function process_mpd()
                 
                 $ResultXML->Period[0]->Adaptation[$tempcount1]->Representation[$count2 - 1]->addAttribute('url', str_replace($_SERVER['DOCUMENT_ROOT'], 'http://' . $_SERVER['SERVER_NAME'], $locate . '/' . $repno . "log.txt"));
                 $progressXML->asXml(trim($locate . '/progress.xml'));
-
                 $_SESSION['count2'] = $count2; //Save the counters to session variables in order to use it the next time the client request download of next presentation
                 $_SESSION['count1'] = $count1;
                 $send_string = json_encode($file_location);
@@ -1205,18 +1128,13 @@ function process_mpd()
                 $count2 = $count2 + 1;
                 $_SESSION['count2'] = $count2;
                 $_SESSION['count1'] = $count1;
-
                 $file_location[] = 'notexist';
                 $ResultXML->Period[0]->Adaptation[$tempcount1]->Representation[$count2 - 1] = "notexist";
-
                 $send_string = json_encode($file_location);
-
                 error_log("DownloadError_Return:" . $send_string);
-
 //                echo $send_string;
             }
         }
     }
 }
-
 ?>

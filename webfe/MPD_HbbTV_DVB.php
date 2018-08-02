@@ -1,11 +1,9 @@
 <?php
-
 /* 
  * To change this license header, choose License Headers in Project Properties.
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-
 $period_count = 0;
 $adapt_video_count = 0;
 $adapt_audio_count = 0;
@@ -17,14 +15,12 @@ $video_bw = array();
 $audio_bw = array();
 $subtitle_bw = array();
 $associativity = array();
-
 function HbbTV_DVB_mpdvalidator($dom, $hbbtv, $dvb) {
     global $locate, $string_info;
     
     $mpdreport = fopen($locate . '/mpdreport.txt', 'a+b');
     fwrite($mpdreport, "HbbTV-DVB Validation \n");
     fwrite($mpdreport, "===========================\n\n");
-
     ## Report on profile-specific media types' completeness
     DVB_HbbTV_profile_specific_media_types_report($dom, $mpdreport);
     
@@ -56,7 +52,6 @@ function HbbTV_DVB_mpdvalidator($dom, $hbbtv, $dvb) {
     
     return $returnValue;
 }
-
 function DVB_HbbTV_profile_specific_media_types_report($dom, $mpdreport){
     global $enforced_profile_dvb, $enforced_profile_hbbtv;
     
@@ -102,7 +97,6 @@ function DVB_HbbTV_profile_specific_media_types_report($dom, $mpdreport){
         }
     }
 }
-
 function recursive_generate($node, &$domDocument, &$domElement, $profile){
     foreach($node->childNodes as $child){
         if($child->nodeType == XML_ELEMENT_NODE){
@@ -118,7 +112,6 @@ function recursive_generate($node, &$domDocument, &$domElement, $profile){
     
     return $domElement;
 }
-
 function media_types($MPD){
     $media_types = array();
     
@@ -195,7 +188,6 @@ function media_types($MPD){
     
     return array_unique($media_types);
 }
-
 function DVB_HbbTV_cross_profile_check($dom, $mpdreport){
     $profiles = $dom->getElementsByTagName('MPD')->item(0)->getAttribute('profiles');
     
@@ -216,7 +208,6 @@ function DVB_HbbTV_cross_profile_check($dom, $mpdreport){
             fwrite($mpdreport, "Information on HbbTV-DVB DASH Validation Requirements conformance: Section 'MPD' - MPD element is scoped by the profile \"$profile\" that the tool is not validating against.\n");
     }
 }
-
 # // Previous MPD check (6) where the elements that are not used in MPD-level HbbTV profile validation  
 #function DVB_HbbTV_cross_profile_check($dom, $mpdreport){
 #    // All the elements here for cross-profile checks exist in DVB but not in HbbTV
@@ -246,7 +237,6 @@ function DVB_HbbTV_cross_profile_check($dom, $mpdreport){
 #        }
 #    }
 #}
-
 function DVB_mpdvalidator($dom, $mpdreport){
     global $adapt_video_count, $adapt_audio_count, $main_audio_found, $main_audios, $hoh_subtitle_lang, $period_count, $audio_bw, $video_bw, $subtitle_bw, $supported_profiles, $cp_dom;
     
@@ -521,7 +511,6 @@ function DVB_mpdvalidator($dom, $mpdreport){
         fwrite($mpdreport, "###'DVB check violated: Section 6.1.2- If there is more than one audio Adaptation Set in a DASH Presentation then at least one of them SHALL be tagged with an @value set to \"main\"', could not be found in Period $period_count.\n");
     
 }
-
 function FallbackOperationCheck($audio_adapts, $mpdreport){
     $len = sizeof($audio_adapts);
     for($i=0; $i<$len; $i++){
@@ -559,7 +548,6 @@ function FallbackOperationCheck($audio_adapts, $mpdreport){
         }
     }
 }
-
 function DVB_associated_adaptation_sets_check($dom, $mpdreport){
     $MPD = $dom->getElementsByTagName('MPD')->item(0);
     $periods = $MPD->getElementsByTagName('Period');
@@ -584,7 +572,6 @@ function DVB_associated_adaptation_sets_check($dom, $mpdreport){
         }
     }
 }
-
 function checkAssetIdentifiers($assets1, $assets2){
     $return = FALSE;
     $len1 = $assets1->length;
@@ -604,7 +591,6 @@ function checkAssetIdentifiers($assets1, $assets2){
     
     return $return;
 }
-
 function checkAdaptationSetsIds($adapts1, $adapts2, $periodId1, $periodId2, $mpdreport){
     global $associativity;
     $len1 = $adapts1->length;
@@ -836,7 +822,6 @@ function checkAdaptationSetsIds($adapts1, $adapts2, $periodId1, $periodId2, $mpd
         }
     }
 }
-
 function StreamBandwidthCheck($mpdreport){
     global $video_bw, $audio_bw, $subtitle_bw;
     
@@ -861,7 +846,6 @@ function StreamBandwidthCheck($mpdreport){
     $audio_bw = array();
     $subtitle_bw = array();
 }
-
 function DVB_event_checks($possible_event, $mpdreport){
     global $period_count;
     if($possible_event->getAttribute('schemeIdUri') == 'urn:dvb:iptv:cpm:2014'){
@@ -889,7 +873,6 @@ function DVB_event_checks($possible_event, $mpdreport){
         }
     }
 }
-
 function DVB_video_checks($adapt, $reps, $mpdreport, $i, $contentTemp_vid_found){
     global $adapt_video_count, $main_video_found, $period_count, $video_bw;
     
@@ -1029,9 +1012,7 @@ function DVB_video_checks($adapt, $reps, $mpdreport, $i, $contentTemp_vid_found)
             fwrite($mpdreport, "Warning for DVB check: Section 4.4- 'For any Adaptation Sets with @contentType=\"video\" @maxFrameRate attribute (or @frameRate if all Representations have the same frameRate) SHOULD be present', could not be found in Period $period_count Adaptation Set " . ($i+1) . ".\n");
         if($adapt->getAttribute('par') == '')
             fwrite($mpdreport, "Warning for DVB check: Section 4.4- 'For any Adaptation Sets with @contentType=\"video\" @par attribute SHOULD be present', could not be found in Period $period_count Adaptation Set " . ($i+1) . ".\n");
-
         if(in_array('interlaced', $reps_scanType) && in_array('', $reps_scanType)){
-
                 fwrite($mpdreport, "###'DVB check violated: Section 4.4- For any Representation within an Adaptation Set with @contentType=\"video\" @scanType attribute SHALL be present if interlaced pictures are used within any Representation in the Adaptation Set', could not be found in neither Period $period_count Adaptation Set " . ($i+1) . " nor Period $period_count Adaptation Set " . ($i+1) . " Representation " . ($j+1) . ".\n");
         }
         
@@ -1053,7 +1034,6 @@ function DVB_video_checks($adapt, $reps, $mpdreport, $i, $contentTemp_vid_found)
     }
     ##
 }
-
 function DVB_audio_checks($adapt, $reps, $mpdreport, $i, $contentTemp_aud_found){
     global $adapt_audio_count, $main_audios, $main_audio_found, $period_count, $audio_bw;
     
@@ -1285,7 +1265,6 @@ function DVB_audio_checks($adapt, $reps, $mpdreport, $i, $contentTemp_aud_found)
     }
     ##
 }
-
 function DVB_subtitle_checks($adapt, $reps, $mpdreport, $i){
     global $period_count, $subtitle_bw, $hoh_subtitle_lang;
     
@@ -1424,7 +1403,6 @@ function DVB_subtitle_checks($adapt, $reps, $mpdreport, $i){
     }
     ##
 }
-
 function DVB_content_protection($adapt, $reps, $mpdreport, $i, $cenc){
     global $period_count;
     
@@ -1449,7 +1427,6 @@ function DVB_content_protection($adapt, $reps, $mpdreport, $i, $cenc){
             fwrite($mpdreport, "Warning for DVB check: Section 8.4- '\"mp4protection\" ContentProtection descriptor SHOULD include the extension defined in ISO/IEC 23001-7 clause 11.2', not found in Period $period_count Adaptation Set " . ($i+1) . ".\n");
     }
 }
-
 function HbbTV_mpdvalidator($dom, $mpdreport){
     
     global $onRequest_array, $xlink_not_valid_array, $cp_dom;
@@ -1480,7 +1457,6 @@ function HbbTV_mpdvalidator($dom, $mpdreport){
     $docType=$dom->doctype;
     if($docType!==NULL)
        fwrite($mpdreport, "###'HbbTV check violated: Section E.2.1 - The MPD must not contain an XML Document Type Definition(<!DOCTYPE>)', but found in the MPD \n");
-
     $MPD = $dom->getElementsByTagName('MPD')->item(0);
     
     ## Warn on low values of MPD@minimumUpdatePeriod (for now the lowest possible value is assumed to be 1 second)
@@ -1534,7 +1510,6 @@ function HbbTV_mpdvalidator($dom, $mpdreport){
                            $main_audio_found++;
                     HbbTV_AudioRepChecks($adapts->item($i), $adapt_count,$period_count,$mpdreport);
                 }
-
                  //Following has error reporting code if MPD element is not part of validating profile.
 #                $startWithSAP=$adapts->item($i)->getAttribute('subsegmentStartsWithSAP');
 #                    if($startWithSAP == 1 || $startWithSAP ==2)
@@ -1564,11 +1539,9 @@ function HbbTV_mpdvalidator($dom, $mpdreport){
 #                            }
 #                        }
 #                     }
-
                 }
                 if($rep_count>16)
                    fwrite($mpdreport, "###'HbbTV check violated: Section E.2.2 - There shall be no more than 16 Representations per Adaptatation Set  in an MPD', but found ".$rep_count." Represenations in Adaptation Set ".$adapt_count." in Period ".$period_count." \n");
-
                 
             }
             if($adapt_count>16)
@@ -1597,7 +1570,6 @@ function nextElementSibling($node)
     }
     return $node;
 }
-
 function HbbTV_VideoRepChecks($adapt, $adapt_num,$period_num,$mpdreport)
 {
     $width=$adapt->getAttribute('width');
@@ -1607,7 +1579,6 @@ function HbbTV_VideoRepChecks($adapt, $adapt_num,$period_num,$mpdreport)
     $codecs=$adapt->getAttribute('codecs');
     if($codecs!=NULL && strpos($codecs, 'avc')===false)
         fwrite($mpdreport, "###'HbbTV check violated: Section E.2.1 - The video content referenced by MPD shall only be encoded using video codecs defined in 7.3.1 (AVC)', but ".$codecs." found in Adaptation Set ".$adapt_num." in Period ".$period_num." \n");
-
     
     $reps=$adapt->getElementsByTagName('Representation');
     for($i=0;$i<$reps->length;$i++)
@@ -1625,7 +1596,6 @@ function HbbTV_VideoRepChecks($adapt, $adapt_num,$period_num,$mpdreport)
         
     }
 }
-
 function HbbTV_AudioRepChecks($adapt, $adapt_num,$period_num,$mpdreport)
 {
     $SamplingRate=$adapt->getAttribute('audioSamplingRate');
@@ -1644,7 +1614,6 @@ function HbbTV_AudioRepChecks($adapt, $adapt_num,$period_num,$mpdreport)
     $codecs_adapt=$adapt->getAttribute('codecs');
     if($codecs_adapt!=NULL && strpos($codecs_adapt, 'mp4a')===false && strpos($codecs_adapt, 'ec-3')===false)
         fwrite($mpdreport, "###'HbbTV check violated: Section E.2.1 - The audio content referenced by MPD shall only be encoded using video codecs defined in 7.3.1 (HE-AAC, E-AC-3)', but '".$codecs_adapt."' found in Adaptation Set ".$adapt_num." in Period ".$period_num." \n");
-
     
     for($i=0;$i<$reps->length;$i++)
     {
@@ -1675,7 +1644,6 @@ function HbbTV_AudioRepChecks($adapt, $adapt_num,$period_num,$mpdreport)
     
     
 }
-
 function HbbTV_AudioChannelCheck($channelConfig,$codecs,$rep_num, $adapt_num,$period_num,$mpdreport)
 {
     $scheme=$channelConfig->item(0)->getAttribute("schemeIdUri");
@@ -1684,10 +1652,8 @@ function HbbTV_AudioChannelCheck($channelConfig,$codecs,$rep_num, $adapt_num,$pe
     {
         if(strpos($scheme,"urn:mpeg:dash:23003:3:audio_channel_configuration:2011")===false)
             fwrite($mpdreport, "###'HbbTV check violated: Section E.2.5 - For HE-AAC the Audio Channel Configuration shall use urn:mpeg:dash:23003:3:audio_channel_configuration:2011 schemeIdURI', but this schemeIdUri not found for Representation ".($rep_num+1)." of Adaptation Set ".$adapt_num." in Period ".$period_num." \n");
-
         if(!(is_numeric($value) && $value == round($value)))
             fwrite($mpdreport, "###'HbbTV check violated: Section E.2.5 - For HE-AAC the Audio Channel Configuration shall use urn:mpeg:dash:23003:3:audio_channel_configuration:2011 schemeIdURI with value set to an integer number', but non-integer value found for Representation ".($rep_num+1)." of Adaptation Set ".$adapt_num." in Period ".$period_num." \n");
-
     }
     else if (strpos($codecs,'ec-3')!==false)
     {
@@ -1695,11 +1661,8 @@ function HbbTV_AudioChannelCheck($channelConfig,$codecs,$rep_num, $adapt_num,$pe
             fwrite($mpdreport, "###'HbbTV check violated: Section E.2.5 - For E-AC-3 the Audio Channel Configuration shall use either the tag:dolby.com,2014:dash:audio_channel_configuration:2011 or urn:dolby:dash:audio_channel_configuration:2011 schemeIdURI', but neither of these found for Representation ".($rep_num+1)." of Adaptation Set ".$adapt_num." in Period ".$period_num." \n");
         if(strlen($value)!=4 || !ctype_xdigit($value))
             fwrite($mpdreport, "###'HbbTV check violated: Section E.2.5 - For E-AC-3 the Audio Channel Configuration value shall contain a four digit hexadecimal number', but found value '".$value."' for Representation ".($rep_num+1)." of Adaptation Set ".$adapt_num." in Period ".$period_num." \n");
-
     }
 }
-
-
 function xlink_reconstruct_MPD($dom_MPD)
 {
     global $reconstructed_MPD, $stop, $locate;
@@ -1720,7 +1683,6 @@ function xlink_reconstruct_MPD($dom_MPD)
     fwrite($temp_file, $reconstructed_MPD_st);
     fclose($temp_file);*/  
 }  
-
 function xlink_reconstruct_MPD_recursive($dom_MPD) //give $dom_sxe as argument when calling function 
 { 
     //global $locate;
@@ -1732,7 +1694,6 @@ function xlink_reconstruct_MPD_recursive($dom_MPD) //give $dom_sxe as argument w
     $MPD = $dom_MPD->getElementsByTagName('MPD')->item(0);
     $reconstructed_node = $reconstructed_MPD->importNode($MPD, true);
     $reconstructed_MPD->appendChild($reconstructed_node);
-
     $element_name = array(); 
     foreach ($dom_MPD->getElementsByTagName('*') as $node)
     { // search for all nodes within mpd   
@@ -1744,14 +1705,11 @@ function xlink_reconstruct_MPD_recursive($dom_MPD) //give $dom_sxe as argument w
         {
             $name_repetition = array_count_values($element_name);
             $index_for_modifications = $name_repetition[$node_name] - 1; //this will be the index for replacing and inserting the xlink nodes
-
             $actuate_mode = $node->getAttribute('xlink:actuate');
-
             if($actuate_mode === 'onRequest')// check if actuate mode is onRequest
             {
                 $onRequest_array[$index_for_modifications] = $node_name;
             }
-
             //if you have a valid url then get the content even if it is onRequest
             $xlink_url = get_headers($xlink);
             if(!strpos($xlink_url[0], "200")) 
@@ -1807,7 +1765,6 @@ function xlink_reconstruct_MPD_recursive($dom_MPD) //give $dom_sxe as argument w
     }         
     $stop = 1; // now don't do any more modifications to the MPD          
 }
-
 function DVB_mpd_anchor_check($dom, $mpdreport){
     $allowed_keys = array('t', 'period', 'track', 'group');
     
@@ -1937,7 +1894,6 @@ function DVB_mpd_anchor_check($dom, $mpdreport){
         }
     }
 }
-
 function compute_timerange($time_range){
     $first = 1;
     foreach($time_range as $timestamp){
