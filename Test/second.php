@@ -1,8 +1,6 @@
 <?php
 
-/* 
 
- */
 include 'TestReportSheet.php';
 
 //$opener=$_REQUEST['handle'];
@@ -78,8 +76,8 @@ while(1)
             if($xml->completed=="true")
             { 
                 //Write all errors to a spreadsheet before moving to new location.
-               //CreateTestReport($mpdURL, $path.'/'.$Newfolder);
-                //
+                create_initial_spreadsheet();
+                string_operations($path.'/'.$Newfolder, $mpdURL);
                 rename($path.'/'.$Newfolder, $newPath.'/'.$FoldName );
 
                 break;
