@@ -11,9 +11,9 @@ function string_operations($locate, $mpdURL)
     global $line_count, $MPD_wrote;
     $MPD_wrote = false;
     //get all the files wich end as described below
-    $RepLogFiles=glob($locate."/*log.txt");
-    $CrossValidDVB=glob($locate."/*compInfo.txt");
-    $CrossRepDASH=glob($locate."/*CrossInfofile.txt");
+    $RepLogFiles=glob($locate."/*logfull.txt");
+    $CrossValidDVB=glob($locate."/*compInfofull.txt");
+    $CrossRepDASH=glob($locate."/*CrossInfofilefull.txt");
     $all_report_files = array_merge($RepLogFiles, $CrossValidDVB, $CrossRepDASH); // put all the filepaths in a single array
     $segment_errors = array();
     
