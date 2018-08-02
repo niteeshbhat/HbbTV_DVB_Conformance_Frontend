@@ -913,7 +913,15 @@ function process_mpd()
                 {
                     $processArguments = $processArguments . $Period_arr[$count1]['height'] . " ";
                 }
-
+                
+                if($Period_arr[$count1]['sar'] !== 0){
+                    $sar_x_y = explode(':', $Period_arr[$count1]['sar']);
+                    $processArguments = $processArguments . '-sarx ' . $sar_x_y[0] . ' -sary ' . $sar_x_y[1] . " ";
+                }
+                elseif($Period_arr[$count1]['Representation']['sar'][$count2] !== 0){
+                    $sar_x_y = explode(':', $Period_arr[$count1]['Representation']['sar'][$count2]);
+                    $processArguments = $processArguments . '-sarx ' . $sar_x_y[0] . ' -sary ' . $sar_x_y[1] . " ";
+                }
 
                 if ($type === "dynamic")
                     $processArguments = $processArguments . "-dynamic ";
@@ -921,10 +929,10 @@ function process_mpd()
                 if ($Period_arr[$count1]['Representation']['startWithSAP'][$count2] != "")
                     $processArguments = $processArguments . "-startwithsap " . $Period_arr[$count1]['Representation']['startWithSAP'][$count2] . " ";
 
-                if (strpos($Period_arr[$count1]['Representation']['profiles'][$count2], "urn:mpeg:dash:profile:isoff-on-demand:2011") !== false)
+                if (strpos($Period_arr[$count1]['Representation']['profiles'][$count2], "urn:mpeg:dash:profile:isoff-on-demand:2011") !== false || strpos($Period_arr[$count1]['Representation']['profiles'][$count2], "urn:dvb:dash:profile:dvb-dash:isoff-ext-on-demand:2014") !== false)
                     $processArguments = $processArguments . "-isoondemand ";
 
-                if (strpos($Period_arr[$count1]['Representation']['profiles'][$count2], "urn:mpeg:dash:profile:isoff-live:2011") !== false)
+                if (strpos($Period_arr[$count1]['Representation']['profiles'][$count2], "urn:mpeg:dash:profile:isoff-live:2011") !== false || strpos($Period_arr[$count1]['Representation']['profiles'][$count2], "urn:dvb:dash:profile:dvb-dash:isoff-ext-live:2014") !== false)
                     $processArguments = $processArguments . "-isolive ";
 
                 if (strpos($Period_arr[$count1]['Representation']['profiles'][$count2], "urn:mpeg:dash:profile:isoff-main:2011") !== false)

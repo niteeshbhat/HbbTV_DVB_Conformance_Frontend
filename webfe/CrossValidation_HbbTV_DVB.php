@@ -76,7 +76,7 @@ function crossValidation_DVB_Representations($dom, $opfile, $xml_r, $xml_d, $i, 
         fwrite($opfile, "###'DVB check violated: Section 4.3- All the initialization segments for Representations within an Adaptation Set SHALL have the same sample entry type', found $sdType_r in Adaptation Set " . ($i+1) . " Representation " . ($r+1) . " $sdType_d in Adaptation Set " . ($i+1) . " Representation " . ($d+1) . ".\n");
     
         if($hdlr_type_r == $hdlr_type_d && $hdlr_type_r == 'soun')
-            fwrite($opfile, "Warning for DVB check: 'Non-switchable audio codecs SHOULD NOT be present within the same Adaptation Set for the presence of consistent Representations within an Adaptation Set ', found in Adaptation Set " . ($i+1) . ": Representation " . ($r+1) . " and Representation " . ($d+1) . ".\n");
+            fwrite($opfile, "Warning for HbbTV-DVB DASH Validation Requirements check for DVB: Section 'Adaptation Sets' - 'Non-switchable audio codecs SHOULD NOT be present within the same Adaptation Set for the presence of consistent Representations within an Adaptation Set ', found in Adaptation Set " . ($i+1) . ": Representation " . ($r+1) . " and Representation " . ($d+1) . ".\n");
     }
         ##
     
@@ -371,10 +371,10 @@ function crossValidation_DVB_Representations($dom, $opfile, $xml_r, $xml_d, $i, 
                         $pars[] = $content_comp->getAttribute('par');
                     }
                     
-                    if(array_unique($pars) != 1 || array_unique($pars) == 1 && in_array('', $pars))
+                    if(count(array_unique($pars)) != 1 || count(array_unique($pars)) == 1 && in_array('', $pars))
                         fwrite($opfile, "Information on DVB conformance: Section 10.4- 'Players SHALL support seamless swicthing between video Representations which can differ in resolution, maintaining the same picture aspect ratio', different attribute values found in Adaptation Set " . ($i+1) . ": Representation " . ($r+1) . " and Representation " . ($d+1) . ".\n");
                     
-                    elseif(array_unique($pars) == 1 && !in_array('', $pars)){
+                    elseif(count(array_unique($pars)) == 1 && !in_array('', $pars)){
                         if($width_r != $width_d || $height_r != $height_d){
                             $par = $pars[0];
                             $par_arr = explode(':', $par);
@@ -436,7 +436,7 @@ function crossValidation_HbbTV_Representations($dom, $opfile, $xml_r, $xml_d, $i
     ## Highlight HEVC and AVC for different representations in the same Adaptation Set
     if($hdlr_type_r == 'vide' && $hdlr_type_d == 'vide'){
         if((($sdType_r == 'hev1' || $sdType_r == 'hvc1') && strpos($sdType_d, 'avc')) || (($sdType_d == 'hev1' || $sdType_d == 'hvc1') && strpos($sdType_r, 'avc')))
-            fwrite($opfile, "Warning for HbbTV check: 'Terminals cannot switch between HEVC and AVC video Represntations present in the same Adaptation Set', found in Adaptation Set " . ($i+1) . ": Representation " . ($r+1) . " and Representation " . ($d+1) . ".\n");
+            fwrite($opfile, "Warning for HbbTV-DVB DASH Validation Requirements check for HbbTV: Section 'Adaptation Sets' - 'Terminals cannot switch between HEVC and AVC video Represntations present in the same Adaptation Set', found in Adaptation Set " . ($i+1) . ": Representation " . ($r+1) . " and Representation " . ($d+1) . ".\n");
     }
     ##
     
@@ -462,7 +462,7 @@ function crossValidation_HbbTV_Representations($dom, $opfile, $xml_r, $xml_d, $i
         
         if($conf_aud_r != '' && $conf_aud_d != ''){
             if(($conf_aud_r == 'config is 5+1' && $conf_aud_d == 'config is stereo') || ($conf_aud_d == 'config is 5+1' && $conf_aud_r == 'config is stereo'))
-                fwrite($opfile, "Warning for HbbTV check: '5.1 Audio and 2.0 Audio SHOULD NOT be present within the same Adaptation Set for the presence of consistent Representations within an Adaptation Set ', found in Adaptation Set " . ($i+1) . ": Representation " . ($r+1) . " and Representation " . ($d+1) . ".\n");
+                fwrite($opfile, "Warning for HbbTV-DVB DASH Validation Requirements check for HbbTV: Section 'Adaptation Sets' - '5.1 Audio and 2.0 Audio SHOULD NOT be present within the same Adaptation Set for the presence of consistent Representations within an Adaptation Set ', found in Adaptation Set " . ($i+1) . ": Representation " . ($r+1) . " and Representation " . ($d+1) . ".\n");
         }
     }
     ##
@@ -526,7 +526,7 @@ function common_validation($dom,$hbbtv,$dvb, $sizearray,$bandwidth, $pstart, $me
         if ($presentationduration !== "") {
             $checks = segmentToPeriodDurationCheck($xml_rep);
             if(!$checks[0]){
-                fwrite($opfile, "###'HbbTV/DVB check violated: The accumulated duration of the segments [".$checks[1]. "seconds] in the representation does not match the period duration[".$checks[2]."seconds].'\n");
+                fwrite($opfile, "###'HbbTV-DVB DASH Validation Requirements check violated: Section 'Periods' - The accumulated duration of the segments [".$checks[1]. "seconds] in the representation does not match the period duration[".$checks[2]."seconds].\n'");
             }
         }
         DVB_HbbTV_err_file_op();
@@ -542,7 +542,7 @@ function common_validation_DVB($opfile, $dom, $xml_rep, $adapt_count, $rep_count
     ## Report on any resolutions used that are not in the tables of resoultions in 10.3 of the DVB DASH specification
     $res_result = resolutionCheck($opfile, $adapt, $rep);
     if($res_result[0] == false)
-        fwrite ($opfile, "Information on DVB codec conformance: Resolution value \"" . $res_result[1] . 'x' . $res_result[2] . "\" is not in the table of resolutions in 10.3 of the DVB DASH specification.\n");
+        fwrite ($opfile, "Information on HbbTV-DVB DASH Validation Requirements conformance for DVB: Section 'Codec information' - Resolution value \"" . $res_result[1] . 'x' . $res_result[2] . "\" is not in the table of resolutions in 10.3 of the DVB DASH specification.\n");
     ##
     
     ## Check on the support of the provided codec
@@ -567,7 +567,7 @@ function common_validation_DVB($opfile, $dom, $xml_rep, $adapt_count, $rep_count
         }
         
         if($str_info != '')
-            fwrite($opfile, "###'DVB check violated: @codecs in the MPD is not supported by the specification', found $str_info.\n");
+            fwrite($opfile, "###'HbbTV-DVB DASH Validation Requirements check violated for DVB: Section 'Codec information' - @codecs in the MPD is not supported by the specification', found $str_info.\n");
     }
     
     // Segment part
@@ -579,7 +579,7 @@ function common_validation_DVB($opfile, $dom, $xml_rep, $adapt_count, $rep_count
        strpos($sdType, 'dtsc') === FALSE && strpos($sdType, 'dtsh') === FALSE && strpos($sdType, 'dtse') === FALSE && strpos($sdType, 'dtsl') === FALSE &&
        strpos($sdType, 'stpp') === FALSE &&
        strpos($sdType, 'enc') === FALSE)
-        fwrite($opfile, "###'DVB check violated: codec in the Segment is not supported by the specification', found $sdType.\n");
+        fwrite($opfile, "###'HbbTV-DVB DASH Validation Requirements check violated for DVB: Section 'Codec information' - codec in the Segment is not supported by the specification', found $sdType.\n");
     
     $original_format = '';
     if(strpos($sdType, 'enc') !== FALSE){
@@ -594,11 +594,11 @@ function common_validation_DVB($opfile, $dom, $xml_rep, $adapt_count, $rep_count
         foreach($nal_units as $nal_unit){
             if($nal_unit->getAttribute('nal_type') == '0x07'){
                 if($nal_unit->getAttribute('profile_idc') != 100)
-                    fwrite($opfile, "###'DVB check violated: profile used for the AVC codec in Segment is not supported by the specification Section 5.1.1', found " . $nal_unit->getAttribute('profile_idc') . ".\n");
+                    fwrite($opfile, "###'HbbTV-DVB DASH Validation Requirements check violated for DVB: Section 'Codec information' - profile used for the AVC codec in Segment is not supported by the specification Section 5.1.1', found " . $nal_unit->getAttribute('profile_idc') . ".\n");
             
                 $level_idc = $nal_unit->getElementsByTagName('comment')->item(0)->getAttribute('level_idc');
                 if($level_idc != 30 && $level_idc != 31 && $level_idc != 32 && $level_idc != 40)
-                    fwrite($opfile, "###'DVB check violated: level used for the AVC codec in Segment is not supported by the specification Section 5.1.1', found $level_idc.\n");
+                    fwrite($opfile, "###'HbbTV-DVB DASH Validation Requirements check violated for DVB: Section 'Codec information' - level used for the AVC codec in Segment is not supported by the specification Section 5.1.1', found $level_idc.\n");
             }
         }
     }
@@ -610,21 +610,21 @@ function common_validation_DVB($opfile, $dom, $xml_rep, $adapt_count, $rep_count
             $nalUnitType = $nal_unit->parentNode->getAttribute('nalUnitType');
             if($nalUnitType == '33'){
                 if($nal_unit->getAttribute('gen_tier_flag') != '0')
-                    fwrite($opfile, "###'DVB check violated: tier used for the HEVC codec in Segment is not supported by the specification Section 5.2.3', found " . $nal_unit->getAttribute('gen_tier_flag') . ".\n");
+                    fwrite($opfile, "###'HbbTV-DVB DASH Validation Requirements check violated for DVB: Section 'Codec information' - tier used for the HEVC codec in Segment is not supported by the specification Section 5.2.3', found " . $nal_unit->getAttribute('gen_tier_flag') . ".\n");
                 if($nal_unit->getAttribute('bit_depth_luma_minus8') != 0 && $nal_unit->getAttribute('bit_depth_luma_minus8') != 2)
-                    fwrite($opfile, "###'DVB check violated: bit depth used for the HEVC codec in Segment is not supported by the specification Section 5.2.3', found " . $nal_unit->getAttribute('bit_depth_luma_minus8') . ".\n");
+                    fwrite($opfile, "###'HbbTV-DVB DASH Validation Requirements check violated for DVB: Section 'Codec information' - bit depth used for the HEVC codec in Segment is not supported by the specification Section 5.2.3', found " . $nal_unit->getAttribute('bit_depth_luma_minus8') . ".\n");
                 
                 if((int)$width <= 1920 && (int)$height <= 1080){
                     if($nal_unit->getAttribute('gen_profile_idc') != '1' && $nal_unit->getAttribute('gen_profile_idc') != '2')
-                        fwrite($opfile, "###'DVB check violated: profile used for the HEVC codec in Segment is not supported by the specification Section 5.2.3', found " . $nal_unit->getAttribute('gen_profile_idc') . ".\n");
+                        fwrite($opfile, "###'HbbTV-DVB DASH Validation Requirements check violated for DVB: Section 'Codec information' - profile used for the HEVC codec in Segment is not supported by the specification Section 5.2.3', found " . $nal_unit->getAttribute('gen_profile_idc') . ".\n");
                     if((int)($nal_unit->getAttribute('sps_max_sub_layers_minus1')) == 0 && (int)($nal_unit->getAttribute('gen_level_idc')) > 123)
-                        fwrite($opfile, "###'DVB check violated: level used for the HEVC codec in Segment is not supported by the specification Section 5.2.3', found " . $nal_unit->getAttribute('gen_level_idc') . ".\n");
+                        fwrite($opfile, "###'HbbTV-DVB DASH Validation Requirements check violated for DVB: Section 'Codec information' - level used for the HEVC codec in Segment is not supported by the specification Section 5.2.3', found " . $nal_unit->getAttribute('gen_level_idc') . ".\n");
                 }
                 elseif((int)$width > 1920 && (int)$height > 1080){
                     if($nal_unit->getAttribute('gen_profile_idc') != '2')
-                        fwrite($opfile, "###'DVB check violated: profile used for the HEVC codec in Segment is not supported by the specification Section 5.2.3', found " . $nal_unit->getAttribute('gen_profile_idc') . ".\n");
+                        fwrite($opfile, "###'HbbTV-DVB DASH Validation Requirements check violated for DVB: Section 'Codec information' - profile used for the HEVC codec in Segment is not supported by the specification Section 5.2.3', found " . $nal_unit->getAttribute('gen_profile_idc') . ".\n");
                     if((int)($nal_unit->getAttribute('sps_max_sub_layers_minus1')) == 0 && (int)($nal_unit->getAttribute('gen_level_idc')) > 153)
-                        fwrite($opfile, "###'DVB check violated: level used for the HEVC codec in Segment is not supported by the specification Section 5.2.3', found " . $nal_unit->getAttribute('gen_level_idc') . ".\n");
+                        fwrite($opfile, "###'HbbTV-DVB DASH Validation Requirements check violated for DVB: Section 'Codec information' - level used for the HEVC codec in Segment is not supported by the specification Section 5.2.3', found " . $nal_unit->getAttribute('gen_level_idc') . ".\n");
                 }
             }
         }
@@ -635,21 +635,21 @@ function common_validation_DVB($opfile, $dom, $xml_rep, $adapt_count, $rep_count
     if($adapt->getAttribute('mimeType') == 'application/mp4' || $rep->getAttribute('mimeType') == 'application/mp4'){
         if($adapt->getAttribute('codecs') == 'stpp' || $rep->getAttribute('codecs') == 'stpp'){
             if($hdlr_type != 'subt')
-                fwrite($opfile, "###'DVB check violated: For subtitle media, handler type in the Initialization Segment SHALL be \"subt\"', found \"$hdlr_type\".\n");
+                fwrite($opfile, "###'HbbTV-DVB DASH Validation Requirements check violated for DVB: Section 'Subtitles' - For subtitle media, handler type in the Initialization Segment SHALL be \"subt\"', found \"$hdlr_type\".\n");
             
             $stpp = $xml_rep->getElementsByTagName('stpp');
             if($stpp->length == 0)
-                fwrite($opfile, "###'DVB check violated: For subtitle media, sample entry type SHALL be \"stpp (XMLSubtitleSampleEntry)\"', stpp not found.\n");
+                fwrite($opfile, "###'HbbTV-DVB DASH Validation Requirements check violated for DVB: Section 'Subtitles' - For subtitle media, sample entry type SHALL be \"stpp (XMLSubtitleSampleEntry)\"', stpp not found.\n");
             else{
                 if($stpp->item(0)->getAttribute('namespace') == '')
-                    fwrite($opfile, "###'DVB check violated: For subtitle media, namespaces SHALL be listed in the sample entry', namespace not found.\n");
+                    fwrite($opfile, "###'HbbTV-DVB DASH Validation Requirements check violated for DVB: Section 'Subtitles' - For subtitle media, namespaces SHALL be listed in the sample entry', namespace not found.\n");
             }
             
             ## EBU TECH 3381 - Section 5 - Layout check
             if(in_array('video', $media_types)){
                 $tkhd = $xml_rep->getElementsByTagName('tkhd')->item(0);
                 if((int)($tkhd->getAttribute('width')) != 0 || (int)($tkhd->getAttribute('height')) != 0)
-                    fwrite($opfile, "Warning for DVB check: 'EBU TECH 3381 Section 5- When the subtitle track is associated with a video object the width and height of the subtitle track SHOULD NOT be set', found width and/or height value set.\n");
+                    fwrite($opfile, "Warning for HbbTV-DVB DASH Validation Requirements check for DVB: Section 'Subtitles' - EBU TECH 3381 Section 5- When the subtitle track is associated with a video object the width and height of the subtitle track SHOULD NOT be set', found width and/or height value set.\n");
             }
             ##
             
@@ -700,7 +700,7 @@ function common_validation_DVB($opfile, $dom, $xml_rep, $adapt_count, $rep_count
             }
             
             if($meta_str != '')
-                fwrite($opfile, "###'DVB check violated: Subtitle segments do not contain ISO-BMFF packaged EBU-TT-D but some other profile.\n");
+                fwrite($opfile, "###'HbbTV-DVB DASH Validation Requirements check violated for DVB: Section 'Subtitles' - Subtitle segments do not contain ISO-BMFF packaged EBU-TT-D but some other profile.\n");
             
             
             // Segments
@@ -735,7 +735,7 @@ function common_validation_DVB($opfile, $dom, $xml_rep, $adapt_count, $rep_count
                         $subt_begin = explode(' ', $subt_times[$j]);
                         for($be=1; $be<sizeof($subt_begin); $be++){
                             if($subt_begin[$be] > $cum_subsegDur)
-                                fwrite($opfile, "Warning for DVB check: 'For subtitle media, timing of subtitle $be with start \"" . $subt_begin[$be] . "\" lies completely outside the segment time period of the segment $j.\n");
+                                fwrite($opfile, "Warning for HbbTV-DVB DASH Validation Requirements check for DVB: Section 'Subtitles' - 'For subtitle media, timing of subtitle $be with start \"" . $subt_begin[$be] . "\" lies completely outside the segment time period of the segment $j.\n");
                         }
                     }
                     else{
@@ -750,7 +750,7 @@ function common_validation_DVB($opfile, $dom, $xml_rep, $adapt_count, $rep_count
                                 $subt_begin = explode(' ', $subt_times[$s]);
                                 for($be=1; $be<sizeof($subt_begin); $be++){
                                     if($subt_begin[$be] > $cum_subsegDur)
-                                        fwrite($opfile, "Warning for DVB check: 'For subtitle media, timing of subtitle $s with start \"" . $subt_begin[$be] . "\" lies completely outside the segment time period of the segment.\n");
+                                        fwrite($opfile, "Warning for HbbTV-DVB DASH Validation Requirements check for DVB: Section 'Subtitles' - 'For subtitle media, timing of subtitle $s with start \"" . $subt_begin[$be] . "\" lies completely outside the segment time period of the segment.\n");
                                 }
                                 $s++;
                             }
@@ -769,7 +769,7 @@ function common_validation_DVB($opfile, $dom, $xml_rep, $adapt_count, $rep_count
     // Section 4.3 on on-demand profile periods containing sidx boxes
     if(strpos($profiles, 'urn:mpeg:dash:profile:isoff-on-demand:2011') !== FALSE || strpos($profiles, 'urn:dvb:dash:profile:dvb-dash:isoff-ext-on-demand:2014') !== FALSE){
         if($xml_rep->getElementsByTagName('sidx')->length != 1)
-            fwrite($opfile, "###'DVB check violated: 'Segment includes features that are not required by the profile being validated against', found ". $xml_rep->getElementsByTagName('sidx')->length ." sidx boxes while according to Section 4.3 \"(For On Demand profile) The segment SHALL contain only one single Segment Index box ('sidx) for the entire segment\"'.\n");
+            fwrite($opfile, "###'HbbTV-DVB DASH Validation Requirements check violated for DVB: Section 'Segments' - 'Segment includes features that are not required by the profile being validated against', found ". $xml_rep->getElementsByTagName('sidx')->length ." sidx boxes while according to Section 4.3 \"(For On Demand profile) The segment SHALL contain only one single Segment Index box ('sidx) for the entire segment\"'.\n");
         if(count(glob($locate.'/Adapt'.$adapt_count.'rep'.$rep_count.'/*')) - count(glob($locate.'/Adapt'.$adapt_count.'rep'.$rep_count.'/*', GLOB_ONLYDIR)) != 1)
             fwrite($opfile, "###'DVB check violated: Section 4.3- (For On Demand profile) Each Representation SHALL have only one Segment', found more.\n");
     }
@@ -959,7 +959,7 @@ function common_validation_HbbTV($opfile, $dom, $xml_rep, $adapt_count, $rep_cou
         }
         
         if($str_info != '')
-            fwrite($opfile, "###'HbbTV check violated: @codecs in the MPD is not supported by the specification', found $str_info.\n");
+            fwrite($opfile, "###'HbbTV-DVB DASH Validation Requirements check violated for HbbTV: Section 'Codec information' - @codecs in the MPD is not supported by the specification', found $str_info.\n");
     }
     
     // Segment part
@@ -970,7 +970,7 @@ function common_validation_HbbTV($opfile, $dom, $xml_rep, $adapt_count, $rep_cou
     if(strpos($sdType, 'avc') === FALSE && 
        strpos($sdType, 'mp4a') === FALSE && strpos($sdType, 'ec-3') === FALSE &&
        strpos($sdType, 'enc') === FALSE)
-        fwrite($opfile, "###'HbbTV check violated: codec in Segment is not supported by the specification', found $sdType.\n");
+        fwrite($opfile, "###'HbbTV-DVB DASH Validation Requirements check violated for HbbTV: Section 'Codec information' - codec in Segment is not supported by the specification', found $sdType.\n");
     }
     
     $original_format = '';
@@ -989,19 +989,19 @@ function common_validation_HbbTV($opfile, $dom, $xml_rep, $adapt_count, $rep_cou
             if($nal_unit->getAttribute('nal_type') == '0x07'){
                 if((int)$width <= 720 && (int)$height <= 576){
                     if($nal_unit->getAttribute('profile_idc') != 77 && $nal_unit->getAttribute('profile_idc') != 100)
-                        fwrite($opfile, "###'HbbTV check violated: profile used for the codec in Segment is not supported by the specification Section 7.3.1', found " . $nal_unit->getAttribute('profile_idc') . ".\n");
+                        fwrite($opfile, "###'HbbTV-DVB DASH Validation Requirements check violated for HbbTV: Section 'Codec information' - profile used for the codec in Segment is not supported by the specification Section 7.3.1', found " . $nal_unit->getAttribute('profile_idc') . ".\n");
                     
                     $level_idc = $nal_unit->getElementsByTagName('comment')->item(0)->getAttribute('level_idc');
                     if($level_idc != 30)
-                        fwrite($opfile, "###'HbbTV check violated: level used for the codec in Segment is not supported by the specification Section 7.3.1', found $level_idc.\n");
+                        fwrite($opfile, "###'HbbTV-DVB DASH Validation Requirements check violated for HbbTV: Section 'Codec information' - level used for the codec in Segment is not supported by the specification Section 7.3.1', found $level_idc.\n");
                 }
                 elseif((int)$width >= 720 && (int)$height >= 640){
                     if($nal_unit->getAttribute('profile_idc') != 100)
-                        fwrite($opfile, "###'HbbTV check violated: profile used for the codec in Segment is not supported by the specification Section 7.3.1', found " . $nal_unit->getAttribute('profile_idc') . ".\n");
+                        fwrite($opfile, "###'HbbTV-DVB DASH Validation Requirements check violated for HbbTV: Section 'Codec information' - profile used for the codec in Segment is not supported by the specification Section 7.3.1', found " . $nal_unit->getAttribute('profile_idc') . ".\n");
                     
                     $level_idc = $nal_unit->getElementsByTagName('comment')->item(0)->getAttribute('level_idc');
                     if($level_idc != 30 && $level_idc != 31 && $level_idc != 32 && $level_idc != 40)
-                        fwrite($opfile, "###'HbbTV check violated: level used for the codec in Segment is not supported by the specification Section 7.3.1', found $level_idc.\n");
+                        fwrite($opfile, "###'HbbTV-DVB DASH Validation Requirements check violated for HbbTV: Section 'Codec information' - level used for the codec in Segment is not supported by the specification Section 7.3.1', found $level_idc.\n");
                 }
             }
         }
@@ -1133,7 +1133,7 @@ function common_validation_HbbTV($opfile, $dom, $xml_rep, $adapt_count, $rep_cou
     //   
     
     if($dom->getElementsByTagName('MPD')->item(0)->getAttribute('type') == 'dynamic' && count(glob($locate.'/Adapt'.$adapt_count.'rep'.$rep_count.'/*mp4')) == 1)
-        fwrite($opfile, "###'HbbTV check violated 'Segment includes features that are not required by the profile being validated against', found only segment in the representation while MPD@type is dynamic.\n");
+        fwrite($opfile, "###'HbbTV-DVB DASH Validation Requirements check violated for HbbTV: Section 'Segments' - 'Segment includes features that are not required by the profile being validated against', found only segment in the representation while MPD@type is dynamic.\n");
 }
 
 function segmentToPeriodDurationCheck($xml_rep) {
@@ -1208,7 +1208,7 @@ function float2int($value) {
 function init_seg_commonCheck($files,$opfile)
 {
     $rep_count=count($files);
-    fwrite($opfile, "Info: There are ".$rep_count." Representation in the AdaptationSet with \n");
+    fwrite($opfile, "Information on HbbTV-DVB DASH Validation Requirements: Section 'Init Segment(s)' - There are ".$rep_count." Representation in the AdaptationSet with \n");
     for($i=0;$i<$rep_count;$i++)
     {
         $xml = xmlFileLoad($files[$i]);
@@ -1260,7 +1260,7 @@ function seg_timing_common($opfile,$xml_rep, $dom, $pstart)
             $decodeTimeFragCurr=$xml_tfdt->item($j)->getAttribute('baseMediaDecodeTime');
             
             if($decodeTimeFragCurr!=$decodeTimeFragPrev+$cummulatedSampleDurFragPrev){
-                fprintf($opfile, "###'HbbTV/DVB check violated: A gap in the timing within the segments of the Representation found at segment number ".($j+1)."\n");
+                fprintf($opfile, "###'HbbTV-DVB DASH Validation Requirements check violated: Section 'Segments' - A gap in the timing within the segments of the Representation found at segment number ".($j+1)."\n");
             }
         }
         ##
@@ -1273,7 +1273,7 @@ function seg_timing_common($opfile,$xml_rep, $dom, $pstart)
             if(empty($subsegment_signaling)){
                 if($j < sizeof($mpd_timing)){
                     if(abs(($segmentTime - $mpd_timing[$j])/$mpd_timing[$j]) > 0.00001)
-                        fprintf($opfile, "###'HbbTV/DVB check violated: Start time \"$segmentTime\" within the segment " . ($j+1) . " is not consistent with the timing indicated by the MPD \"$mpd_timing[$j]\".\n");
+                        fprintf($opfile, "###'HbbTV-DVB DASH Validation Requirements check violated: Section 'Segments' - Start time \"$segmentTime\" within the segment " . ($j+1) . " is not consistent with the timing indicated by the MPD \"$mpd_timing[$j]\".\n");
                 }
             }
             else{
@@ -1283,7 +1283,7 @@ function seg_timing_common($opfile,$xml_rep, $dom, $pstart)
                 
                 if($cum_subsegDur == 0 && $sidx_index < sizeof($mpd_timing)){
                     if(abs(($segmentTime - $mpd_timing[$sidx_index])/$mpd_timing[$sidx_index]) > 0.00001)
-                        fprintf($opfile, "###'HbbTV/DVB check violated: Start time \"$segmentTime\" within the segment " . ($sidx_index+1) . " is not consistent with the timing indicated by the MPD \"$mpd_timing[$sidx_index]\".\n");
+                        fprintf($opfile, "###'HbbTV-DVB DASH Validation Requirements check violated: Section 'Segments' - Start time \"$segmentTime\" within the segment " . ($sidx_index+1) . " is not consistent with the timing indicated by the MPD \"$mpd_timing[$sidx_index]\".\n");
                 }
             
                 $cummulatedSampleDuration=$xml_trun->item($j)->getAttribute('cummulatedSampleDuration');
@@ -1623,7 +1623,7 @@ function content_protection_report($dom_MPD)
                     $MPD_systemID_k_v  = implode(', ', array_map(
                     function ($v, $k) { return sprintf(" '%s' :: '%s'", $k, $v); },
                     $MPD_systemID_array,array_keys($MPD_systemID_array)));
-                    fwrite($adaptreport, "Information on DVB/HbbTV: DRM systems present in the MPD in Adaptation Set ".$adapt_id.
+                    fwrite($adaptreport, "Information on HbbTV-DVB DASH Validation Requirements: Section 'DRM' - DRM systems present in the MPD in Adaptation Set ".$adapt_id.
                     " are identified as follows: ".$generic_identifier." :: ".$DRM_uuid_array[$generic_identifier]." ".$MPD_systemID_k_v."\n");
 
                     $tenc_kID_array = array();
@@ -1720,7 +1720,7 @@ function content_protection_report($dom_MPD)
                                     if($abs->getElementsByTagName('schm')->item(0)->getAttribute('scheme') !== "cenc")
                                 
                                     {
-                                        fwrite($adaptreport, "Information on DVB/HbbTV: 'cenc' scheme not found in 'schm' box in Adaptation Set: ".$adapt_id.", Representation: ".$repr_id."\n"); 
+                                        fwrite($adaptreport, "Information on HbbTV-DVB DASH Validation Requirements: Section 'DRM' - 'cenc' scheme not found in 'schm' box in Adaptation Set: ".$adapt_id.", Representation: ".$repr_id."\n"); 
                                     }  
                                 }
                                 if(!empty($PSSH_systemID_array))
@@ -1728,19 +1728,19 @@ function content_protection_report($dom_MPD)
                                     $PSSH_systemID_k_v  = implode(', ', array_map(
                                     function ($v, $k) { return sprintf(" '%s' :: '%s'", $k, $v); },
                                     $PSSH_systemID_array,array_keys($PSSH_systemID_array)));
-                                    fwrite($adaptreport, "Information on DVB/HbbTV: DRM systems present in the PSSH in Adaptation Set: ".$adapt_id.", Representation: ".$repr_id." are identified as follows ".$PSSH_systemID_k_v."\n"); 
+                                    fwrite($adaptreport, "Information on HbbTV-DVB DASH Validation Requirements: Section 'DRM' - DRM systems present in the PSSH in Adaptation Set: ".$adapt_id.", Representation: ".$repr_id." are identified as follows ".$PSSH_systemID_k_v."\n"); 
                                 } 
 
                                 //reporting if there is a missing PSSH
                                 if($missing_pssh_flag)
                                 {
-                                    fwrite($adaptreport, "Information on DVB/HbbTV: Warning! There is default_KID: ".$tenc_kID." but there is/are missing PSSH box/es (both in MPD and Init segment)"
+                                    fwrite($adaptreport, "Information on HbbTV-DVB DASH Validation Requirements: Section 'DRM' - Warning! There is default_KID: ".$tenc_kID." but there is/are missing PSSH box/es (both in MPD and Init segment)"
                                         . " in Adaptation Set: ".$adapt_id." Representation: ".$repr_id."\n");
                                 }
                                 //reporting duplicate and inconsistent DRM-s in MPD and PSSH box
                                 if($duplication_flag)
                                 {
-                                    fwrite($adaptreport, "Information on DVB/HbbTV: There are consistent DRM-s in MPD and PSSH box in Adaptation Set: ".$adapt_id.", Representation: ".$repr_id."\n");
+                                    fwrite($adaptreport, "Information on HbbTV-DVB DASH Validation Requirements: Section 'DRM' - There are consistent DRM-s in MPD and PSSH box in Adaptation Set: ".$adapt_id.", Representation: ".$repr_id."\n");
                                 }
 
                                 if($inconsistency_flag)
@@ -1748,7 +1748,7 @@ function content_protection_report($dom_MPD)
                                     $diff_2_k_v  = implode(', ', array_map(
                                     function ($v, $k) { return sprintf(" SystemID: '%s' ", $v); },
                                     $diff_2,array_keys($diff_2)));
-                                    fwrite($adaptreport, "Information on DVB/HbbTV: There are inconsistent DRM-s in MPD and PSSH box in Adaptation Set: ".$adapt_id.", Representation: ".$repr_id." :\n "
+                                    fwrite($adaptreport, "Information on HbbTV-DVB DASH Validation Requirements: Section 'DRM' - There are inconsistent DRM-s in MPD and PSSH box in Adaptation Set: ".$adapt_id.", Representation: ".$repr_id." :\n "
                                             . "the following DRM systems were found present in PSSH but not MPD:\n".$diff_2_k_v."\n");;
                                 }
                             }
@@ -1764,32 +1764,32 @@ function content_protection_report($dom_MPD)
                             $reps_k  = implode(', ', array_map(
                             function ($v, $k) { return sprintf(" '%s' ", $k); },
                             $reps_array,array_keys($reps_array)));
-                            fwrite($adaptreport, "Information on DVB/HbbTV: The KID: ".$tenc_kID." is used for representations:".$reps_k."in Adaptation Set ".$adapt_id."\n"); 
+                            fwrite($adaptreport, "Information on HbbTV-DVB DASH Validation Requirements: Section 'DRM' - The KID: ".$tenc_kID." is used for representations:".$reps_k."in Adaptation Set ".$adapt_id."\n"); 
                         }
                         else
                         {
-                            fwrite($adaptreport, "###DVB/HbbTV check violated: The Representations in Adaptation Set ".$adapt_id." shall all have the same 'default_KID' in the 'tenc' box but found otherwise.\n");
+                            fwrite($adaptreport, "###HbbTV-DVB DASH Validation Requirements check violated: Section 'DRM' - The Representations in Adaptation Set ".$adapt_id." shall all have the same 'default_KID' in the 'tenc' box but found otherwise.\n");
                         }
                     }
                     //reporting for key retation   
                     if($key_rotation_used)
                     {
-                        fwrite($adaptreport, "Information on DVB/HbbTV: Adaptation Set ".$adapt_id.": Key rotation used.\n");
+                        fwrite($adaptreport, "Information on HbbTV-DVB DASH Validation Requirements: Section 'DRM' - Adaptation Set ".$adapt_id.": Key rotation used.\n");
                     }
                     else 
                     {
-                        fwrite($adaptreport, "Information on DVB/HbbTV: Adaptation Set ".$adapt_id.": Key rotation not used.\n");
+                        fwrite($adaptreport, "Information on HbbTV-DVB DASH Validation Requirements: Section 'DRM' - Adaptation Set ".$adapt_id.": Key rotation not used.\n");
                     }   
                 }
                 else 
                 {
-                    fwrite($adaptreport, "###DVB/HbbTV check violated: Content Protection instance found in Adaptation Set ".$adapt_id." but the ContentProtection Descriptor for the mp4 Protection Scheme with the".
+                    fwrite($adaptreport, "###HbbTV-DVB DASH Validation Requirements check violated: Section 'DRM' - Content Protection instance found in Adaptation Set ".$adapt_id." but the ContentProtection Descriptor for the mp4 Protection Scheme with the".
                     "@schemeIdUri value of 'urn:mpeg:dash:mp4protection:2011' and @value=’cenc’ is missing.\n");
                 }
             }
             else 
             {
-                fwrite($adaptreport, "Information on DVB/HbbTV: Content Protection not used in Adaptation Set ".$adapt_id.".\n");
+                fwrite($adaptreport, "Information on HbbTV-DVB DASH Validation Requirements: Section 'DRM' - Content Protection not used in Adaptation Set ".$adapt_id.".\n");
             }
 
             fclose($adaptreport);
@@ -2006,7 +2006,7 @@ function TLS_bitrate_check($dom_MPD)//$cp_dom as argument
                             if(($total_BW > 12000000) && ($total_BW <= 39000000))
                             {
                                 // 12 Mbit/s if the terminal does not support UHD video.
-                                fwrite($constraint_violation_report, "***Information on HbbTV: Period ".$period_id." -> HbbTV TLS bitrate constraint violation Section 7.3.1.2 - If the terminal does not support UHD video the bitrate "
+                                fwrite($constraint_violation_report, "***Information on HbbTV-DVB DASH Validation Requirements for HbbTV: Section 'TLS' - Period ".$period_id." -> HbbTV TLS bitrate constraint violation Section 7.3.1.2 - If the terminal does not support UHD video the bitrate "
                                         . "should not exceed 12 Mbit/s.\n---The bandwidth sum of representations: ".$k_v.", ".$k_a.", ".$k_s." with the respective bandwidths: "
                                         . $v_BW." bps, ".$a_BW." bps, ".$s_BW." bps which amounts to a total of ".$total_BW." bps was found to violate this constraint.***\n");
 
@@ -2015,7 +2015,7 @@ function TLS_bitrate_check($dom_MPD)//$cp_dom as argument
                             {
                                 // 12 Mbit/s if the terminal does not support UHD video.
                                 // 39 Mbit/s if the terminal does support UHD video but does not support HFR video. 
-                                fwrite($constraint_violation_report, "***Information on HbbTV: Period ".$period_id." -> HbbTV TLS bitrate constraint violation Section 7.3.1.2 - If the terminal does support UHD video but does not support HFR video"
+                                fwrite($constraint_violation_report, "***Information on HbbTV-DVB DASH Validation Requirements for HbbTV: Section 'TLS' - Period ".$period_id." -> HbbTV TLS bitrate constraint violation Section 7.3.1.2 - If the terminal does support UHD video but does not support HFR video"
                                         . " the bitrate should not exceed 39 Mbit/s.\n---The bandwidth sum of representations: ".$k_v.", ".$k_a.", ".$k_s." with the respective bandwidths: "
                                         . $v_BW." bps, ".$a_BW." bps, ".$s_BW." bps which amounts to a total of ".$total_BW." bps was found to violate this constraint.***\n");
                             }
@@ -2024,7 +2024,7 @@ function TLS_bitrate_check($dom_MPD)//$cp_dom as argument
                                 // 12 Mbit/s if the terminal does not support UHD video.
                                 // 39 Mbit/s if the terminal does support UHD video but does not support HFR video.
                                 // 51 Mbit/s if the terminal supports UHD HFR video. 
-                                fwrite($constraint_violation_report, "***Information on HbbTV: Period ".$period_id." -> HbbTV TLS bitrate constraint violation Section 7.3.1.2 - If the terminal supports UHD HFR video"
+                                fwrite($constraint_violation_report, "***Information on HbbTV-DVB DASH Validation Requirements for HbbTV: Section 'TLS' - Period ".$period_id." -> HbbTV TLS bitrate constraint violation Section 7.3.1.2 - If the terminal supports UHD HFR video"
                                         . " the bitrate should not exceed 51 Mbit/s.\n---The bandwidth sum of representations: ".$k_v.", ".$k_a.", ".$k_s." with the respective bandwidths: "
                                         . $v_BW." bps, ".$a_BW." bps, ".$s_BW." bps which amounts to a total of ".$total_BW." bps was found to violate this constraint.***\n");
                             } 
@@ -2158,15 +2158,16 @@ function seg_duration_checks($dom_MPD, $count1, $count2, $opfile)
             {
                 $duration_diff_k_v  = implode(' ', array_map(function ($v, $k) { return sprintf(" seg: '%s' -> duration: '%s' sec \n", $k, $v); },
                 $duration_diff_array,array_keys($duration_diff_array)));
-                fwrite($opfile, "Information on DVB/HbbTV: In Adaptation Set ".$adapt_id.", Representation with 'id' : ".$rep_id." the following segments were found to have a different"
-                        . " duration from the one advertised in the MPD (".$MPD_duration_sec." sec) :\n".$duration_diff_k_v."\n");
+                fwrite($opfile, "Information on HbbTV-DVB DASH Validation Requirements: Section 'Duration Self consistency' - In Adaptation Set ".$adapt_id.", Representation with 'id' : ".$rep_id." the following segments were found to have a different"
+                        . " duration from the one advertised in the MPD (".$MPD_duration_sec." sec) :\n".$duration_diff_k_v.".\n");
             }
             else
             {
                 $duration_diff_k_v  = implode(' ', array_map(function ($v, $k) { return sprintf(" seg: '%s' -> duration: '%s' sec \n", $k, $v); },
                 $duration_diff_array,array_keys($duration_diff_array)));
-                fwrite($opfile, "Information on DVB/HbbTV: In Adaptation Set ".$adapt_id.", Representation with 'id' : ".$rep_id." the following segments were found to have a different"
-                        . " duration from the one advertised in the MPD:\n".$duration_diff_k_v."\n");
+
+                fwrite($opfile, "Information on HbbTV-DVB DASH Validation Requirements: Section 'Duration Self consistency' - In Adaptation Set ".$adapt_id.", Representation with 'id' : ".$rep_id." the following segments were found to have a different"
+                        . " duration from the one advertised in the MPD:\n".$duration_diff_k_v.".\n");
             }
         }
         
@@ -2198,17 +2199,18 @@ function seg_duration_checks($dom_MPD, $count1, $count2, $opfile)
                     {
                         if($handler_type == 'vide')
                         {
-                            fwrite($opfile, "Warning on DVB/HbbTV: The fragment duration of video type (".$fragment_duration_sec." sec) is different from the sum of all segment durations (".$total_seg_duration." sec) in Adaptation Set: "
+                            fwrite($opfile, "Warning on HbbTV-DVB DASH Validation Requirements: Section 'Duration Self consistency' - The fragment duration of video type (".$fragment_duration_sec." sec) is different from the sum of all segment durations (".$total_seg_duration." sec) in Adaptation Set: "
                                     .$adapt_id." Representation with 'id' : ".$rep_id. ".\n");
                         }
                         elseif($handler_type == 'soun')
                         {
-                            fwrite($opfile, "###Error on DVB/HbbTV: The fragment duration of audio type (".$fragment_duration_sec." sec) is different from the sum of all segment durations (".$total_seg_duration." sec) in Adaptation Set: "
+
+                            fwrite($opfile, "###Error on DVB/HbbTV: Section 'Duration Self consistency' - The fragment duration of audio type (".$fragment_duration_sec." sec) is different from the sum of all segment durations (".$total_seg_duration." sec) in Adaptation Set: "
                                     .$adapt_id." Representation with 'id' : ".$rep_id. ".\n");
                         }
                         elseif ($handler_type == 'missing') 
                         {
-                            fwrite($opfile, "Warning on DVB/HbbTV: The fragment duration of 'unknown' type (".$fragment_duration_sec." sec) is different from the sum of all segment durations (".$total_seg_duration." sec) in Adaptation Set: "
+                            fwrite($opfile, "Warning on HbbTV-DVB DASH Validation Requirements: Section 'Duration Self consistency' - The fragment duration of 'unknown' type (".$fragment_duration_sec." sec) is different from the sum of all segment durations (".$total_seg_duration." sec) in Adaptation Set: "
                                     .$adapt_id." Representation with 'id' : ".$rep_id. ".\n");
                         }
                     }
@@ -2229,7 +2231,7 @@ function seg_duration_checks($dom_MPD, $count1, $count2, $opfile)
                     $average_segment_duration = (array_sum($segment_duration_array) ) / ($num_segments);
                     if($MPD_duration_sec != 'Not_Set'){
                         if(abs((round($average_segment_duration, 2)-round($MPD_duration_sec, 2)) / round($MPD_duration_sec, 2)) > 0.00001)
-                            fwrite($opfile, "###'HbbTV/DVB check violated: The average segment duration is not consistent with the durations advertised by the MPD " . round($average_segment_duration, 2) . ' vs. ' . round($MPD_duration_sec, 2) . ".'\n");
+                            fwrite($opfile, "###'HbbTV-DVB DASH Validation Requirements check violated: Section 'Duration Self consistency' - The average segment duration is not consistent with the durations advertised by the MPD " . round($average_segment_duration, 2) . ' vs. ' . round($MPD_duration_sec, 2) . ".'\n");
                     }
 }
 function DVB_HbbTV_err_file_op()
