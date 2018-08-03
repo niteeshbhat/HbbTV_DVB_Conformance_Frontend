@@ -17,27 +17,29 @@ and open the template in the editor.
         }
         #vectors{
             position: absolute;
-            left: 10px;
-            top: 150px;
+            font-size: 18px;
+            left: 120px;
+            top: 250px;
+            line-height: 18px;
         }
         #Testvectors{
             position: absolute;
-            left: 10px;
-            top: 110px;
+            left: 120px;
+            top: 200px;
             font-size: 120%;
             color: #1E00FF;
         }
         #status {
             position: absolute;
             left: 280px;
-            top: 750px;
+            top: 140px;
             font-size: 120%;
             color: #A0522D;
         }
         #statusContent{
             position: absolute;
             left: 350px;
-            top: 752px;
+            top: 140px;
             font-size: 110%;
             color: #A0522D;
         }
@@ -48,8 +50,8 @@ and open the template in the editor.
         }
          #results{
              position: absolute;
-            left: 920px;
-            top: 110px;
+            left: 30px;
+            top: 200px;
              font-size: 120%;
         }
         #Checkbox{
@@ -85,7 +87,7 @@ and open the template in the editor.
         #Start{
             position: absolute;
             left: 10px;
-            top: 760px;
+            top: 150px;
             width: 200px;
             height: 35px;
             font-size: 100%;
