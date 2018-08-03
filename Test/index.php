@@ -26,7 +26,7 @@
     
     function newtab(mpdfile)
     {
-        var testWin = window.open("../webfe/conformancetest.php?dvb=true&hbbtv=true&mpdurl="+mpdfile,"test");
+        var testWin = window.open("../webfe/conformancetest.php?mpdurl="+mpdfile,"test");
         testWin.blur();
         return testWin;
     } 

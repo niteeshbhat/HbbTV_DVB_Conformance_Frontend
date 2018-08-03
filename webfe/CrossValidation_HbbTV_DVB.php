@@ -2203,8 +2203,8 @@ function seg_duration_checks($dom_MPD, $count1, $count2, $opfile)
                         }
                         elseif($handler_type == 'soun')
                         {
-                            fwrite($opfile, "###Error on DVB/HbbTV: Section 'Duration Self consistency' - The fragment duration of audio type (".$fragment_duration_sec." sec) is different from the sum of all segment durations (".$total_seg_duration." sec) in Adaptation Set: "
-                                    .$adapt_id." Representation with 'id' : ".$rep_id. ".\n");
+                            fwrite($opfile, "###'HbbTV-DVB DASH Validation Requirements check violated: Section 'Duration Self consistency' - The fragment duration of audio type (".$fragment_duration_sec." sec) is different from the sum of all segment durations (".$total_seg_duration." sec) in Adaptation Set: "
+                                    .$adapt_id." Representation with 'id' : ".$rep_id. ".'\n");
                         }
                         elseif ($handler_type == 'missing') 
                         {
