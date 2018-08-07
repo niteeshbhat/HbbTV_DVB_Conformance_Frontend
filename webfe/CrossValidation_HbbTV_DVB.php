@@ -58,7 +58,7 @@ function common_crossValidation($dom,$hbbtv,$dvb)
         $temp_string = str_replace (array('$Template$'),array("Adapt".$adapt_count."_compInfo"),$string_info);
         file_put_contents($locate.'/'."Adapt".$adapt_count."_compInfo.html",$temp_string);   
     }
-    DVB_HbbTV_err_file_op();
+    //DVB_HbbTV_err_file_op();
 }
 
 function crossValidation_DVB_Representations($dom, $opfile, $xml_r, $xml_d, $i, $r, $d){
@@ -529,7 +529,7 @@ function common_validation($dom,$hbbtv,$dvb, $sizearray,$bandwidth, $pstart, $me
                 fwrite($opfile, "###'HbbTV-DVB DASH Validation Requirements check violated: Section 'Periods' - The accumulated duration of the segments [".$checks[1]. "seconds] in the representation does not match the period duration[".$checks[2]."seconds].\n'");
             }
         }
-        DVB_HbbTV_err_file_op();
+        //DVB_HbbTV_err_file_op();
     }
 }
 
@@ -2232,58 +2232,5 @@ function seg_duration_checks($dom_MPD, $count1, $count2, $opfile)
                             fwrite($opfile, "###'HbbTV-DVB DASH Validation Requirements check violated: Section 'Duration Self consistency' - The average segment duration is not consistent with the durations advertised by the MPD " . round($average_segment_duration, 2) . ' vs. ' . round($MPD_duration_sec, 2) . ".'\n");
                     }
 }
-function DVB_HbbTV_err_file_op()
-{
-    global $locate, $already_processed;
-    
-    $RepLogFiles=glob($locate."/*log.txt");
-    $CrossValidDVB=glob($locate."/*compInfo.txt");
-    $CrossRepDASH=glob($locate."/*CrossInfofile.txt");
-    $all_report_files = array_merge($RepLogFiles, $CrossValidDVB, $CrossRepDASH); // put all the filepaths in a single array
-   
-    foreach ($all_report_files as $file_location)
-    {       
-        if(!in_array($file_location, $already_processed))
-        {
-            $duplicate_file = substr_replace($file_location, "full.txt", -4);
-            copy($file_location, $duplicate_file);
-            $segment_report = file($file_location, FILE_IGNORE_NEW_LINES);
-            $segment_report = DVB_HbbTV_remove_duplicate($segment_report);
-            file_put_contents($file_location, $segment_report);
-            $already_processed[] = $file_location;
-        }
-    }
-    
 
-}
-function DVB_HbbTV_remove_duplicate($error_array)
-{
-    $new_array = array();
-    //since we don't have any \n chars in the str we have the whole error string in one line
-    for($i = 0; $i < count($error_array); $i++)
-    {
-        $new_array[$i] = str_word_count($error_array[$i],1);
-        $new_array[$i] = implode(" ",$new_array[$i]);
-    }
-    //add feature to tell how many times an error was repeated
-    $count_instances = array_count_values($new_array);
-    $new_array = array_unique($new_array);
-    foreach ($new_array as $key => $value)//removing some lines that are not necessary
-    {
-        if((strlen($value) > 5) && ($value != ""))
-        {
-            $repetitions = $count_instances[$value];
-            if($repetitions > 1)
-            {
-                $new_array[$key] = "(".$repetitions.' repetition\s) '.$error_array[$key]."\n";
-            }
-            else
-            {
-                $new_array[$key] = $error_array[$key]."\n";
-            }
-        }
-    } 
-    
-    return $new_array;
-}
 ?>
