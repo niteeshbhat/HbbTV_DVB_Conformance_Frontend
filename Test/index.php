@@ -7,19 +7,26 @@
 <script src="http://code.jquery.com/jquery-latest.js"></script>
 <link rel="stylesheet" type="text/css" href="TestFramework.css">
 </head>
-<body> 
+<body > 
     <h2> Test Automation </h2>
 <script>
+    
+    
+    
     var resultDivNum = 0;
     
-    window.onload = function()
+   /* window.onload = function()
     {	
         document.getElementById('vectors').value = <?php $file = file_get_contents( 'DefaultVectorList.txt' ); echo json_encode( $file ); ?>;
-    }
+    }*/
+    
+    $(document).on('input', 'textarea', function () {
+        $(this).outerHeight(38).outerHeight(this.scrollHeight); // 38 or '1em' -min-height
+    });
     
     function newtab(mpdfile)
     {
-        var testWin = window.open("../webfe/conformancetest.php?dvb=true&mpdurl="+mpdfile,"test");
+        var testWin = window.open("../webfe/conformancetest.php?mpdurl="+mpdfile,"test");
         testWin.blur();
         return testWin;
     } 
@@ -121,7 +128,7 @@
                     ).done(function(response){
                         var folder=response;
                         console.log(folder);
-                        console.log("Successfully tested vector "+i); 
+                        console.log("Successfully tested vector "+i);
                         $.post(
                              "CheckDiff.php",
                               {folder: folder}
@@ -129,17 +136,20 @@
                             console.log(response);
                             // Success or failure is shown with 'right' or 'wrong' icons with links to errors.  
                             var id='resultDiv'+i; console.log(id);
-                            var topn=135+15*i;
+                            var topn=232+18*i;
                             var top=topn + 'px';
-                            var div = '<div id= '+ id +' style="position: absolute;left:940px; top:'+top+';"></div>';
-                            document.body.insertAdjacentHTML('beforeend', div);
-                            var y = document.getElementById(id); 
                             if(response== "wrong"){
-                                y.innerHTML ='<a href="../webfe/TestResults/'+folder+'_diff.txt" target="_blank"> Check differences</a>';
-                                $('#'+id).prepend('<img id="theImg" src="button_cancel.png" />');
+                                var div = '<div id= '+ id +' style="position: absolute;left:20px; top:'+top+';"></div>';
+                                document.body.insertAdjacentHTML('beforeend', div);
+                                var y = document.getElementById(id); 
+                                y.innerHTML ='<a href="../webfe/TestResults/'+folder+'_diff.txt" target="_blank"> Check diff</a>';
+                                $('#'+id).append('<img id="theImg" src="button_cancel.png" />');
                                 document.getElementById('statusContent').innerHTML= "Completed vector "+j;
                             }
                             else{
+                                var div = '<div id= '+ id +' style="position: absolute;left:100px; top:'+top+';"></div>';
+                                document.body.insertAdjacentHTML('beforeend', div);
+                                var y = document.getElementById(id); 
                                 $('#'+id).prepend('<img id="theImg" src="right.jpg" />');
                                 document.getElementById('statusContent').innerHTML= "Completed vector "+j;
                             }
@@ -173,9 +183,9 @@
                                     console.log(response);
                                     // Success or failure is shown with 'right' or 'wrong' icons with links to errors.  
                                     var id='resultDiv'+i; console.log(id);
-                                    var topn=135+15*i;
+                                    var topn = 232 + 18*i;
                                     var top=topn + 'px';
-                                    var div = '<div id= '+ id +' style="position: absolute;left:940px; top:'+top+';"></div>';
+                                    var div = '<div id= '+ id +' style="position: absolute;left:100px; top:'+top+';"></div>';
                                     document.body.insertAdjacentHTML('beforeend', div);
                                     var y = document.getElementById(id); 
                                     if(response== "wrong"){
@@ -219,7 +229,7 @@
 
 <br>
 <p id="Testvectors">Test vectors :</p><br>
-<textarea name="Text1" cols="110" rows="40" id='vectors'></textarea>
+<textarea name="Text1" cols="110" rows="30" style="overflow:hidden" id='vectors' ></textarea>
 <br><input type=button id="Start" value="Start Testing" onclick="testing()">  
 <div id="tick" style="position: absolute; left: 900px"></div>
 <p id="status">Status :</p>
