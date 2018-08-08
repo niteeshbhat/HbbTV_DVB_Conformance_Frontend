@@ -908,8 +908,9 @@ function progress()  //Progress of Segments' Conformance
 //    console.log("downloading, response:");
     var CrossRepValidation=xmlDoc_progress.getElementsByTagName("CrossRepresentation");
     var ComparedRepresentations = xmlDoc_progress.getElementsByTagName("ComparedRepresentations");
+    var HbbTVDVBComparedRepresentations = xmlDoc_progress.getElementsByTagName("HbbTVDVBComparedRepresentations");
     
-    if ((CrossRepValidation.length!=0 && adaptationid>totarr[0]) || (ComparedRepresentations.length !=0 && adaptationid>totarr[0]))
+    if ((CrossRepValidation.length!=0 && adaptationid>totarr[0]) || (ComparedRepresentations.length !=0 && adaptationid>totarr[0]) || (HbbTVDVBComparedRepresentations.length !=0 && adaptationid>totarr[0]))
     {
 //        console.log("Inside locations");
         if(CrossRepValidation.length!=0 && adaptationid>totarr[0]){
@@ -948,10 +949,10 @@ function progress()  //Progress of Segments' Conformance
         }
         
         if($("#dvbprofile").is(':checked') || $("#hbbtvprofile").is(':checked') || dvb == 1 || hbbtv == 1){
-            if(ComparedRepresentations.length!=0 && adaptationid>totarr[0]){
-                for(var i =1; i<=ComparedRepresentations.length;i++)
+            if(HbbTVDVBComparedRepresentations.length!=0 && adaptationid>totarr[0]){
+                for(var i =1; i<=HbbTVDVBComparedRepresentations.length;i++)
                 {
-                    if(ComparedRepresentations[i-1].textContent=="noerror"){
+                    if(HbbTVDVBComparedRepresentations[i-1].textContent=="noerror"){
                         automate(adaptid[i-1],lastloc,"DVB-HbbTV Compared representations validation success");
                         tree.setItemImage2(lastloc,'right.jpg','right.jpg','right.jpg');
                         lastloc++;
@@ -959,10 +960,10 @@ function progress()  //Progress of Segments' Conformance
                         automate(adaptid[i-1],lastloc,"log");
                         tree.setItemImage2( lastloc,'csh_winstyle/iconText.gif','csh_winstyle/iconText.gif','csh_winstyle/iconText.gif');
                         kidsloc.push(lastloc);
-                        urlarray.push("temp/"+dirid+"/"+ "Adapt"+(i-1)+ "_compInfo.html");
+                        urlarray.push("temp/"+dirid+"/"+ "Adapt"+(i-1)+ "_hbbtv_dvb_compInfo.html");
                         lastloc++;
                     }
-                    else if(ComparedRepresentations[i-1].textContent=="warning"){
+                    else if(HbbTVDVBComparedRepresentations[i-1].textContent=="warning"){
                         automate(adaptid[i-1],lastloc,"DVB-HbbTV Compared representations validation warning");
                         tree.setItemImage2(lastloc,'log.jpg','log.jpg','log.jpg');
                         lastloc++;
@@ -970,7 +971,7 @@ function progress()  //Progress of Segments' Conformance
                         automate(adaptid[i-1],lastloc,"log");
                         tree.setItemImage2( lastloc,'csh_winstyle/iconText.gif','csh_winstyle/iconText.gif','csh_winstyle/iconText.gif');
                         kidsloc.push(lastloc);
-                        urlarray.push("temp/"+dirid+"/"+ "Adapt"+(i-1)+ "_compInfo.html");
+                        urlarray.push("temp/"+dirid+"/"+ "Adapt"+(i-1)+ "_hbbtv_dvb_compInfo.html");
                         lastloc++;
                     }
                     else{
@@ -981,7 +982,7 @@ function progress()  //Progress of Segments' Conformance
                         automate(adaptid[i-1],lastloc,"log");
                         tree.setItemImage2( lastloc,'csh_winstyle/iconText.gif','csh_winstyle/iconText.gif','csh_winstyle/iconText.gif');
                         kidsloc.push(lastloc);
-                        urlarray.push("temp/"+dirid+"/"+ "Adapt"+(i-1)+ "_compInfo.html");
+                        urlarray.push("temp/"+dirid+"/"+ "Adapt"+(i-1)+ "_hbbtv_dvb_compInfo.html");
                         lastloc++;
                     }
                 }
@@ -1008,7 +1009,7 @@ function progress()  //Progress of Segments' Conformance
                         lastloc++;
                     
                         automate(lastloc-1,lastloc,"log");//adaptid[i-1]
-                        tree.setItemImage2( lastloc,'log.jpg','log.jpg','log.jpg');
+                        tree.setItemImage2( lastloc,'csh_winstyle/iconText.gif','csh_winstyle/iconText.gif','csh_winstyle/iconText.gif');
                         kidsloc.push(lastloc);
                         urlarray.push("temp/"+dirid+"/"+ "Adapt"+(i-1)+ "_compInfo.html");
                         lastloc++;
@@ -1033,7 +1034,7 @@ function progress()  //Progress of Segments' Conformance
                         lastloc++;
                     
                         automate(lastloc-1,lastloc,"log");//adaptid[i-1]
-                        tree.setItemImage2( lastloc,'log.jpg','log.jpg','log.jpg');
+                        tree.setItemImage2( lastloc,'csh_winstyle/iconText.gif','csh_winstyle/iconText.gif','csh_winstyle/iconText.gif');
                         kidsloc.push(lastloc);
                         urlarray.push("temp/"+dirid+"/"+ "SelectionSet_infofile.html");
                         lastloc++;
@@ -1054,7 +1055,7 @@ function progress()  //Progress of Segments' Conformance
                         lastloc++;
                     
                         automate(lastloc-1,lastloc,"log");//adaptid[i-1]
-                        tree.setItemImage2( lastloc,'log.jpg','log.jpg','log.jpg');
+                        tree.setItemImage2( lastloc,'csh_winstyle/iconText.gif','csh_winstyle/iconText.gif','csh_winstyle/iconText.gif');
                         kidsloc.push(lastloc);
                         urlarray.push("temp/"+dirid+"/"+ "Presentation_infofile.html");
                         lastloc++;

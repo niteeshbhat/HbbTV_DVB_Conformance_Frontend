@@ -24,8 +24,8 @@ function common_crossValidation($dom,$hbbtv,$dvb)
         if($files)
             $filecount = count($files);
         
-        if(!($opfile = fopen($locate."/Adapt".$adapt_count."_compInfo.txt", 'a'))){
-            echo "Error opening/creating HbbTV/DVB Cross representation validation file: "."./Adapt".$adapt_count."_compInfo.txt";
+        if(!($opfile = fopen($locate."/Adapt".$adapt_count."_hbbtv_dvb_compInfo.txt", 'a'))){
+            echo "Error opening/creating HbbTV/DVB Cross representation validation file: "."./Adapt".$adapt_count."_hbbtv_dvb_compInfo.txt";
             return;
         }
         
@@ -55,8 +55,8 @@ function common_crossValidation($dom,$hbbtv,$dvb)
         }
         
         fclose($opfile);
-        $temp_string = str_replace (array('$Template$'),array("Adapt".$adapt_count."_compInfo"),$string_info);
-        file_put_contents($locate.'/'."Adapt".$adapt_count."_compInfo.html",$temp_string);   
+        $temp_string = str_replace (array('$Template$'),array("Adapt".$adapt_count."_hbbtv_dvb_compInfo"),$string_info);
+        file_put_contents($locate.'/'."Adapt".$adapt_count."_hbbtv_dvb_compInfo.html",$temp_string);   
     }
     //DVB_HbbTV_err_file_op();
 }
@@ -1555,7 +1555,7 @@ function content_protection_report($dom_MPD)
     foreach ($dom_MPD->getElementsByTagName('AdaptationSet') as $node)
     {
         $adapt_id = $Adapt_index + 1;
-        $adaptreport = fopen($locate . "/Adapt".$Adapt_index."_compInfo.txt", 'a+b');
+        $adaptreport = fopen($locate . "/Adapt".$Adapt_index."_hbbtv_dvb_compInfo.txt", 'a+b');
         if($adaptreport !== false)
         {
             $MPD_systemID_array = array();
