@@ -790,6 +790,7 @@ function process_mpd()
                 $progressXML->asXml(trim($locate . '/progress.xml'));
 
             }
+            err_file_op(2);
             //Add SelectionSet and Presentation profile error elements if present to progress xml.
             if ($cmaf_val == "yes"){
                 if(file_exists($locate.'/SelectionSet_infofile.txt')){
@@ -822,7 +823,7 @@ function process_mpd()
                 }
                 //$progressXML->asXml(trim($locate.'/progress.xml'));
             }
-            //err_file_op();
+            
             session_destroy();
             if ($missingexist)
             {
@@ -1133,7 +1134,7 @@ function process_mpd()
 
                 $destiny[] = $locate . '/' . $repno . "_infofile.txt";
                 rename($locate . '/' . "stderr.txt", $locate . '/' . $repno . "log.txt"); //Rename conformance software output file to representation number file
-                //err_file_op();
+                
                 // Compare representations
                 //if($shouldCompare){
                 if($cmaf_val == "yes" || $dvb || $hbbtv){
@@ -1216,7 +1217,7 @@ function process_mpd()
                 
                 $ResultXML->Period[0]->Adaptation[$tempcount1]->Representation[$count2 - 1]->addAttribute('url', str_replace($_SERVER['DOCUMENT_ROOT'], 'http://' . $_SERVER['SERVER_NAME'], $locate . '/' . $repno . "log.txt"));
                 $progressXML->asXml(trim($locate . '/progress.xml'));
-                err_file_op();
+                err_file_op(1);
                 $_SESSION['count2'] = $count2; //Save the counters to session variables in order to use it the next time the client request download of next presentation
                 $_SESSION['count1'] = $count1;
                 $send_string = json_encode($file_location);
@@ -1241,16 +1242,20 @@ function process_mpd()
         }
     }
 }
-function err_file_op()
+
+//The function to remove repeated error statements from the log files.
+function err_file_op($reqFile)
 {
     global $locate, $already_processed;
+    if($reqFile==1)
+        $LogFiles=glob($locate."/*log.txt");
+    else
+        $LogFiles=glob($locate."/*compInfo.txt");
     
-    $RepLogFiles=glob($locate."/*log.txt");
-    $CrossValidDVB=glob($locate."/*compInfo.txt");
-    $CrossRepDASH=glob($locate."/*CrossInfofile.txt");
-    $all_report_files = array_merge($RepLogFiles, $CrossValidDVB, $CrossRepDASH); // put all the filepaths in a single array
+    //$CrossRepDASH=glob($locate."/*CrossInfofile.txt");
+    //$all_report_files = array_merge($RepLogFiles, $CrossValidDVB, $CrossRepDASH); // put all the filepaths in a single array
    
-    foreach ($all_report_files as $file_location)
+    foreach ($LogFiles as $file_location)
     {       
         if(!in_array($file_location, $already_processed))
         {
