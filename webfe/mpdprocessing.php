@@ -785,9 +785,10 @@ function process_mpd()
                     }
                     $ResultXML->Period[0]->Adaptation[$i]->ComparedRepresentations->addAttribute('url', str_replace($_SERVER['DOCUMENT_ROOT'], 'http://' . $_SERVER['SERVER_NAME'], $locate.'/Adapt'.$i.'_compInfo.txt'));
                 }
-                
+
                 $ResultXML->Period[0]->Adaptation[$i]->CrossRepresentation->addAttribute('url', str_replace($_SERVER['DOCUMENT_ROOT'], 'http://' . $_SERVER['SERVER_NAME'], $locate . '/Adapt' . $i . '_infofile.txt'));
                 $progressXML->asXml(trim($locate . '/progress.xml'));
+
             }
             //Add SelectionSet and Presentation profile error elements if present to progress xml.
             if ($cmaf_val == "yes"){
@@ -821,6 +822,7 @@ function process_mpd()
                 }
                 //$progressXML->asXml(trim($locate.'/progress.xml'));
             }
+            //err_file_op();
             session_destroy();
             if ($missingexist)
             {
@@ -1131,7 +1133,7 @@ function process_mpd()
 
                 $destiny[] = $locate . '/' . $repno . "_infofile.txt";
                 rename($locate . '/' . "stderr.txt", $locate . '/' . $repno . "log.txt"); //Rename conformance software output file to representation number file
-                
+                //err_file_op();
                 // Compare representations
                 //if($shouldCompare){
                 if($cmaf_val == "yes" || $dvb || $hbbtv){
@@ -1214,7 +1216,7 @@ function process_mpd()
                 
                 $ResultXML->Period[0]->Adaptation[$tempcount1]->Representation[$count2 - 1]->addAttribute('url', str_replace($_SERVER['DOCUMENT_ROOT'], 'http://' . $_SERVER['SERVER_NAME'], $locate . '/' . $repno . "log.txt"));
                 $progressXML->asXml(trim($locate . '/progress.xml'));
-
+                err_file_op();
                 $_SESSION['count2'] = $count2; //Save the counters to session variables in order to use it the next time the client request download of next presentation
                 $_SESSION['count1'] = $count1;
                 $send_string = json_encode($file_location);
@@ -1239,5 +1241,58 @@ function process_mpd()
         }
     }
 }
+function err_file_op()
+{
+    global $locate, $already_processed;
+    
+    $RepLogFiles=glob($locate."/*log.txt");
+    $CrossValidDVB=glob($locate."/*compInfo.txt");
+    $CrossRepDASH=glob($locate."/*CrossInfofile.txt");
+    $all_report_files = array_merge($RepLogFiles, $CrossValidDVB, $CrossRepDASH); // put all the filepaths in a single array
+   
+    foreach ($all_report_files as $file_location)
+    {       
+        if(!in_array($file_location, $already_processed))
+        {
+            $duplicate_file = substr_replace($file_location, "full.txt", -4);
+            copy($file_location, $duplicate_file);
+            $segment_report = file($file_location, FILE_IGNORE_NEW_LINES);
+            $segment_report = remove_duplicate($segment_report);
+            file_put_contents($file_location, $segment_report);
+            $already_processed[] = $file_location;
+        }
+    }
+    
 
+}
+function remove_duplicate($error_array)
+{
+    $new_array = array();
+    //since we don't have any \n chars in the str we have the whole error string in one line
+    for($i = 0; $i < count($error_array); $i++)
+    {
+        $new_array[$i] = str_word_count($error_array[$i],1);
+        $new_array[$i] = implode(" ",$new_array[$i]);
+    }
+    //add feature to tell how many times an error was repeated
+    $count_instances = array_count_values($new_array);
+    $new_array = array_unique($new_array);
+    foreach ($new_array as $key => $value)//removing some lines that are not necessary
+    {
+        if((strlen($value) > 5) && ($value != ""))
+        {
+            $repetitions = $count_instances[$value];
+            if($repetitions > 1)
+            {
+                $new_array[$key] = "(".$repetitions.' repetition\s) '.$error_array[$key]."\n";
+            }
+            else
+            {
+                $new_array[$key] = $error_array[$key]."\n";
+            }
+        }
+    } 
+    
+    return $new_array;
+}
 ?>
