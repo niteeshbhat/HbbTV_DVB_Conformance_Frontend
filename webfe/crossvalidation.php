@@ -214,7 +214,7 @@ function crossRepresentationProcess()
         fclose($opfile);
         $temp_string = str_replace(array('$Template$'), array("Adapt" . $i . "_CrossInfofile"), $string_info); // place infofile data within HTML string
         file_put_contents($locate . '/' . "Adapt" . $i . "_CrossInfofile.html", $temp_string); // convert HTML string to HTML file
-        DVB_HbbTV_err_file_op();
+        
     }
 }
 
