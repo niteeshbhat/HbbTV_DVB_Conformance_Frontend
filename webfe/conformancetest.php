@@ -850,7 +850,7 @@ function processmpdresults(MPDtotalResultXML)
         var AdaptRepPeriod_count=Adapt_count;
         var Adaptxml=xmlDoc_progress.getElementsByTagName("Adaptation");
         for (var v=0; v<Adapt_count; v++){
-            AdaptRepPeriod_count=AdaptRepPeriod_count+" "+Adaptxml[v].childNodes.length;
+            AdaptRepPeriod_count=AdaptRepPeriod_count+" "+Adaptxml[v].getElementsByTagName("Representation").length;
         }
         AdaptRepPeriod_count=AdaptRepPeriod_count+" "+Periodxml.length;
     }
@@ -1087,11 +1087,11 @@ function progress()  //Progress of Segments' Conformance
         var AdaptXML=xmlDoc_progress.getElementsByTagName("Adaptation"); 
         if(AdaptXML[adaptationid-1]== null)
             return;
-        else if(AdaptXML[adaptationid-1].childNodes[representationid-1] == null) {
+        else if(AdaptXML[adaptationid-1].getElementsByTagName("Representation")[representationid-1] == null) {
             return;
         }
         else{   
-            var RepXML=AdaptXML[adaptationid-1].childNodes[representationid-1].textContent;
+            var RepXML=AdaptXML[adaptationid-1].getElementsByTagName("Representation")[representationid-1].textContent;
             if(RepXML == "")
                 return;
 //            console.log("Adapt:"+(adaptationid)+" Rep:"+(representationid));
